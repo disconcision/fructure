@@ -86,10 +86,38 @@
   (list name children))
 
 (define out-file (open-output-file "frucfile.rkt" #:exists 'can-update))
-(write "hello world" out-file)
+(write "(list a b)" out-file)
 (close-output-port out-file)
 
 (define in-file (open-input-file "frucfile.rkt"))
-(read-string 11 in-file)
+(define in-string (read-string 11 in-file))
 (close-input-port in-file)
 
+
+
+
+; parse : string -> blocktree
+; figure out top "(" or "[a-z]"
+; if ( get next char
+;   if ) return (block "()" '())
+;   if [a-z] read chars -> namestring until space or ")" (or "("?)
+;     if ) return (block namestring
+;     if " " return (block namestring (parse rest-of-string-before-close-bracket)
+(define (parse string)
+  "lol")
+
+; render : blocktree -> string
+(define (render blocktree)
+  "lol")
+
+
+
+
+(define world
+  (parse in-string))
+
+
+
+
+(define hand
+  world)
