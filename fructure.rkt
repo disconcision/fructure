@@ -1,5 +1,6 @@
 #lang racket
 
+(require charterm)
 ; basic structure editor
 
 
@@ -72,11 +73,11 @@
 ;    also need: subtree tint colors
 
 (require scribble/blueboxes)
-(fetch-blueboxes-strs '(def ('#%kernel list*)))
-(fetch-blueboxes-strs '(def ('#%kernel build-list)))
-(fetch-blueboxes-strs '(def ('#%kernel map)))
-(fetch-blueboxes-strs '(def ('#%kernel apply)))
-(fetch-blueboxes-strs '(def ('#%kernel cons)))
+;(fetch-blueboxes-strs '(def ('#%kernel list*)))
+;(fetch-blueboxes-strs '(def ('#%kernel build-list)))
+;(fetch-blueboxes-strs '(def ('#%kernel map)))
+;(fetch-blueboxes-strs '(def ('#%kernel apply)))
+;(fetch-blueboxes-strs '(def ('#%kernel cons)))
 
 
 
@@ -86,7 +87,7 @@
   (list name children))
 
 (define out-file (open-output-file "frucfile.rkt" #:exists 'can-update))
-(write "(list a b)" out-file)
+(write "(a (a) (a (a a)) a)" out-file)
 (close-output-port out-file)
 
 (define in-file (open-input-file "frucfile.rkt"))
@@ -117,7 +118,31 @@
   (parse in-string))
 
 
+(struct pos (list-of-child-nums))
+
+(define hand (pos '()))
+
+(define move-up 
+  (list))
+
+(define move-dn 
+  (list))
+
+(define move-lt 
+  (list))
+
+(define move-rt 
+  (list))
+
+(define (input-loop display hand)
+  (with-charterm
+      (charterm-display display)
+    (define command (charterm-read-key))
+    (cond [(equal? command #\w) (charterm-display "w") (move-up) (input-loop display hand)]
+          [(equal? command #\s) (charterm-display "s") (move-dn) (input-loop display hand)]
+          [(equal? command #\a) (charterm-display "a") (move-lt) (input-loop display hand)]
+          [(equal? command #\d) (charterm-display "d") (move-rt) (input-loop display hand)]
+          [else (charterm-display "u wot mate")])))
 
 
-(define hand
-  world)
+(input-loop in-string hand)
