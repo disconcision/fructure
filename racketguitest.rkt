@@ -33,7 +33,12 @@
 
 
 
-(define sub-board (new text%))
+(define my-text% (class text% (super-new)
+                   (define/override (on-local-char event)
+                     (println "blah"))))
+
+
+(define sub-board (new my-text%))
 (send sub-board change-style my-style-delta)
 (send sub-board
       insert "yo")
@@ -112,6 +117,15 @@ ed-tree
 
 ; Inserts a box (a sub-editor) into the editor by calling on-new-box
 (send my-board insert-box 'text)
+
+
+
+
+;(send an-editor on-default-char event)
+
+
+
+
 
 
 ;(send sub-board-editor resize 200 200)
