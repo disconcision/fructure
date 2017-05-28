@@ -22,6 +22,7 @@
 |#
 
 
+
 (define my-style-delta (make-object style-delta% 'change-bold))
 (send my-style-delta
       set-delta-background (make-object color% 255 100 0))
@@ -32,25 +33,89 @@
       my-style-delta)
 
 
+; both of these overrides have double effects?? -fixed, supressed key release
+#;(define my-text% (class text% (super-new)
+                     (define/override (on-local-char event)
+                       (send this show-border (not (send this border-visible?)))
+                       (println "flipped border state")
+                       #;(super on-local-char event))))
 
-(define my-text% (class text% (super-new)
-                   (define/override (on-local-char event)
-                     (println "blah"))))
+(define my-editor-snip% (class editor-snip% (super-new)
+                          (define/override (on-char dc x y edx edy event)
+                            (let ([key-code (send event get-key-code)])
+                              (println key-code)
+                              (match key-code
+                                ['release void]
+                                [#\e (send this show-border (not (send this border-visible?)))]
+                                [#\d (begin (println "next")
+                                            (send my-board set-caret-owner (send this next)) 'global)]
+                                [#\a (begin (println "previous")
+                                            (send my-board set-caret-owner (send this previous) 'global))]
+                                [#\q (begin (println "select all")
+                                            (send (send this get-editor) select-all))])
+                              #;(super on-char dc x y edx edy event)))))
+; commenting out last line makes top level editor border toggle only (else whole hierarchy toggles)
+
+;------------------------------
+
+(define sub-board1 (new text%))
+(define sub-board2 (new text%))
+(define sub-board3 (new text%))
+;(send sub-board change-style my-style-delta)
+
+(define sub-board1-editor-snip (make-object my-editor-snip% sub-board1))
+(define sub-board2-editor-snip (make-object my-editor-snip% sub-board2))
+(define sub-board3-editor-snip (make-object my-editor-snip% sub-board3))
+
+(send sub-board1 insert "sb1")
+(send sub-board2 insert "sb2")
+(send sub-board3 insert "sb3")
+
+(send my-board insert sub-board1-editor-snip)
+(send my-board insert sub-board2-editor-snip)
+(send my-board insert sub-board3-editor-snip)
+
+;-----------------------------
+
+(define sub-board3-1 (new text%))
+(define sub-board3-2 (new text%))
+(define sub-board3-3 (new text%))
+
+(define sub-board3-1-editor-snip (make-object my-editor-snip% sub-board3-1))
+(define sub-board3-2-editor-snip (make-object my-editor-snip% sub-board3-2))
+(define sub-board3-3-editor-snip (make-object my-editor-snip% sub-board3-3))
+
+(send sub-board3-1 insert "sb3-1")
+(send sub-board3-2 insert "sb3-2")
+(send sub-board3-3 insert "sb3-3")
+
+(send sub-board3 insert sub-board3-1-editor-snip)
+(send sub-board3 insert sub-board3-2-editor-snip)
+(send sub-board3 insert sub-board3-3-editor-snip)
+
+;-----------------------------
 
 
-(define sub-board (new my-text%))
-(send sub-board change-style my-style-delta)
-(send sub-board
-      insert "yo")
-(define sub-board-editor-snip (make-object editor-snip% sub-board))
-(send my-board insert sub-board-editor-snip)
+; method (send an-editor release-snip snip) 
+; Requests that the specified snip be deleted and released from the editor.
 
-#|
-(define sub-sub-board (new text%))
-(define sub-sub-board-editor-snip (make-object editor-snip% sub-sub-board))
-(send sub-board insert sub-sub-board-editor-snip)
-(send sub-sub-board insert "blah")
-|#
+
+
+
+;(define sub-board-editor-snip (make-object my-editor-snip% sub-board))
+#;(send my-board insert sub-board-editor-snip)
+
+;(send sub-board-editor-snip get-editor)
+; returns a my-text%
+
+
+;(define sub-sub-board (new text%))
+;(define sub-sub-board-editor-snip (make-object my-editor-snip% sub-sub-board))
+#;(send sub-board insert sub-sub-board-editor-snip)
+#;(send sub-sub-board insert "blah")
+
+
+(send my-board set-caret-owner #f 'global)
 
 
 (define testcode-0 '(104 324 494))
@@ -70,16 +135,21 @@
   (cond [(empty? obj-tree) '()]
         [(list? obj-tree) (let ([parent-board (first obj-tree)])
                             (map (λ (x) (if (list? x)
-                                            (send parent-board
-                                                  insert (make-object editor-snip% (first x)))
-                                            (send parent-board
-                                                  insert (make-object editor-snip% x))))
+                                            (let ([new-ed (make-object my-editor-snip% (first x))])
+                                              (send parent-board
+                                                    insert new-ed)
+                                              (list* new-ed (make-editor-tree x)))
+                                            (let ([new-ed (make-object my-editor-snip% x)])
+                                              (send parent-board
+                                                    insert new-ed)
+                                              new-ed)))
                                  (rest obj-tree)))
-                          (map (λ (x) (if (list? x) (make-editor-tree x) "err")) (rest obj-tree))]
-        [else "err"]))
-  
+                          #;(map (λ (x) (if (list? x) (make-editor-tree x) "err")) (rest obj-tree))]
+        [else "errrrrr"]))
 
-(define obj-tree (list my-board (make-obj-tree testcode-1)))
+
+
+(define obj-tree (list my-board (make-obj-tree testcode-0)))
 
 obj-tree
 
@@ -116,7 +186,7 @@ ed-tree
 (unbox y-coord)
 
 ; Inserts a box (a sub-editor) into the editor by calling on-new-box
-(send my-board insert-box 'text)
+;(send my-board insert-box 'text)
 
 
 
