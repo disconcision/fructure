@@ -3,11 +3,16 @@
 (require racket/gui/base)
 (require fancy-app)
 
+(define my-text-ed% (class text% (super-new)
+                      #;(define/override (get-focus-snip)
+                          #f)))
+
+
 (define my-frame (new frame% [label "fructure"]
                       [width 400]
                       [height 400]))
 (define my-canvas (new editor-canvas% [parent my-frame]))
-(define my-board (new text%))
+(define my-board (new my-text-ed%))
 (send my-canvas
       set-editor my-board)
 (send my-frame show #t)
@@ -35,12 +40,15 @@
   (check-equal? (position-next '(1 2 3)) '(1 2 4))
   (check-equal? (position-prev '(1 2 3)) '(1 2 2)))
 
+
 (define/match (sub-at-pos tree pos)
   [(tree `()) (first tree)]
   [(_ `(,a . ,as)) (sub-at-pos (list-ref tree (modulo a (length tree))) as)])
 
 
 ;-----------------------------
+
+
 
 
 (define my-editor-snip% (class editor-snip% (super-new)
@@ -54,28 +62,27 @@
                                 [#\e (send this show-border (not (send this border-visible?)))]
                                 [#\q (begin (println "select all inside")
                                             (send (send this get-editor) select-all))]
-                                [#\d (begin (println "next")
-                                            (set! pos (position-next pos))
-                                            (send (sub-at-pos editor-tree (position-parent pos)) set-caret-owner (sub-at-pos snip-tree pos) 'global)
-                                            )]
-                                [#\a (begin (println "previous")
-                                            (set! pos (position-prev pos))
-                                            (send (sub-at-pos editor-tree (position-parent pos)) set-caret-owner (sub-at-pos snip-tree pos) 'global)
-                                            )]
+                                [#\d (set! pos (position-next pos))
+                                     (send (sub-at-pos editor-tree (position-parent pos)) set-caret-owner (sub-at-pos snip-tree pos) 'global)
+                                     (send (sub-at-pos editor-tree pos) select-all)]
+                                [#\a (set! pos (position-prev pos))
+                                     (send (sub-at-pos editor-tree (position-parent pos)) set-caret-owner (sub-at-pos snip-tree pos) 'global)
+                                     (send (sub-at-pos editor-tree pos) select-all)]
                                 [#\w (set! pos (position-parent pos))
-                                     (send (sub-at-pos editor-tree (position-parent pos)) set-caret-owner (sub-at-pos snip-tree pos) 'global)]
-                                [#\s 
-                                 (println (send (send this get-editor) find-snip 0 'before)
-                                          #;(send (send this get-editor) find-next-non-string-snip this))
-                                 (send my-board set-caret-owner (send (send this get-editor) find-snip 0 'before) 'global)])
+                                     (send (sub-at-pos editor-tree pos) set-caret-owner (send (sub-at-pos editor-tree pos) find-first-snip) 'global)
+                                     (send (sub-at-pos editor-tree pos) select-all)]
+                                [#\s #;(println (send (send this get-editor) find-snip 0 'before))
+                                     (set! pos (position-first-child pos))
+                                     (send (sub-at-pos editor-tree (position-parent pos)) set-caret-owner (sub-at-pos snip-tree pos) 'global)
+                                     (send (sub-at-pos editor-tree pos) select-all)])
                               #;(super on-char dc x y edx edy event)))))
 ; commenting out last line makes top level editor border toggle only (else whole hierarchy toggles)
 
 ;-----------------------------
 
-(define sub-board1 (new text%))
-(define sub-board2 (new text%))
-(define sub-board3 (new text%))
+(define sub-board1 (new my-text-ed%))
+(define sub-board2 (new my-text-ed%))
+(define sub-board3 (new my-text-ed%))
 
 (define sub-board1-editor-snip (make-object my-editor-snip% sub-board1))
 (define sub-board2-editor-snip (make-object my-editor-snip% sub-board2))
@@ -91,9 +98,9 @@
 
 ;-----------------------------
 
-(define sub-board3-1 (new text%))
-(define sub-board3-2 (new text%))
-(define sub-board3-3 (new text%))
+(define sub-board3-1 (new my-text-ed%))
+(define sub-board3-2 (new my-text-ed%))
+(define sub-board3-3 (new my-text-ed%))
 
 (define sub-board3-1-editor-snip (make-object my-editor-snip% sub-board3-1))
 (define sub-board3-2-editor-snip (make-object my-editor-snip% sub-board3-2))
@@ -159,26 +166,42 @@
 (define pos '(3 1))
 (println "caret tests")
 (println pos)
+(println (position-parent pos))
 (println (sub-at-pos snip-tree pos))
-(println (sub-at-pos snip-tree (position-parent pos)))
+(println (sub-at-pos editor-tree (position-parent pos)))
 (send (sub-at-pos editor-tree (position-parent pos)) set-caret-owner (sub-at-pos snip-tree pos) 'global)
+(send (sub-at-pos editor-tree pos) select-all)
 
-;(set! pos (position-prev pos))
-;(println pos)
-;(println (sub-at-pos snip-tree pos))
-;(println (sub-at-pos snip-tree (position-parent pos)))
-;(send (sub-at-pos editor-tree (position-parent pos)) set-caret-owner (sub-at-pos snip-tree pos) 'global)
+;(send (sub-at-pos editor-tree '()) set-caret-owner (sub-at-pos snip-tree '(2)) 'global)
+;(send (sub-at-pos editor-tree '(3)) set-caret-owner (sub-at-pos snip-tree '(3 2)) 'global)
 
+;(send (sub-at-pos editor-tree '(3)) get-focus-snip)
+;(send (sub-at-pos editor-tree '()) set-caret-owner (sub-at-pos snip-tree '(3)) 'global) ; not effective (already 'at' 3)
+;(send (sub-at-pos editor-tree '()) set-caret-owner (sub-at-pos snip-tree '(2)) 'global) ;effective
+
+;(send (sub-at-pos editor-tree '(3)) set-caret-owner (send (sub-at-pos editor-tree '(3)) find-first-snip) 'global)
+
+
+
+#|
+(set! pos (position-first-child pos))
+(println pos)
+(println (sub-at-pos snip-tree pos))
+(send (sub-at-pos editor-tree (position-parent pos)) set-caret-owner (sub-at-pos snip-tree pos) 'global)
+(send (sub-at-pos editor-tree pos) select-all)
+
+(set! pos (position-next pos))
+(println pos)
+(println (sub-at-pos snip-tree pos))
+(send (sub-at-pos editor-tree (position-parent pos)) set-caret-owner (sub-at-pos snip-tree pos) 'global)
+(send (sub-at-pos editor-tree pos) select-all)
 
 (set! pos (position-parent pos))
 (println pos)
 (println (sub-at-pos snip-tree pos))
-;(println (sub-at-pos snip-tree (position-parent pos)))
-;(println (sub-at-pos editor-tree (position-parent pos)))
-;(send (sub-at-pos editor-tree (position-parent pos)) set-caret-owner (sub-at-pos snip-tree pos) 'global)
-;(send (sub-at-pos editor-tree pos) select-all)
-
-
+(send (sub-at-pos editor-tree (position-parent pos)) set-caret-owner (sub-at-pos snip-tree pos) 'global)
+(send (sub-at-pos editor-tree pos) select-all)
+|#
 
 ; structure data
 (define testcode-0 '(104 324 494))
@@ -198,15 +221,12 @@
   (let ([parent-board (first ed-tree)])
     (map (λ (x) (if (list? x)
                     (let ([new-snip (make-object my-editor-snip% (first x))])
-                      (send parent-board
-                            insert new-snip)
+                      (send parent-board insert new-snip)
                       (list* new-snip (make-sn-tree x)))
                     (let ([new-snip (make-object my-editor-snip% x)])
-                      (send parent-board
-                            insert new-snip)
+                      (send parent-board insert new-snip)
                       new-snip)))
          (rest ed-tree))))
-
 
 
 (define ed-tree (list my-board (make-ed-tree testcode-0)))
