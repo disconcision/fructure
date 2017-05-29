@@ -33,12 +33,11 @@
       my-style-delta)
 
 
-; both of these overrides have double effects?? -fixed, supressed key release
 #;(define my-text% (class text% (super-new)
                      (define/override (on-local-char event)
-                       (send this show-border (not (send this border-visible?)))
-                       (println "flipped border state")
-                       #;(super on-local-char event))))
+                       (println "blah")
+                       (super on-local-char event))))
+
 
 (define my-editor-snip% (class editor-snip% (super-new)
                           (define/override (on-char dc x y edx edy event)
@@ -46,13 +45,18 @@
                               (println key-code)
                               (match key-code
                                 ['release void]
+                                [#\r (println (send (send this get-editor) get-focus-snip))] ; for testing
                                 [#\e (send this show-border (not (send this border-visible?)))]
                                 [#\d (begin (println "next")
                                             (send my-board set-caret-owner (send this next)) 'global)]
                                 [#\a (begin (println "previous")
                                             (send my-board set-caret-owner (send this previous) 'global))]
-                                [#\q (begin (println "select all")
-                                            (send (send this get-editor) select-all))])
+                                [#\q (begin (println "select all inside")
+                                            (send (send this get-editor) select-all))]
+                                [#\w 'parent]
+                                [#\s (println (send (send this get-editor) find-snip 0 'before)
+                                      #;(send (send this get-editor) find-next-non-string-snip this))
+                                     (send my-board set-caret-owner (send (send this get-editor) find-snip 0 'after) 'before)])
                               #;(super on-char dc x y edx edy event)))))
 ; commenting out last line makes top level editor border toggle only (else whole hierarchy toggles)
 
@@ -69,7 +73,7 @@
 
 (send sub-board1 insert "sb1")
 (send sub-board2 insert "sb2")
-(send sub-board3 insert "sb3")
+
 
 (send my-board insert sub-board1-editor-snip)
 (send my-board insert sub-board2-editor-snip)
@@ -88,6 +92,8 @@
 (send sub-board3-1 insert "sb3-1")
 (send sub-board3-2 insert "sb3-2")
 (send sub-board3-3 insert "sb3-3")
+
+(send sub-board3 insert "sb3")
 
 (send sub-board3 insert sub-board3-1-editor-snip)
 (send sub-board3 insert sub-board3-2-editor-snip)
@@ -132,20 +138,17 @@
 
 
 (define (make-editor-tree obj-tree)
-  (cond [(empty? obj-tree) '()]
-        [(list? obj-tree) (let ([parent-board (first obj-tree)])
-                            (map (λ (x) (if (list? x)
-                                            (let ([new-ed (make-object my-editor-snip% (first x))])
-                                              (send parent-board
-                                                    insert new-ed)
-                                              (list* new-ed (make-editor-tree x)))
-                                            (let ([new-ed (make-object my-editor-snip% x)])
-                                              (send parent-board
-                                                    insert new-ed)
-                                              new-ed)))
-                                 (rest obj-tree)))
-                          #;(map (λ (x) (if (list? x) (make-editor-tree x) "err")) (rest obj-tree))]
-        [else "errrrrr"]))
+  (let ([parent-board (first obj-tree)])
+    (map (λ (x) (if (list? x)
+                    (let ([new-ed (make-object my-editor-snip% (first x))])
+                      (send parent-board
+                            insert new-ed)
+                      (list* new-ed (make-editor-tree x)))
+                    (let ([new-ed (make-object my-editor-snip% x)])
+                      (send parent-board
+                            insert new-ed)
+                      new-ed)))
+         (rest obj-tree))))
 
 
 

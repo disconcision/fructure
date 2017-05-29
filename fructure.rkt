@@ -1,148 +1,155 @@
 #lang racket
 
-(require charterm)
-; basic structure editor
+(require racket/gui/base)
+(require fancy-app)
+
+(define my-frame (new frame% [label "fructure"]
+                      [width 400]
+                      [height 400]))
+(define my-canvas (new editor-canvas% [parent my-frame]))
+(define my-board (new text%))
+(send my-canvas
+      set-editor my-board)
+(send my-frame show #t)
 
 
-; [] denotes a selector
-; () is an empty block with border symbols "(" and ")"
-; (block) is a block with head symbol "block"
-; (block child) is a block with a single child
-; worldtree: (root (block) (block (child) ..) (another-block) ..)
-; the selector points to a subtree: (root (block) [(block (child) ..)] (another-block) ..)
+;-----------------------------
 
 
-; data
-; main-string <- load from savefile.rkt
-; main-string is a string containg " ", "(", ")", [a-z]
-; parse main-string into block (alias for list)
-; selector: HOW DO I REPRESENT THIS?
-; point selector at root block
-; ... navigation, editing ...
-; press F5 to save+quit
-; generate main-string from block
-; overwrite main-string -> savefile.rkt
+(define position my-board)
 
 
-; navigation
-; you begin in a formless void: []
-; arrow keys navigate blocktree: up:parent, dn:firstchild, lf,rh:cyclechildren
+(define (parent editor-snip)
+  my-board)
 
 
-; editing
-; press space
-;   if selector empty
-;      1. create empty block : [] -> ([])
-;      2. accept chars
-;   if selector around block [(symbol ..)]
-;      1. move selector to block head ([symbol] ..)
-;      2. accept chars
-;   accept chars
-;      until:
-;         press esc: cancel input : (oldsymbol) -> (newsymb[]) -> [(oldsymbol)]
-;         press space: submit chars : (symbol[]) -> goto submit symbol
-;       loop:
-;         1. read in chars
-;         2. optional tabcomplete, autocomplete, incorporating alt-\ keybindings
-;   submit symbol
-;      if symbol type takes no children
-;         if symbol's parent has a next child, select its head
-;            (parent .. (symbol[]) (next ..) ..) -> (parent .. (symbol) ([next] ..) ..)  
-;         else select symbol's parent
-;            (parent .. (symbol[])) -> [(parent .. (symbol))]  
-;      if symbol type has default children, populate them, select first child's head
-;         (symbol[]) -> (symbol ([type]) (type) ..)
-;      if symbol type variadic and selector on last-default/no-default child, create new empty box as child
-;         (symbol .. (lastdef[])) -> (symbol .. (lastdef) ([]))
-; press esc
-;   move selector to root 
-; press del
-;   delete selected block, move to previous child, else move to parent
+(define my-editor-snip% (class editor-snip% (super-new)
+                          (define/override (on-char dc x y edx edy event)
+                            (let ([key-code (send event get-key-code)])
+                              (println key-code)
+                              (match key-code
+                                ['release void]
+                                [#\r (println (send (send this get-editor) get-focus-snip))] ; for testing
+                                [#\t (println (send (send this get-editor) get-canvas #;find-first-snip))] ; for testing
+                                [#\e (send this show-border (not (send this border-visible?)))]
+                                [#\d (begin (println "next")
+                                            (send (parent this) set-caret-owner (send this next) 'global)
+                                            (send (send this get-editor) select-all))]
+                                [#\a (begin (println "previous")
+                                            (send my-board set-caret-owner (send this previous) 'global)
+                                            (send (send this get-editor) select-all))]
+                                [#\q (begin (println "select all inside")
+                                            (send (send this get-editor) select-all))]
+                                [#\w (send (parent this) set-caret-owner (send this next))]
+                                [#\s (set! position sub-board1)
+                                 (println (send (send this get-editor) find-snip 0 'before)
+                                      #;(send (send this get-editor) find-next-non-string-snip this))
+                                     (send my-board set-caret-owner (send (send this get-editor) find-snip 0 'before))])
+                              #;(super on-char dc x y edx edy event)))))
+; commenting out last line makes top level editor border toggle only (else whole hierarchy toggles)
+
+;-----------------------------
+
+(define sub-board1 (new text%))
+(define sub-board2 (new text%))
+(define sub-board3 (new text%))
+;(send sub-board change-style my-style-delta)
+
+(define sub-board1-editor-snip (make-object my-editor-snip% sub-board1))
+(define sub-board2-editor-snip (make-object my-editor-snip% sub-board2))
+(define sub-board3-editor-snip (make-object my-editor-snip% sub-board3))
+
+(send sub-board1 insert "sb1")
+(send sub-board2 insert "sb2")
+(send sub-board3 insert "sb3")
+
+(send my-board insert sub-board1-editor-snip)
+(send my-board insert sub-board2-editor-snip)
+(send my-board insert sub-board3-editor-snip)
+
+;-----------------------------
+
+(define sub-board3-1 (new text%))
+(define sub-board3-2 (new text%))
+(define sub-board3-3 (new text%))
+
+(define sub-board3-1-editor-snip (make-object my-editor-snip% sub-board3-1))
+(define sub-board3-2-editor-snip (make-object my-editor-snip% sub-board3-2))
+(define sub-board3-3-editor-snip (make-object my-editor-snip% sub-board3-3))
+
+(send sub-board3-1 insert "sb3-1")
+(send sub-board3-2 insert "sb3-2")
+(send sub-board3-3 insert "sb3-3")
+
+(send sub-board3 insert sub-board3-1-editor-snip)
+(send sub-board3 insert sub-board3-2-editor-snip)
+(send sub-board3 insert sub-board3-3-editor-snip)
+
+;-----------------------------
+
+(define editor-tree '(my-board
+                      (sub-board1)
+                      (sub-board2)
+                      (sub-board3 (sub-board3-1
+                                   sub-board3-2
+                                   sub-board3-3))))
+
+(define snip-tree '(void
+                    sub-board1-editor-snip
+                    sub-board2-editor-snip
+                    (sub-board2-editor-snip (sub-board3-1-editor-snip
+                                             sub-board3-2-editor-snip
+                                             sub-board3-3-editor-snip))))
 
 
-; display
-; press ctrl : enter style mode
-; block style toggles (for individual boxes, eventually box types)
-;    f : f<, f> :  box child flow
-;    x : x<, x^, x> : box fixity (prefix/infix/postfix)
-;    h : hv, hc[color], hk[color], hh[symbol] : head visible/color/bkgcolor/(?chars alias?)
-;    b : bv, bc[color], bk[color], bb[symbol symbol] : borders visible/colors/chars : default "(" ")"
-;    d : dv, dc[color], dk[color], dd[symbol] dividers visible/colors/char : default " "
-; selector toggles
-;    t : tv, tc, tk, tt : visible/colors/chars
-;    also need: subtree tint colors
+;-----------------------------
 
-(require scribble/blueboxes)
-;(fetch-blueboxes-strs '(def ('#%kernel list*)))
-;(fetch-blueboxes-strs '(def ('#%kernel build-list)))
-;(fetch-blueboxes-strs '(def ('#%kernel map)))
-;(fetch-blueboxes-strs '(def ('#%kernel apply)))
-;(fetch-blueboxes-strs '(def ('#%kernel cons)))
+(println (send sub-board2-editor-snip next))
+(send my-board set-caret-owner (send sub-board3-editor-snip next) 'global)
+
+(println (send sub-board3-1-editor-snip next))
+(send my-board set-caret-owner (send sub-board3-1-editor-snip next) 'global) ; not effective
+
+(println (send sub-board3-1-editor-snip next))
+(send sub-board3 set-caret-owner (send sub-board3-1-editor-snip next) 'global) ; effective
 
 
-
-; name is string representing symbol
-; children is list of blocks
-(define (block name children)
-  (list name children))
-
-(define out-file (open-output-file "frucfile.rkt" #:exists 'can-update))
-(write "(a (a) (a (a a)) a)" out-file)
-(close-output-port out-file)
-
-(define in-file (open-input-file "frucfile.rkt"))
-(define in-string (read-string 11 in-file))
-(close-input-port in-file)
+;-----------------------------
 
 
+(define testcode-0 '(104 324 494))
+(define testcode-1 '(11 51 61 (1 1) ((1 1) (1 (1 1)))))
 
 
-; parse : string -> blocktree
-; figure out top "(" or "[a-z]"
-; if ( get next char
-;   if ) return (block "()" '())
-;   if [a-z] read chars -> namestring until space or ")" (or "("?)
-;     if ) return (block namestring
-;     if " " return (block namestring (parse rest-of-string-before-close-bracket)
-(define (parse string)
-  "lol")
+(define (make-obj-tree code)
+  (cond [(list? code) (let ([new-text-snip (new text%)])
+                        (list* new-text-snip (map make-obj-tree code)))]
+        [else (let ([new-text-snip (new text%)])
+                (send new-text-snip
+                      insert (~v code))
+                new-text-snip)]))
 
-; render : blocktree -> string
-(define (render blocktree)
-  "lol")
+
+(define (make-editor-tree obj-tree)
+  (let ([parent-board (first obj-tree)])
+    (map (λ (x) (if (list? x)
+                    (let ([new-ed (make-object my-editor-snip% (first x))])
+                      (send parent-board
+                            insert new-ed)
+                      (list* new-ed (make-editor-tree x)))
+                    (let ([new-ed (make-object my-editor-snip% x)])
+                      (send parent-board
+                            insert new-ed)
+                      new-ed)))
+         (rest obj-tree))))
 
 
 
+(define obj-tree (list my-board (make-obj-tree testcode-0)))
 
-(define world
-  (parse in-string))
+obj-tree
 
+(define ed-tree (make-editor-tree obj-tree))
 
-(struct pos (list-of-child-nums))
+ed-tree
 
-(define hand (pos '()))
-
-(define move-up 
-  (list))
-
-(define move-dn 
-  (list))
-
-(define move-lt 
-  (list))
-
-(define move-rt 
-  (list))
-
-(define (input-loop display hand)
-  (with-charterm
-      (charterm-display display)
-    (define command (charterm-read-key))
-    (cond [(equal? command #\w) (charterm-display "w") (move-up) (input-loop display hand)]
-          [(equal? command #\s) (charterm-display "s") (move-dn) (input-loop display hand)]
-          [(equal? command #\a) (charterm-display "a") (move-lt) (input-loop display hand)]
-          [(equal? command #\d) (charterm-display "d") (move-rt) (input-loop display hand)]
-          [else (charterm-display "u wot mate")])))
-
-
-(input-loop in-string hand)
