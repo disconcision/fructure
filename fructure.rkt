@@ -183,6 +183,21 @@
 
 
 
+
+
+;(send an-editor clear) → void?
+; Deletes the currently selected items.
+
+; (send an-editor release-snip snip)
+; Requests that the specified snip be deleted and released from the editor. 
+
+
+; (send an-editor insert snip)
+; Inserts data into the editor. 
+
+
+
+
 #|
 (set! pos (position-first-child pos))
 (println pos)
