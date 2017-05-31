@@ -2,12 +2,10 @@
 
 (require racket/gui/base)
 ;(require fancy-app)
-(require lens/common)
-(require lens/data/list)
+;(require lens/common)
+;(require lens/data/list)
 
-(define my-text-ed% (class text% (super-new)
-                      #;(define/override (get-focus-snip)
-                          #f)))
+(define my-text-ed% (class text% (super-new) ))
 
 
 (define my-frame (new frame% [label "fructure"]
@@ -47,6 +45,21 @@
 (define/match (sub-at-pos tree pos)
   [(tree `()) (first tree)]
   [(_ `(,a . ,as)) (sub-at-pos (list-ref tree (add1 (modulo (sub1 a) (sub1 (length tree))))) as)])
+
+
+(module+ test (require rackunit)
+  (define test-tree `("" ("1")
+                       ("2")
+                       ("3" ("31")
+                            ("32")
+                            ("33"))))
+  (check-equal? (sub-at-pos test-tree '()) "")
+  (check-equal? (sub-at-pos test-tree '(1)) "1")
+  (check-equal? (sub-at-pos test-tree '(2)) "2")
+  (check-equal? (sub-at-pos test-tree '(3)) "3")
+  (check-equal? (sub-at-pos test-tree '(3 1)) "31")
+  (check-equal? (sub-at-pos test-tree '(3 2)) "32")
+  (check-equal? (sub-at-pos test-tree '(3 3)) "33"))
 
 
 (define (delete-node tree pos)
@@ -124,77 +137,7 @@
 
 ;-----------------------------
 
-(define sub-board1 (new my-text-ed%))
-(define sub-board2 (new my-text-ed%))
-(define sub-board3 (new my-text-ed%))
-
-(define sub-board1-editor-snip (make-object my-editor-snip% sub-board1))
-(define sub-board2-editor-snip (make-object my-editor-snip% sub-board2))
-(define sub-board3-editor-snip (make-object my-editor-snip% sub-board3))
-
-(send sub-board1 insert "sb1")
-(send sub-board2 insert "sb2")
-(send sub-board3 insert "sb3")
-
-;(send my-board insert sub-board1-editor-snip)
-;(send my-board insert sub-board2-editor-snip)
-;(send my-board insert sub-board3-editor-snip)
-
-;-----------------------------
-
-(define sub-board3-1 (new my-text-ed%))
-(define sub-board3-2 (new my-text-ed%))
-(define sub-board3-3 (new my-text-ed%))
-
-(define sub-board3-1-editor-snip (make-object my-editor-snip% sub-board3-1))
-(define sub-board3-2-editor-snip (make-object my-editor-snip% sub-board3-2))
-(define sub-board3-3-editor-snip (make-object my-editor-snip% sub-board3-3))
-
-(send sub-board3-1 insert "sb3-1")
-(send sub-board3-2 insert "sb3-2")
-(send sub-board3-3 insert "sb3-3")
-
-(send sub-board3 insert sub-board3-1-editor-snip)
-(send sub-board3 insert sub-board3-2-editor-snip)
-(send sub-board3 insert sub-board3-3-editor-snip)
-
-;-----------------------------
-
-
-(define test-tree `("" ("1")
-                       ("2")
-                       ("3" ("31")
-                            ("32")
-                            ("33"))))
-
-(define editor-tree `(,my-board (,sub-board1)
-                                (,sub-board2)
-                                (,sub-board3 (,sub-board3-1)
-                                             (,sub-board3-2)
-                                             (,sub-board3-3))))
-
-(define snip-tree `(,void (,sub-board1-editor-snip)
-                          (,sub-board2-editor-snip)
-                          (,sub-board3-editor-snip (,sub-board3-1-editor-snip)
-                                                   (,sub-board3-2-editor-snip)
-                                                   (,sub-board3-3-editor-snip))))
-
-(module+ test (require rackunit)
-  (check-equal? (sub-at-pos test-tree '()) "")
-  (check-equal? (sub-at-pos test-tree '(1)) "1")
-  (check-equal? (sub-at-pos test-tree '(2)) "2")
-  (check-equal? (sub-at-pos test-tree '(3)) "3")
-  (check-equal? (sub-at-pos test-tree '(3 1)) "31")
-  (check-equal? (sub-at-pos test-tree '(3 2)) "32")
-  (check-equal? (sub-at-pos test-tree '(3 3)) "33"))
-
-
-;-----------------------------
-
-; structure data
-(define testcode-0 '(104 324 494))
-(define testcode-1 '(11 51 61 (1 1) ((1 1) (1 (1 1)))))
-
+; tree initialization functions
 
 (define (make-ed-tree code)
   (if (list? code) `(,(new text%) ,@(map make-ed-tree code))
@@ -213,60 +156,29 @@
              (map insert-snips sn-tree ed-tree))
       '()))
 
+
+;-----------------------------
+
+; structure data
+(define testcode-1 '(11 51 61 (1 1) ((1 1) (1 (1 1)))))
+
+; initialize tree
 (define ed-tree (make-ed-tree testcode-1))
-
 (define sn-tree (make-sn-tree ed-tree))
-
 (insert-snips sn-tree ed-tree)
-
 (send my-board insert (first sn-tree))
 
 
-
-;-----------------------------
-
-;(println (send sub-board2-editor-snip next))
-;(send my-board set-caret-owner (send sub-board2-editor-snip next) 'global)
-
-;(println (send sub-board3-1-editor-snip next))
-;(send my-board set-caret-owner (send sub-board3-1-editor-snip next) 'global) ; not effective
-
-;(println (send sub-board3-1-editor-snip next))
-;(send sub-board3 set-caret-owner (send sub-board3-1-editor-snip next) 'global) ; effective
+(define pos '(1))
+(send (sub-at-pos ed-tree (position-parent pos)) set-caret-owner (sub-at-pos sn-tree pos) 'global)
+(send (sub-at-pos ed-tree pos) select-all)
 
 
-;-----------------------------
-
-
-; initialize caret
-(define pos '(3))
-(println "caret tests")
+; let's take a look
 ed-tree
 sn-tree
 ;(println (sub-at-pos sn-tree pos))
 ;(println (sub-at-pos ed-tree (position-parent pos)))
-
-;(send my-board set-caret-owner (send my-board find-first-snip) 'global)
-(send (sub-at-pos ed-tree (position-parent pos)) set-caret-owner (sub-at-pos sn-tree pos) 'global)
-(send (sub-at-pos ed-tree pos) select-all)
-
-;(println pos)
-;(println (position-parent pos))
-;(println (sub-at-pos snip-tree pos))
-;(println (sub-at-pos editor-tree (position-parent pos)))
-;(send (sub-at-pos editor-tree (position-parent pos)) set-caret-owner (sub-at-pos snip-tree pos) 'global)
-;(send (sub-at-pos editor-tree pos) select-all)
-
-;(send (sub-at-pos editor-tree '()) set-caret-owner (sub-at-pos snip-tree '(2)) 'global)
-;(send (sub-at-pos editor-tree '(3)) set-caret-owner (sub-at-pos snip-tree '(3 2)) 'global)
-
-;(send (sub-at-pos editor-tree '(3)) get-focus-snip)
-;(send (sub-at-pos editor-tree '()) set-caret-owner (sub-at-pos snip-tree '(3)) 'global) ; not effective (already 'at' 3)
-;(send (sub-at-pos editor-tree '()) set-caret-owner (sub-at-pos snip-tree '(2)) 'global) ;effective
-
-;(send (sub-at-pos editor-tree '(3)) set-caret-owner (send (sub-at-pos editor-tree '(3)) find-first-snip) 'global)
-
-
 
 
 
@@ -274,31 +186,7 @@ sn-tree
 ; Deletes the currently selected items.
 
 
-; (send an-editor insert snip)
-; Inserts data into the editor. 
 
-
-
-
-#|
-(set! pos (position-first-child pos))
-(println pos)
-(println (sub-at-pos snip-tree pos))
-(send (sub-at-pos editor-tree (position-parent pos)) set-caret-owner (sub-at-pos snip-tree pos) 'global)
-(send (sub-at-pos editor-tree pos) select-all)
-
-(set! pos (position-next pos))
-(println pos)
-(println (sub-at-pos snip-tree pos))
-(send (sub-at-pos editor-tree (position-parent pos)) set-caret-owner (sub-at-pos snip-tree pos) 'global)
-(send (sub-at-pos editor-tree pos) select-all)
-
-(set! pos (position-parent pos))
-(println pos)
-(println (sub-at-pos snip-tree pos))
-(send (sub-at-pos editor-tree (position-parent pos)) set-caret-owner (sub-at-pos snip-tree pos) 'global)
-(send (sub-at-pos editor-tree pos) select-all)
-|#
 
 
 
