@@ -9,14 +9,14 @@
 
 
 (define my-frame (new frame% [label "fructure"]
-                      [width 400]
-                      [height 400]))
+                      [width 600]
+                      [height 300]))
 (define my-canvas (new editor-canvas% [parent my-frame]))
 (define my-board (new my-text-ed%))
 (send my-canvas
       set-editor my-board)
 (send my-frame show #t)
-(send my-board insert "mb")
+(send my-board insert "struct")
 
 ;-----------------------------
 
@@ -25,7 +25,7 @@
   (append pos (list 1)))
 
 (define/match (position-parent pos)
-  [(`()) pos]
+  [(`()) "fuck"] 
   [(_) (reverse (rest (reverse pos)))])
 
 (define (position-next pos)
@@ -47,12 +47,17 @@
   [(_ `(,a . ,as)) (sub-at-pos (list-ref tree (add1 (modulo (sub1 a) (sub1 (length tree))))) as)])
 
 
+(define/match (sub-list-at-pos tree pos)
+  [(tree `()) tree]
+  [(_ `(,a . ,as)) (sub-list-at-pos (list-ref tree (add1 (modulo (sub1 a) (sub1 (length tree))))) as)])
+
+
 (module+ test (require rackunit)
   (define test-tree `("" ("1")
-                       ("2")
-                       ("3" ("31")
-                            ("32")
-                            ("33"))))
+                         ("2")
+                         ("3" ("31")
+                              ("32")
+                              ("33"))))
   (check-equal? (sub-at-pos test-tree '()) "")
   (check-equal? (sub-at-pos test-tree '(1)) "1")
   (check-equal? (sub-at-pos test-tree '(2)) "2")
@@ -91,6 +96,8 @@
 (define (insert-sibling-after tree pos new-node)
   0)
 
+(define (no-children-at? tree pos)
+  (<= (length (sub-list-at-pos tree pos)) 1))
 
 ;-----------------------------
 
@@ -123,14 +130,18 @@
                                  (send (sub-at-pos etree (position-parent pos)) set-caret-owner (sub-at-pos stree pos) 'global)
                                  (send (sub-at-pos etree pos) select-all)]
                                 [#\w ; select parent
-                                 (set! pos (position-parent pos))
-                                 (send (sub-at-pos etree pos) set-caret-owner (send (sub-at-pos etree pos) find-first-snip) 'global)
-                                 (send (sub-at-pos etree pos) select-all)]
+                                 (if (<= (length pos) 1)
+                                     "do nothing"
+                                     (begin (set! pos (position-parent pos))
+                                            (send (sub-at-pos etree pos) set-caret-owner (send (sub-at-pos etree pos) find-first-snip) 'global)
+                                            (send (sub-at-pos etree pos) select-all)))]
                                 [#\s ; select first child
                                  #;(println (send (send this get-editor) find-snip 0 'before))
-                                 (set! pos (position-first-child pos))
-                                 (send (sub-at-pos etree (position-parent pos)) set-caret-owner (sub-at-pos stree pos) 'global)
-                                 (send (sub-at-pos etree pos) select-all)])
+                                 (if (no-children-at? etree pos)
+                                     "do nothing"
+                                     (begin (set! pos (position-first-child pos))
+                                            (send (sub-at-pos etree (position-parent pos)) set-caret-owner (sub-at-pos stree pos) 'global)
+                                            (send (sub-at-pos etree pos) select-all)))])
                               #;(super on-char dc x y edx edy event)))))
 ; commenting out last line makes top level editor border toggle only (else whole hierarchy toggles)
 
@@ -160,7 +171,7 @@
 ;-----------------------------
 
 ; structure data
-(define testcode-1 '(11 51 61 (1 1) ((1 1) (1 (1 1)))))
+(define testcode-1 '(alp bea gma (flf pop) ((brk grl) (zwl (nkp flp)))))
 
 ; initialize tree
 (define ed-tree (make-ed-tree testcode-1))
