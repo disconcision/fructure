@@ -1,7 +1,7 @@
 #lang racket
 
 (require racket/gui/base)
-;(require fancy-app)
+(require fancy-app)
 ;(require lens/common)
 ;(require lens/data/list)
 
@@ -16,7 +16,7 @@
 (send my-canvas
       set-editor my-board)
 (send my-frame show #t)
-(send my-board insert "struct")
+(send my-board insert "top")
 
 ;-----------------------------
 
@@ -102,7 +102,20 @@
 ;-----------------------------
 
 
-(define my-editor-snip% (class editor-snip% (super-new)
+(define my-editor-snip% (class editor-snip%
+                          (init pr)
+                          (define parent pr)
+                          (define border-color "blue")
+                          (super-new)
+
+                          (define/override (draw dc x y left top right bottom dx dy draw-caret)
+                            (send dc set-brush "green" 'solid)
+                            (send dc set-pen border-color 1 'solid)
+                            (define bottom-x (box 10))
+                            (define bottom-y (box 10))
+                            ;(send 'need-containing-parent get-snip-location this bottom-x bottom-y #t)
+                            (send dc draw-rectangle (+ x 1) (+ y 1) (unbox bottom-x) (unbox bottom-y))
+                            (super draw dc x y left top right bottom dx dy draw-caret))
                           (define/override (on-char dc x y edx edy event)
                             (let ([key-code (send event get-key-code)]
                                   [etree ed-tree]
@@ -110,6 +123,8 @@
                               (println key-code)
                               (match key-code
                                 ['release void]
+                                [#\i (send (sub-at-pos etree (position-parent pos)) set-caret-owner this 'global)
+                                     (set! border-color "red")] ; needs to refresh for redraw
                                 [#\r (println (send (send this get-editor) get-focus-snip))] ; for testing
                                 [#\t (println (send (send this get-editor) find-first-snip))] ; for testing
                                 [#\e (send this show-border (not (send this border-visible?)))]
@@ -133,7 +148,7 @@
                                  (if (<= (length pos) 1)
                                      "do nothing"
                                      (begin (set! pos (position-parent pos))
-                                            (send (sub-at-pos etree pos) set-caret-owner (send (sub-at-pos etree pos) find-first-snip) 'global)
+                                            (send (sub-at-pos etree (position-parent pos)) set-caret-owner (send (sub-at-pos etree pos) find-first-snip) 'global)
                                             (send (sub-at-pos etree pos) select-all)))]
                                 [#\s ; select first child
                                  #;(println (send (send this get-editor) find-snip 0 'before))
@@ -157,8 +172,9 @@
         (list new-text-ed))))
 
 
-(define (make-sn-tree ed-tree)
-  `(,(make-object my-editor-snip% (first ed-tree)) ,@(map make-sn-tree (rest ed-tree))))
+(define (make-sn-tree ed-tree [parent (first ed-tree)])
+  (let ([ed-snip (make-object my-editor-snip% parent (first ed-tree))])
+    `(,ed-snip ,@(map (make-sn-tree _ ed-snip) (rest ed-tree)))))
 
 
 (define (insert-snips sn-tree ed-tree)
@@ -172,6 +188,7 @@
 
 ; structure data
 (define testcode-1 '(alp bea gma (flf pop) ((brk grl) (zwl (nkp flp)))))
+
 
 ; initialize tree
 (define ed-tree (make-ed-tree testcode-1))
@@ -190,7 +207,6 @@ ed-tree
 sn-tree
 ;(println (sub-at-pos sn-tree pos))
 ;(println (sub-at-pos ed-tree (position-parent pos)))
-
 
 
 ;(send an-editor clear) → void?
