@@ -27,9 +27,15 @@
   [(`(S (,a ...))) `(S ((,@a)))])
 
 
+(define/match (push-sibling-r))
+(define/match (push-sibling-l))
+
+
+
 ; segment selection
 
 (define/match (wrap expr))
+(define/match (merge expr))
 (define/match (pop/splice expr))
 (define/match (slurp-r expr))
 (define/match (slurp-l expr))
@@ -43,6 +49,17 @@
 (new-sibling-r '("a" (S ("b")) "d") "c")
 (new-sibling-l '("a" (S ("b")) "d") "c")
 (wrap-single '(S (1 2)))
+
+
+; multi-selection
+
+(define/match (swap expr)) ; swap 2 selections
+(define/match (cycle/permute expr perm)) ; generalized swap
+
+
+; hetero-selection
+
+(define/match (copy/clone)) ; copy one selection to another
 
 
 ; selection movement as rewrite
@@ -78,3 +95,15 @@
 
 (define (sel-to-pos sel-tree)
   'position-of-selection)
+
+
+; refactoring
+
+(define/match (extract-let expr id))
+(define/match (extract-let-lambda expr id))
+
+(define/match (pullin-lets expr))
+(define/match (pushout-lets expr))
+
+(define/match (merge-variables expr)) ; merge vars in same let with identical inits
+
