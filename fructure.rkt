@@ -1,7 +1,7 @@
 #lang racket
 
 (require racket/gui/base)
-(require fancy-app)
+;(require fancy-app)
 
 (define my-text-ed% (class text% (super-new)
                       #;(define/override (get-focus-snip)
