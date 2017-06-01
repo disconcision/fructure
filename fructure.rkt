@@ -12,7 +12,7 @@
                       [width 600]
                       [height 300]))
 (define my-canvas (new editor-canvas% [parent my-frame]))
-(define my-board (new my-text-ed%))
+(define my-board (new text%))
 (send my-canvas
       set-editor my-board)
 (send my-frame show #t)
@@ -105,9 +105,11 @@
 (define my-editor-snip% (class editor-snip%
                           (init pr)
                           (define parent pr)
+                          (define children '())
                           (define border-color "blue")
                           (super-new)
-
+                          (define/override (own-caret own-it?)
+                            (super own-caret own-it?))
                           (define/override (draw dc x y left top right bottom dx dy draw-caret)
                             (send dc set-brush "green" 'solid)
                             (send dc set-pen border-color 1 'solid)
