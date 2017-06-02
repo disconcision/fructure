@@ -15,14 +15,11 @@
 ; override on-char to add a border toggle key
 (define my-editor-snip% (class editor-snip% (super-new)
                           (define/override (on-char dc x y edx edy event)
-                            (define focus-snip (send (send this get-editor) get-focus-snip))
-                            (if (and focus-snip (is-a? focus-snip editor-snip%))
-                                (super on-char dc x y edx edy event)
-                                (let ([key-code (send event get-key-code)])
-                                  (match key-code
-                                    ['release void]
-                                    [#\e (send this show-border (not (send this border-visible?)))])
-                                  )))))
+                            (let ([key-code (send event get-key-code)])
+                              (match key-code
+                                ['release void]
+                                [#\e (send this show-border (not (send this border-visible?)))])
+                              #;(super on-char dc x y edx edy event)))))
 ; uncommenting super call makes whole hierarchy toggle
 
 
