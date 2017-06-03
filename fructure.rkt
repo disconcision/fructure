@@ -9,18 +9,13 @@
 ;(require lens/data/list)
 >>>>>>> 82b25adb83158792d31a3211f7eb66b7d59de0a5
 
-(define my-text-ed% (class text% (super-new) ))
-
 
 (define my-frame (new frame% [label "fructure"]
                       [width 600]
                       [height 300]))
 (define my-canvas (new editor-canvas% [parent my-frame]))
-(define my-board (new text%))
-(send my-canvas
-      set-editor my-board)
-(send my-frame show #t)
-(send my-board insert "top")
+
+
 
 ;-----------------------------
 
@@ -29,7 +24,7 @@
   (append pos (list 1)))
 
 (define/match (position-parent pos)
-  [(`()) "fuck"] 
+  [(`()) "no"] 
   [(_) (reverse (rest (reverse pos)))])
 
 (define (position-next pos)
@@ -37,6 +32,7 @@
 
 (define (position-prev pos)
   (append (position-parent pos) (list (sub1 (last pos)))))
+
 
 
 (module+ test (require rackunit)
@@ -106,14 +102,83 @@
 ;-----------------------------
 
 
+
+
+(define my-text-ed% (class text% (super-new)
+                      (init parent)
+                      (define parent-editor parent)
+                      (init-field name)
+                      (field [in-snip (void)])
+                      (define/public (pretty-print)
+                        (~v name))
+                      (define/public (set-snip! a-snip)
+                        (set! in-snip a-snip))
+                      (define/override (own-caret own?)
+                        (println "owned"))
+                      (define/override (on-focus own?)
+                        (println "focussed"))                      
+                      (define/override (on-default-char event)
+                        (let* ([key-code (send event get-key-code)]
+                               [etree ed-tree]
+                               [stree sn-tree]
+                               [no-children? (< (length (sub-list-at-pos etree pos)) 2)]
+                               [toggle-border (λ () (send (sub-at-pos stree pos) show-border (not (send (sub-at-pos stree pos) border-visible?))))]
+                               [move-to (λ (move)
+                                          (toggle-border)
+                                          (set! pos (move pos))
+                                          (toggle-border))]
+                               [get-caret (λ ()
+                                            (send this own-caret (cons 0 0))
+                                            (send (sub-at-pos ed-tree (position-parent pos)) set-caret-owner (sub-at-pos sn-tree pos) 'global))])                          
+                          (when (not (equal? key-code 'release))
+                            (println key-code)
+                            (println name)
+                            (println pos)
+                            (match key-code
+                              ['release void]
+                              [#\g (get-caret)]
+                              [#\i (send (sub-at-pos etree (position-parent pos)) set-caret-owner this 'global)]
+                              [#\r (println (send (send this get-editor) get-focus-snip))] ; for testing
+                              [#\t (println (send (send this get-editor) find-first-snip))] ; for testing
+                              [#\e (send (sub-at-pos stree pos) change-color "yellow")]
+                              [#\q (send (sub-at-pos etree pos) select-all)]
+                              [#\y ; delete node at pos, set pos to parent
+                               (send (sub-at-pos etree (position-parent pos)) release-snip (sub-at-pos stree pos))
+                               (set! ed-tree (delete-node ed-tree pos))
+                               (set! sn-tree (delete-node sn-tree pos))
+                               (set! pos (position-parent pos))]
+                              [#\u ; insert new child
+                               (send (sub-at-pos etree pos) insert (make-object my-editor-snip% (new text%)))]
+
+                              [#\d (move-to position-next)]
+                              [#\a (move-to position-prev)]
+                              [#\w (if (<= (length pos) 1)
+                                       (println "no")
+                                       (move-to position-parent))]
+                              [#\s (if no-children?
+                                       (println "no")
+                                       (move-to position-first-child))])
+                            
+                            )
+                          
+                          #;(super on-char dc x y edx edy event)))))
+
+
+
+
 (define my-editor-snip% (class editor-snip%
                           (init pr)
+
                           (define parent pr)
                           (define children '())
                           (define border-color "blue")
-                          (super-new)
-                          (define/override (own-caret own-it?)
-                            (super own-caret own-it?))
+
+                          
+                          (super-new [with-border? #f])
+
+                          (define/public (change-color color)
+                            (set! border-color color))
+
                           (define/override (draw dc x y left top right bottom dx dy draw-caret)
                             (send dc set-brush "green" 'solid)
                             (send dc set-pen border-color 1 'solid)
@@ -121,61 +186,33 @@
                             (define bottom-y (box 10))
                             ;(send 'need-containing-parent get-snip-location this bottom-x bottom-y #t)
                             (send dc draw-rectangle (+ x 1) (+ y 1) (unbox bottom-x) (unbox bottom-y))
-                            (super draw dc x y left top right bottom dx dy draw-caret))
-                          (define/override (on-char dc x y edx edy event)
-                            (let ([key-code (send event get-key-code)]
-                                  [etree ed-tree]
-                                  [stree sn-tree])
-                              (println key-code)
-                              (match key-code
-                                ['release void]
-                                [#\i (send (sub-at-pos etree (position-parent pos)) set-caret-owner this 'global)
-                                     (set! border-color "red")] ; needs to refresh for redraw
-                                [#\r (println (send (send this get-editor) get-focus-snip))] ; for testing
-                                [#\t (println (send (send this get-editor) find-first-snip))] ; for testing
-                                [#\e (send this show-border (not (send this border-visible?)))]
-                                [#\q (send (sub-at-pos etree pos) select-all)]
-                                [#\y ; delete node at pos, set pos to parent
-                                 (send (sub-at-pos etree (position-parent pos)) release-snip (sub-at-pos stree pos))
-                                 (set! ed-tree (delete-node ed-tree pos))
-                                 (set! sn-tree (delete-node sn-tree pos))
-                                 (set! pos (position-parent pos))]
-                                [#\u ; insert new child
-                                 (send (sub-at-pos etree pos) insert (make-object my-editor-snip% (new text%)))]
-                                [#\d ; select next sibling
-                                 (set! pos (position-next pos))
-                                 (send (sub-at-pos etree (position-parent pos)) set-caret-owner (sub-at-pos stree pos) 'global)
-                                 (send (sub-at-pos etree pos) select-all)]
-                                [#\a ; select previous sibling
-                                 (set! pos (position-prev pos))
-                                 (send (sub-at-pos etree (position-parent pos)) set-caret-owner (sub-at-pos stree pos) 'global)
-                                 (send (sub-at-pos etree pos) select-all)]
-                                [#\w ; select parent
-                                 (if (<= (length pos) 1)
-                                     "do nothing"
-                                     (begin (set! pos (position-parent pos))
-                                            (send (sub-at-pos etree (position-parent pos)) set-caret-owner (send (sub-at-pos etree pos) find-first-snip) 'global)
-                                            (send (sub-at-pos etree pos) select-all)))]
-                                [#\s ; select first child
-                                 #;(println (send (send this get-editor) find-snip 0 'before))
-                                 (if (no-children-at? etree pos)
-                                     "do nothing"
-                                     (begin (set! pos (position-first-child pos))
-                                            (send (sub-at-pos etree (position-parent pos)) set-caret-owner (sub-at-pos stree pos) 'global)
-                                            (send (sub-at-pos etree pos) select-all)))])
-                              #;(super on-char dc x y edx edy event)))))
-; commenting out last line makes top level editor border toggle only (else whole hierarchy toggles)
+                            (super draw dc x y left top right bottom dx dy draw-caret))))
 
+
+
+; -----------------------------
+
+
+(define my-board (new my-text-ed% [parent "none"][name '(0)]))
+(send my-canvas
+      set-editor my-board)
+(send my-frame
+      show #t)
+(send my-board
+      insert "top")
 
 ;-----------------------------
 
 ; tree initialization functions
 
-(define (make-ed-tree code)
-  (if (list? code) `(,(new text%) ,@(map make-ed-tree code))
-      (let ([new-text-ed (new text%)])
-        (send new-text-ed insert (~v code))
-        (list new-text-ed))))
+(define (make-ed-tree code [parent my-board] [position '()])
+  (let ([ed (new my-text-ed% [parent parent] [name position])])
+    (if (list? code)
+        (begin (println (range 0 (length code)))
+               `(,ed ,@(map (λ (node pos) (make-ed-tree node ed (append position `(,pos)))) code (range 0 (length code))))
+               )
+        (begin (send ed insert (~v code))
+               `(,ed)))))
 
 
 (define (make-sn-tree ed-tree [parent (first ed-tree)])
@@ -185,12 +222,20 @@
 
 (define (insert-snips sn-tree ed-tree)
   (if (list? sn-tree)
-      (begin (map (λ (x) (send (first ed-tree) insert (first x))) (rest sn-tree))
+      (begin (map (λ (sn) (send (first ed-tree) insert (first sn))) (rest sn-tree))
              (map insert-snips sn-tree ed-tree))
       '()))
 
+(define (set-snips sn-tree ed-tree)
+  (if (list? sn-tree)
+      (map set-snips sn-tree ed-tree)
+      (begin (send ed-tree set-snip! sn-tree)
+             (send ed-tree pretty-print))))
 
 ;-----------------------------
+; algorthmically mapping your extant program to the minimal program displaying some bug or conceptual issue you are having or want to highlight
+; for peer commentary, self-reflection, etc.
+
 
 ; structure data
 (define testcode-1 '(alp bea gma (flf pop) ((brk grl) (zwl (nkp flp)))))
@@ -202,10 +247,12 @@
 (insert-snips sn-tree ed-tree)
 (send my-board insert (first sn-tree))
 
+(set-snips sn-tree ed-tree)
 
 (define pos '(1))
+(send (sub-at-pos sn-tree pos) show-border (not (send (sub-at-pos sn-tree pos) border-visible?)))
 (send (sub-at-pos ed-tree (position-parent pos)) set-caret-owner (sub-at-pos sn-tree pos) 'global)
-(send (sub-at-pos ed-tree pos) select-all)
+;(send (sub-at-pos ed-tree pos) select-all)
 
 
 ; let's take a look
