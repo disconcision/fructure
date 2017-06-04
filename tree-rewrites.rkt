@@ -1,23 +1,13 @@
 #lang racket
 
 
-; (struct S (ls)) ; denotes a selection
-; (struct D (ls)) ; denotes a de-selection
+; Structural Selection Model
 
+#; ($ some-node)
+; some-node is selected
 
-(define/match (push-sibling-r))
-(define/match (push-sibling-l))
-
-
-; segment selection
-
-(define/match (wrap expr))
-(define/match (merge expr))
-(define/match (pop/splice expr))
-(define/match (slurp-r expr))
-(define/match (slurp-l expr))
-(define/match (barf-r expr))
-(define/match (barf-l expr))
+#; `(($ a) b c ($ d) ($ e) f)
+; multi-selection
 
 
 ; multi-selection
@@ -36,25 +26,44 @@
 (define/match (all-children expr))
 
 
-; utility fns
 
-(define (pos-to-sel tree pos)
-  'tree-with-selection)
+; PATTERN MATCHING CONSTRUCT TO IMPLEMENT MAP??
 
-(define (sel-to-tree sel-tree)
-  'tree-without-selection)
-
-(define (sel-to-pos sel-tree)
-  'position-of-selection)
 
 
 ; refactoring
 
 (define/match (extract-let expr id))
+#; (fn1 (fn2))
+#; (let [new-var fn2]
+     (fn1 new-var))
+
 (define/match (extract-let-lambda expr id))
+#; (fn1 (fn2))
+#; (let [new-fn (λ (y) (fn1 y))]
+     (new-fn (f2)))
 
 (define/match (pullin-lets expr))
 (define/match (pushout-lets expr))
 
 (define/match (merge-variables expr)) ; merge vars in same let with identical inits
 
+
+
+#; ($ (let ,inits ,c ... $,d ...))
+#; ($ (,c ... $(let ,inits ,d ...)))
+; nested selection (let barf/slurp)
+
+
+#; ($ (fn1 (fn2 $(fna1 0
+                       (fna2 1
+                             0))
+                $ 0
+                (fn3 $(fnc1 (fnc2 1))))))
+#;`(let ([a (fna1 0
+                  (fna2 1
+                        0))]
+         [b 0]
+         [c (fnc1 (fnc2 1))])
+     (fn1 (fn1 a b (fn3 c))))
+; multi let extract

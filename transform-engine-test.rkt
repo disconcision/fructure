@@ -28,7 +28,7 @@
                      [#\u insert-child-l]
                      [#\l new-sibling-r]
                      [#\j new-sibling-l]
-                     [#\k wrap-single])])
+                     [#\k wrap])])
     (transform src)))
 
 (define (loop source stream)
@@ -76,8 +76,42 @@
 (define/↦ new-sibling-l
   [`(,a ... (S (,b ...)) ,c ...) ↦ `(,@a (S (new)) ,@b ,@c)])
 
-(define/↦ wrap-single
+(define/↦ wrap
   [`(S (,a ...)) ↦ `(S ((,@a)))])
+
+
+; untested transforms -----------------------------------
+
+(define/↦ transform
+  [`pattern ↦ `result])
+
+(define/↦ push-sibling-r
+  [`(,a ... (S ,b ...) ,c ,d ...) ↦ `(,@a ,c (S ,@b) ,@d)]
+  [`(,a ... (S ,b ...)) ↦ `((S ,@b) ,@a)])
+
+(define/↦ push-sibling-l
+  [`(,a ... ,b (S ,c ...) ,d ...) ↦ `(,@a (S ,@c) ,b ,@d)]
+  [`((S ,a ...) ,b ...) ↦ `(,@b (S ,@a))])
+
+(define/↦ merge
+  [`(S (,a ...) (,b ...)) ↦ `(S (,@a ,@b))])
+
+(merge `(S (1 2) (3 4)))
+
+(define/↦ pop/splice
+  [`(,a ... (S (,b ...)) ,c ...) ↦ `(S (,@a ,@b ,@c))])
+
+(define/↦ slurp-r
+  [`(,a ... (S ,b ...) ,c ,d ...) ↦ `(,@a (S ,@b ,c) ,@d)])
+
+(define/↦ slurp-l
+  [`(,a ... ,b (S ,c ...) ,d ...) ↦ `(,@a (S ,b ,@c) ,@d)])
+
+(define/↦ barf-r
+  [`(,a ... (S ,b ... ,c) ,d ...) ↦ `(,@a (S ,@b) ,c ,@d)])
+
+(define/↦ barf-l
+  [`(,a ... (S ,b ,c ...) ,d ...) ↦ `(,@a ,b (S ,@c) ,@d)])
 
 
 ; -------------------------------------------------------
@@ -107,11 +141,11 @@
                 '("a" "b" (S (new)) "d"))
   (check-equal? (new-sibling-l '("a" (S ("b")) "d"))
                 '("a" (S (new)) "b" "d"))
-  (check-equal? (wrap-single '(S ("a" "b")))
+  (check-equal? (wrap '(S ("a" "b")))
                 '(S (("a" "b"))))
 
   ; composition
-  (check-equal? ((compose wrap-single insert-child-l) '(S (a b)))
+  (check-equal? ((compose wrap insert-child-l) '(S (a b)))
                 '((S ((new))) a b)))
 
 
@@ -130,7 +164,16 @@
 
 ; make function to remove selector from tree
 ; make function to insert selector at provided position
+; utility fns
 
+(define (pos-to-sel tree pos)
+  'tree-with-selection)
+
+(define (sel-to-tree sel-tree)
+  'tree-without-selection)
+
+(define (sel-to-pos sel-tree)
+  'position-of-selection)
 
 
 
