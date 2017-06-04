@@ -1,13 +1,10 @@
 #lang racket
 
 (require racket/gui/base)
-<<<<<<< HEAD
-;(require fancy-app)
-=======
 (require fancy-app)
 ;(require lens/common)
 ;(require lens/data/list)
->>>>>>> 82b25adb83158792d31a3211f7eb66b7d59de0a5
+
 
 
 (define my-frame (new frame% [label "fructure"]
@@ -15,7 +12,7 @@
                       [height 300]))
 (define my-canvas (new editor-canvas% [parent my-frame]))
 
-
+(define pos '(1))
 
 ;-----------------------------
 
@@ -109,14 +106,16 @@
                       (define parent-editor parent)
                       (init-field name)
                       (field [in-snip (void)])
+                      (define/public (get-parent)
+                        parent-editor)
                       (define/public (pretty-print)
-                        (~v name))
+                        name)
                       (define/public (set-snip! a-snip)
                         (set! in-snip a-snip))
                       (define/override (own-caret own?)
                         (println "owned"))
                       (define/override (on-focus own?)
-                        (println "focussed"))                      
+                        (println "focused"))                      
                       (define/override (on-default-char event)
                         (let* ([key-code (send event get-key-code)]
                                [etree ed-tree]
@@ -133,7 +132,7 @@
                           (when (not (equal? key-code 'release))
                             (println key-code)
                             (println name)
-                            (println pos)
+                            
                             (match key-code
                               ['release void]
                               [#\g (get-caret)]
@@ -158,7 +157,9 @@
                               [#\s (if no-children?
                                        (println "no")
                                        (move-to position-first-child))])
-                            
+                            (println pos)
+                            #; (build-gui testcode-1)
+                            ; rebuilding interface every time -- works for now speedwise
                             )
                           
                           #;(super on-char dc x y edx edy event)))))
@@ -167,12 +168,14 @@
 
 
 (define my-editor-snip% (class editor-snip%
-                          (init pr)
+                          (init parent-ed)
 
-                          (define parent pr)
+                          (define parent-editor parent-ed)
                           (define children '())
                           (define border-color "blue")
 
+                          (define/public (pretty-print)
+                            parent-editor)
                           
                           (super-new [with-border? #f])
 
@@ -184,8 +187,10 @@
                             (send dc set-pen border-color 1 'solid)
                             (define bottom-x (box 10))
                             (define bottom-y (box 10))
-                            ;(send 'need-containing-parent get-snip-location this bottom-x bottom-y #t)
+
+                            (send parent-editor get-snip-location this bottom-x bottom-y #t)                            
                             (send dc draw-rectangle (+ x 1) (+ y 1) (unbox bottom-x) (unbox bottom-y))
+                            
                             (super draw dc x y left top right bottom dx dy draw-caret))))
 
 
@@ -207,17 +212,15 @@
 
 (define (make-ed-tree code [parent my-board] [position '()])
   (let ([ed (new my-text-ed% [parent parent] [name position])])
-    (if (list? code)
-        (begin (println (range 0 (length code)))
-               `(,ed ,@(map (λ (node pos) (make-ed-tree node ed (append position `(,pos)))) code (range 0 (length code))))
-               )
+    (if (list? code)        
+        `(,ed ,@(map (λ (node pos) (make-ed-tree node ed (append position `(,pos)))) code (range 0 (length code))))              
         (begin (send ed insert (~v code))
                `(,ed)))))
 
 
-(define (make-sn-tree ed-tree [parent (first ed-tree)])
-  (let ([ed-snip (make-object my-editor-snip% parent (first ed-tree))])
-    `(,ed-snip ,@(map (make-sn-tree _ ed-snip) (rest ed-tree)))))
+(define (make-sn-tree ed-tree)
+  (let ([sn (new my-editor-snip% [editor (first ed-tree)] [parent-ed (send (first ed-tree) get-parent)])])
+    `(,sn ,@(map (make-sn-tree _) (rest ed-tree)))))
 
 
 (define (insert-snips sn-tree ed-tree)
@@ -226,11 +229,64 @@
              (map insert-snips sn-tree ed-tree))
       '()))
 
+
 (define (set-snips sn-tree ed-tree)
   (if (list? sn-tree)
       (map set-snips sn-tree ed-tree)
       (begin (send ed-tree set-snip! sn-tree)
              (send ed-tree pretty-print))))
+
+
+(define (print-sn-tree sn-tree)
+  (if (list? sn-tree)
+      (map print-sn-tree sn-tree)
+      (send sn-tree pretty-print)))
+
+
+
+
+
+;-----------------------------
+
+
+(define (build-gui code)
+  (define (make-ed-tree code [parent my-board] [position '()])
+    (let ([ed (new my-text-ed% [parent parent] [name position])])
+      (if (list? code)        
+          `(,ed ,@(map (λ (node pos) (make-ed-tree node ed (append position `(,pos)))) code (range 0 (length code))))              
+          (begin (send ed insert (~v code))
+                 `(,ed)))))
+  (define (make-sn-tree ed-tree)
+    (let ([sn (new my-editor-snip% [editor (first ed-tree)] [parent-ed (send (first ed-tree) get-parent)])])
+      `(,sn ,@(map (make-sn-tree _) (rest ed-tree)))))
+  (define (insert-snips sn-tree ed-tree)
+    (if (list? sn-tree)
+        (begin (map (λ (sn) (send (first ed-tree) insert (first sn))) (rest sn-tree))
+               (map insert-snips sn-tree ed-tree))
+        '()))
+  (define (set-snips sn-tree ed-tree)
+    (if (list? sn-tree)
+        (map set-snips sn-tree ed-tree)
+        (begin (send ed-tree set-snip! sn-tree)
+               (send ed-tree pretty-print))))
+  (define my-board (new my-text-ed% [parent "none"][name '(0)]))
+  (send my-canvas
+        set-editor my-board)
+  (define ed-tree (make-ed-tree code))
+  (define sn-tree (make-sn-tree ed-tree))
+  (insert-snips sn-tree ed-tree)
+  (set-snips sn-tree ed-tree)
+  (send my-board insert (first sn-tree))
+  (send (sub-at-pos sn-tree pos) show-border (not (send (sub-at-pos sn-tree pos) border-visible?)))
+  (send (sub-at-pos ed-tree (position-parent pos)) set-caret-owner (sub-at-pos sn-tree pos) 'global)
+  (println ed-tree)
+  (println sn-tree)
+  )
+
+
+(define testcode-2 '(alp bea gma (flf pop) ((brk grl) (zwl (nkp flp)))))
+(define testcode-3 '(234523453245 23452345 2345 (flf gdfsgdf) ((brk 2345345) (3453245 (nkp flp)))))
+
 
 ;-----------------------------
 ; algorthmically mapping your extant program to the minimal program displaying some bug or conceptual issue you are having or want to highlight
@@ -242,6 +298,7 @@
 
 
 ; initialize tree
+
 (define ed-tree (make-ed-tree testcode-1))
 (define sn-tree (make-sn-tree ed-tree))
 (insert-snips sn-tree ed-tree)
@@ -249,21 +306,33 @@
 
 (set-snips sn-tree ed-tree)
 
-(define pos '(1))
+(print-sn-tree sn-tree)
+
 (send (sub-at-pos sn-tree pos) show-border (not (send (sub-at-pos sn-tree pos) border-visible?)))
 (send (sub-at-pos ed-tree (position-parent pos)) set-caret-owner (sub-at-pos sn-tree pos) 'global)
-;(send (sub-at-pos ed-tree pos) select-all)
+
+;ed-tree
+;sn-tree
 
 
-; let's take a look
-ed-tree
-sn-tree
+#;(build-gui testcode-3)
+
+#;(define (loop [ls '("blah")])
+  (build-gui ls)
+  (read)
+  (loop `(,ls ,ls)))
+#;(loop)
+
+
 ;(println (sub-at-pos sn-tree pos))
 ;(println (sub-at-pos ed-tree (position-parent pos)))
 
 
 ;(send an-editor clear) → void?
 ; Deletes the currently selected items.
+
+
+
 
 
 
