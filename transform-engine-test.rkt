@@ -13,23 +13,28 @@
 
 (require (rename-in racket (#%app call)))
 (define-syntax #%app
-  (syntax-rules (↦ ↓)
-    [[#%app pattern ↦ result] (#%app [pattern ↦ result])]
-    [(#%app [pattern ↦ result] ...) (letrec ([transform (λ (source)
-                                                          (match source
-                                                            [pattern result] ...
-                                                            [_ (if (list? source)
-                                                                   (map transform source)
-                                                                   source)]))])
-                                      transform)]
+  (syntax-rules (↦ ↓ ⇒)
+    [(#%app f ⇒ g)
+     (compose f g)]
+    [[#%app pattern ↦ result]
+     (#%app [pattern ↦ result])]
+    [(#%app [pattern ↦ result] ...)
+     (letrec ([transform (λ (source)
+                           (match source
+                             [`pattern `result] ...
+                             [_ (if (list? source)
+                                    (map transform source)
+                                    source)]))])
+       transform)]
     [(#%app f-expr arg-expr ...) (call f-expr arg-expr ...)]))
 
 (define-syntax-rule (↓ [pattern ↦ result] ...)
   ([pattern ↦ result] ...))
 
+
 ; -------------------------------------------------------
 
-(define (simple-select ls) `(S ,ls))
+(define simple-select [,a ↦ (▹ ,a)])
 
 (define (update source input)
   (let ([transform (match input
@@ -57,133 +62,133 @@
 ; move selector -----------------------------------------
 
 (define first-child
-  [`(S (,a ,b ...)) ↦ `((S ,a) ,@b)])
+  [(▹ (,a ,b ...)) ↦ ((▹ ,a) ,@b)])
 
 (define last-child
-  [`(S (,a ... ,b)) ↦ `(,@a (S ,b))])
+  [(▹ (,a ... ,b)) ↦ (,@a (▹ ,b))])
 
 (define parent
-  [`(,a ... (S ,b ...) ,c ...) ↦ `(S (,@a ,@b ,@c))])
+  [(,a ... (▹ ,b ...) ,c ...) ↦ (▹ (,@a ,@b ,@c))])
 
 (define next-sibling
-  (↓ [`(,a ... (S ,b) ,c ,d ...) ↦ `(,@a ,b (S ,c) ,@d)]
-     [`(,a ,b ... (S ,c)) ↦ `((S ,a) ,@b ,c)]))
+  (↓ [(,a ... (▹ ,b) ,c ,d ...) ↦ (,@a ,b (▹ ,c) ,@d)]
+     [(,a ,b ... (▹ ,c)) ↦ ((▹ ,a) ,@b ,c)]))
 
 (define prev-sibling
-  (↓ [`(,a ... ,b (S ,c) ,d ...) ↦ `(,@a (S ,b) ,c ,@d)]
-     [`((S ,a) ,b ... ,c) ↦ `(,a ,@b (S ,c))]))
+  (↓ [(,a ... ,b (▹ ,c) ,d ...) ↦ (,@a (▹ ,b) ,c ,@d)]
+     [((▹ ,a) ,b ... ,c) ↦ (,a ,@b (▹ ,c))]))
 
 
 ; simple transforms -------------------------------------
 
 (define delete
-  [`(,a ... (S ,b ...) ,c ...) ↦ `(S (,@a ,@c ))])
+  [(,a ... (▹ ,b ...) ,c ...) ↦ (▹ (,@a ,@c ))])
 
 (define insert-child-r
-  [`(S (,a ...)) ↦ `(,@a (S (new)))])
+  [(▹ (,a ...)) ↦ (,@a (▹ (new)))])
 
 (define insert-child-l
-  [`(S (,a ...)) ↦ `((S (new)) ,@a)])
+  [(▹ (,a ...)) ↦ ((▹ (new)) ,@a)])
 
 (define new-sibling-r
-  [`(,a ... (S (,b ...)) ,c ...) ↦ `(,@a ,@b (S (new)) ,@c)])
+  [(,a ... (▹ (,b ...)) ,c ...) ↦ (,@a ,@b (▹ (new)) ,@c)])
 
 (define new-sibling-l
-  [`(,a ... (S (,b ...)) ,c ...) ↦ `(,@a (S (new)) ,@b ,@c)])
+  [(,a ... (▹ (,b ...)) ,c ...) ↦ (,@a (▹ (new)) ,@b ,@c)])
 
 (define wrap
-  [`(S (,a ...)) ↦ `(S ((,@a)))])
+  [(▹ (,a ...)) ↦ (▹ ((,@a)))])
 
 
 ; secondary transforms -----------------------------------
 
 (define push-sibling-r
-  (↓ [`(,a ... (S ,b ...) ,c ,d ...) ↦ `(,@a ,c (S ,@b) ,@d)]
-     [`(,a ... (S ,b ...)) ↦ `((S ,@b) ,@a)]))
+  (↓ [(,a ... (▹ ,b ...) ,c ,d ...) ↦ (,@a ,c (▹ ,@b) ,@d)]
+     [(,a ... (▹ ,b ...)) ↦ ((▹ ,@b) ,@a)]))
 
 (define push-sibling-l
-  (↓ [`(,a ... ,b (S ,c ...) ,d ...) ↦ `(,@a (S ,@c) ,b ,@d)]
-     [`((S ,a ...) ,b ...) ↦ `(,@b (S ,@a))]))
+  (↓ [(,a ... ,b (▹ ,c ...) ,d ...) ↦ (,@a (▹ ,@c) ,b ,@d)]
+     [((▹ ,a ...) ,b ...) ↦ (,@b (▹ ,@a))]))
 
 (define merge
-  [`(S (,a ...) (,b ...)) ↦ `(S (,@a ,@b))])
+  [(▹ (,a ...) (,b ...)) ↦ (▹ (,@a ,@b))])
 
 (define pop/splice
-  [`(,a ... (S (,b ...)) ,c ...) ↦ `(S (,@a ,@b ,@c))])
+  [(,a ... (▹ (,b ...)) ,c ...) ↦ (▹ (,@a ,@b ,@c))])
 
 (define slurp-r
-  [`(,a ... (S (,b ...)) ,c ,d ...) ↦ `(,@a (S (,@b ,c)) ,@d)])
+  [(,a ... (▹ (,b ...)) ,c ,d ...) ↦ (,@a (▹ (,@b ,c)) ,@d)])
 
 (define slurp-l
-  [`(,a ... ,b (S (,c ...)) ,d ...) ↦ `(,@a (S (,b ,@c)) ,@d)])
+  [(,a ... ,b (▹ (,c ...)) ,d ...) ↦ (,@a (▹ (,b ,@c)) ,@d)])
 
 (define barf-r
-  [`(,a ... (S (,b ... ,c)) ,d ...) ↦ `(,@a (S (,@b)) ,c ,@d)])
+  [(,a ... (▹ (,b ... ,c)) ,d ...) ↦ (,@a (▹ (,@b)) ,c ,@d)])
 
 (define barf-l
-  [`(,a ... (S (,b ,c ...)) ,d ...) ↦ `(,@a ,b (S (,@c)) ,@d)])
+  [(,a ... (▹ (,b ,c ...)) ,d ...) ↦ (,@a ,b (▹ (,@c)) ,@d)])
 
 
 ; mathy transforms --------------------------------------
 
 (define comm
-  [`(S (,op ,a ,b)) ↦ `(S (,op ,b ,a))])
+  [(▹ (,op ,a ,b)) ↦ (▹ (,op ,b ,a))])
 
 (define assoc
-  [`(S (,op ,a (,op ,b ,c))) ↦ `(S (,op (,op ,a ,b) ,c))])
+  [(▹ (,op ,a (,op ,b ,c))) ↦ (▹ (,op (,op ,a ,b) ,c))])
 
 
 ; -------------------------------------------------------
 
-(module+ test (require rackunit)
+#;(module+ test (require rackunit)
   
   ; movement
-  (check-equal? (first-child '(S (0 1 2 3)))
-                '((S 0) 1 2 3))
-  (check-equal? (last-child '(S (0 1 2 3)))
-                '(0 1 2 (S 3)))
-  (check-equal? (parent '(0 1 (S 2) 3))
-                '(S (0 1 2 3)))
-  (check-equal? (next-sibling '(0 1 (S 2) 3))
-                '(0 1 2 (S 3)))
-  (check-equal? (prev-sibling '((S 0) 1 2 3))
-                '(0 1 2 (S 3)))
+  (check-equal? (first-child '(▹ (0 1 2 3)))
+                '((▹ 0) 1 2 3))
+  (check-equal? (last-child '(▹ (0 1 2 3)))
+                '(0 1 2 (▹ 3)))
+  (check-equal? (parent '(0 1 (▹ 2) 3))
+                '(▹ (0 1 2 3)))
+  (check-equal? (next-sibling '(0 1 (▹ 2) 3))
+                '(0 1 2 (▹ 3)))
+  (check-equal? (prev-sibling '((▹ 0) 1 2 3))
+                '(0 1 2 (▹ 3)))
 
   ; simple
-  (check-equal? (delete '("a" "b" (S "c") "d"))
-                '(S ("a" "b" "d")))
-  (check-equal? (insert-child-r '(S ("a" "b")))
-                '("a" "b" (S (new))))
-  (check-equal? (insert-child-l '(S ("a" "b")))
-                '((S (new)) "a" "b"))
-  (check-equal? (new-sibling-r '("a" (S ("b")) "d"))
-                '("a" "b" (S (new)) "d"))
-  (check-equal? (new-sibling-l '("a" (S ("b")) "d"))
-                '("a" (S (new)) "b" "d"))
-  (check-equal? (wrap '(S ("a" "b")))
-                '(S (("a" "b"))))
+  (check-equal? (delete '("a" "b" (▹ "c") "d"))
+                '(▹ ("a" "b" "d")))
+  (check-equal? (insert-child-r '(▹ ("a" "b")))
+                '("a" "b" (▹ (☺))))
+  (check-equal? (insert-child-l '(▹ ("a" "b")))
+                '((▹ (☺)) "a" "b"))
+  (check-equal? (new-sibling-r '("a" (▹ ("b")) "d"))
+                '("a" "b" (▹ (☺)) "d"))
+  (check-equal? (new-sibling-l '("a" (▹ ("b")) "d"))
+                '("a" (▹ (☺)) "b" "d"))
+  (check-equal? (wrap '(▹ ("a" "b")))
+                '(▹ (("a" "b"))))
 
   ; secondary
-  (check-equal? (push-sibling-r '(1 (S 2) 3 4))
-                '(1 3 (S 2) 4))
-  (check-equal? (push-sibling-l '(1 (S 2) 3 4))
-                '((S 2) 1 3 4))
-  (check-equal? (merge '(S (1 2) (3 4)))
-                '(S (1 2 3 4)))
-  (check-equal? (pop/splice '(1 (S (2 21 22)) 4))
-                '(S (1 2 21 22 4)))
-  (check-equal? (slurp-r '((S (1 2)) 3 4))
-                '((S (1 2 3)) 4))  
-  (check-equal? (slurp-l '(1 (S (2 3)) 4))
-                '((S (1 2 3)) 4))
-  (check-equal? (barf-r '((S (1 2 3)) 4))
-                '((S (1 2)) 3 4))  
-  (check-equal? (barf-l '((S (1 2 3)) 4))
-                '(1 (S (2 3)) 4))  
+  (check-equal? (push-sibling-r '(1 (▹ 2) 3 4))
+                '(1 3 (▹ 2) 4))
+  (check-equal? (push-sibling-l '(1 (▹ 2) 3 4))
+                '((▹ 2) 1 3 4))
+  (check-equal? (merge '(▹ (1 2) (3 4)))
+                '(▹ (1 2 3 4)))
+  (check-equal? (pop/splice '(1 (▹ (2 21 22)) 3))
+                '(▹ (1 2 21 22 3)))
+  (check-equal? (slurp-r '((▹ (1 2)) 3 4))
+                '((▹ (1 2 3)) 4))  
+  (check-equal? (slurp-l '(1 (▹ (2 3)) 4))
+                '((▹ (1 2 3)) 4))
+  (check-equal? (barf-r '((▹ (1 2 3)) 4))
+                '((▹ (1 2)) 3 4))  
+  (check-equal? (barf-l '((▹ (1 2 3)) 4))
+                '(1 (▹ (2 3)) 4))  
   
   ; composition
-  (check-equal? ((compose wrap insert-child-l) '(S (a b)))
-                '((S ((new))) a b)))
+  (check-equal? ((wrap ⇒ insert-child-l) '(▹ (a b)))
+                '((▹ ((new))) a b)))
 
 
 ; -------------------------------------------------------
@@ -197,10 +202,9 @@
 (loop source input-stream)
 
 
+; -------------------------------------------------------
 
-; app-get override for [ ↦ ] and ([ ↦ ] ... )
-; make function to remove selector from tree
-; make function to insert selector at provided position
+
 ; utility fns
 
 (define (pos-to-sel tree pos)
@@ -213,8 +217,14 @@
   'position-of-selection)
 
 
-; make: given a pattern, return first result
-; given a pattern, return all results
+; (⋱ pat) pattern e.g. (⋱ (S a)) matches first found a just like my macro type above
+; (let inits (⋱ (S a))) matches most local let to (S a)
+; (let (⋯ [a init]) (⋱ (S a))) - given a, find most local binding
+; (⋱ *(S a)) matches all occurences of (S a) (multiple return values) ??
+; version of above for above above is complicated??
+
+; default: given a pattern, return first result
+; make: given a pattern, return all results
 ; maximal/minimal ? results for depth patterns?
 ; (backwards from S-match or forwards from root)
 
