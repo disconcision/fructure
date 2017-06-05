@@ -13,7 +13,7 @@
 
 (require (rename-in racket (#%app call)))
 (define-syntax #%app
-  (syntax-rules (↦)
+  (syntax-rules (↦ ↓)
     [[#%app pattern ↦ result] (#%app [pattern ↦ result])]
     [(#%app [pattern ↦ result] ...) (letrec ([transform (λ (source)
                                                           (match source
@@ -24,11 +24,14 @@
                                       transform)]
     [(#%app f-expr arg-expr ...) (call f-expr arg-expr ...)]))
 
+(define-syntax-rule (↓ [pattern ↦ result] ...)
+  ([pattern ↦ result] ...))
+
 ; -------------------------------------------------------
 
 (define (simple-select ls) `(S ,ls))
 
-(define (update src input)
+(define (update source input)
   (let ([transform (match input
                      [#\s first-child]
                      [#\z last-child]
@@ -41,7 +44,7 @@
                      [#\l new-sibling-r]
                      [#\j new-sibling-l]
                      [#\k wrap])])
-    (transform src)))
+    (transform source)))
 
 (define (loop source stream)
   (unless (empty? stream)
@@ -63,12 +66,12 @@
   [`(,a ... (S ,b ...) ,c ...) ↦ `(S (,@a ,@b ,@c))])
 
 (define next-sibling
-  ([`(,a ... (S ,b) ,c ,d ...) ↦ `(,@a ,b (S ,c) ,@d)]
-   [`(,a ,b ... (S ,c)) ↦ `((S ,a) ,@b ,c)]))
+  (↓ [`(,a ... (S ,b) ,c ,d ...) ↦ `(,@a ,b (S ,c) ,@d)]
+     [`(,a ,b ... (S ,c)) ↦ `((S ,a) ,@b ,c)]))
 
 (define prev-sibling
-  ([`(,a ... ,b (S ,c) ,d ...) ↦ `(,@a (S ,b) ,c ,@d)]
-   [`((S ,a) ,b ... ,c) ↦ `(,a ,@b (S ,c))]))
+  (↓ [`(,a ... ,b (S ,c) ,d ...) ↦ `(,@a (S ,b) ,c ,@d)]
+     [`((S ,a) ,b ... ,c) ↦ `(,a ,@b (S ,c))]))
 
 
 ; simple transforms -------------------------------------
@@ -95,12 +98,12 @@
 ; secondary transforms -----------------------------------
 
 (define push-sibling-r
-  ([`(,a ... (S ,b ...) ,c ,d ...) ↦ `(,@a ,c (S ,@b) ,@d)]
-   [`(,a ... (S ,b ...)) ↦ `((S ,@b) ,@a)]))
+  (↓ [`(,a ... (S ,b ...) ,c ,d ...) ↦ `(,@a ,c (S ,@b) ,@d)]
+     [`(,a ... (S ,b ...)) ↦ `((S ,@b) ,@a)]))
 
 (define push-sibling-l
-  ([`(,a ... ,b (S ,c ...) ,d ...) ↦ `(,@a (S ,@c) ,b ,@d)]
-   [`((S ,a ...) ,b ...) ↦ `(,@b (S ,@a))]))
+  (↓ [`(,a ... ,b (S ,c ...) ,d ...) ↦ `(,@a (S ,@c) ,b ,@d)]
+     [`((S ,a ...) ,b ...) ↦ `(,@b (S ,@a))]))
 
 (define merge
   [`(S (,a ...) (,b ...)) ↦ `(S (,@a ,@b))])
@@ -210,6 +213,10 @@
   'position-of-selection)
 
 
+; make: given a pattern, return first result
+; given a pattern, return all results
+; maximal/minimal ? results for depth patterns?
+; (backwards from S-match or forwards from root)
 
 
 
