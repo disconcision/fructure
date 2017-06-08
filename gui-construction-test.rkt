@@ -94,11 +94,10 @@
                       [parent-editor "none"]
                       [position '(0)]))
 
-(send my-canvas
-      set-editor my-board)
-
 (send my-frame
       show #t)
+
+
 
 (send my-board
       insert "top")
@@ -208,12 +207,36 @@
                                (send ed insert (~v code))
                                `(,(block-data position 'atom style ed sn)))))))
 
+(define source-1 '(let (build-gui-block code [parent-ed my-board] [position '()])
+                  (let* ([ed (new fruct-ed% [parent-editor parent-ed] [position position])]
+                         [sn (new fruct-sn% [editor ed] [parent-editor parent-ed] [position position])]
+                         [style (make-style position code)])
+                    (send ed set-snip! sn)
+                    (send parent-ed insert sn)
+                    (if (list? code)
+                        (let* ([builder (λ (sub pos) (build-gui-block sub ed (append position `(,pos))))]
+                               [kids (map builder code (range 0 (length code)))])
+                          (set-style! style sn ed)
+                          `(,(block-data position 'list style ed sn) ,@kids))
+                        (begin (set-style! style sn ed)
+                               (send ed insert (~v code))
+                               `(,(block-data position 'atom style ed sn)))))))
 
 (define source-0 '(0 1 (2 21 22 (23 231 232))))
 
 
-(define gui-block (build-gui-block source))
+(define gui-block (build-gui-block source my-board))
 
 
-
-
+(send my-canvas
+      set-editor my-board)
+(read)
+(define my-board2 (new fruct-ed%
+                      [parent-editor "none"]
+                      [position '(0)]))
+#;(send my-canvas
+      set-editor my-board2)
+#;(send my-board release-snip (block-data-sn (first gui-block)))
+(define gui-block-1 (build-gui-block source-1 my-board2))
+(send my-canvas
+      set-editor my-board2)
