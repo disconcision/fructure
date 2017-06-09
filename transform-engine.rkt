@@ -3,6 +3,7 @@
 (require racket/gui/base)
 (require fancy-app)
 
+(provide selector)
 (provide simple-select)
 (provide update)
 
@@ -39,6 +40,8 @@
 
 ; -------------------------------------------------------
 
+(define selector '▹)
+
 (define simple-select [,a ↦ (▹ ,a)])
 
 (define (update source input)
@@ -46,8 +49,8 @@
                      [#\s first-child]
                      [#\z last-child]
                      [#\w parent]
-                     [#\a next-sibling]
-                     [#\d prev-sibling]
+                     [#\d next-sibling]
+                     [#\a prev-sibling]
                      [#\i delete]
                      [#\o insert-child-r]
                      [#\u insert-child-l]
@@ -204,7 +207,7 @@
 
 (define source (simple-select original-source))
 
-; uncomment to display a simple test scenario
+; uncomment to run through a simple test scenario
 #; (loop source input-stream)
 
 

@@ -4,26 +4,42 @@
 (require fancy-app)
 (require "transform-engine.rkt")
 
-(define my-frame (new frame%
-                      [label "fructure"]
-                      [width 1300]
-                      [height 900]))
+
+; -------------------------------------------------------
+; source structure data
+
+(define original-source '(define (build-gui-block code [parent-ed my-board] [position '()])
+                           (let* ([ed (new fruct-ed% [parent-editor parent-ed] [position position])]
+                                  [sn (new fruct-sn% [editor ed] [parent-editor parent-ed] [position position])]
+                                  [style (make-style position code)])
+                             (send ed set-snip! sn)
+                             (send parent-ed insert sn)
+                             (if (list? code)
+                                 (let* ([builder (λ (sub pos) (build-gui-block sub ed (append position `(,pos))))]
+                                        [kids (map builder code (range 0 (length code)))])
+                                   (set-style! style sn ed)
+                                   `(,(block-data position 'list style ed sn) ,@kids))
+                                 (begin (set-style! style sn ed)
+                                        (send ed insert (~v code))
+                                        `(,(block-data position 'atom style ed sn)))))))
 
 
-(define my-canvas (new editor-canvas%
-                       [parent my-frame]))
+; -------------------------------------------------------
+; structures and objects for gui
+
+(struct block-data (position type style ed sn))
 
 
 (define fruct-ed% (class text% (super-new)
                   
                     (init-field parent-editor)
                     (init-field position)
-                    (field [containing-snip (void)])
+                    #; (field [containing-snip (void)])
 
                     (define/public (get-parent-editor) parent-editor)
                     (define/public (get-pos) position)
-                    (define/public (set-snip! a-snip) (set! containing-snip a-snip))
-                    (define/public (get-snip) containing-snip)
+                    #; (define/public (set-snip! a-snip) (set! containing-snip a-snip))
+                    #; (define/public (get-snip) containing-snip)
                     
                     (define/public (remove-text-snips)
                       (for ([pos (range 0 (send this last-position))])
@@ -40,7 +56,7 @@
                         (for ([pos (range 1 (sub1 (* 2 num-items)) 2)])
                           (send this insert "\n" pos))))
                     
-                    (define/public (format-vertical-fixed-indent-after start-at)
+                    (define/public (format-indent-after start-at)
                       (remove-text-snips)
                       (let ([num-items (send this last-position)])
                         (for ([pos (range start-at (* 2 (sub1 num-items)) 2)])
@@ -51,11 +67,8 @@
                     (define/override (on-default-char event)
                       (let ([key-code (send event get-key-code)])                          
                         (when (not (equal? key-code 'release))
-                          (println key-code)
                           (set! source (update source key-code))
-                          (set! my-board (new fruct-ed%
-                                              [parent-editor "none"]
-                                              [position '(0)]))
+                          (set! my-board (new fruct-ed% [parent-editor "none"] [position '(0)]))
                           (let ([gui-block (build-gui-block source my-board)])
                             (send my-canvas set-editor my-board))
                           )
@@ -69,11 +82,9 @@
                     (init-field position)
                     (init-field editor)
 
-                    (define children '())
+                    #; (define children '())
                     (define border-color "MediumVioletRed")
-                    (define background-color "green" #;(make-color (modulo (* 200 (/ (length position) 5)) 256) 100 150))
-                    
-                    
+                    (define background-color "red")
                     
                     (super-new [with-border? #f] [editor editor])
                     
@@ -84,36 +95,42 @@
                       (match format
                         ['horizontal (send editor format-horizontal)]
                         ['vertical (send editor format-vertical)]
-                        ['indent (send editor format-vertical-fixed-indent-after 2)]))
+                        ['indent (send editor format-indent-after 2)]))
                     
                     (define/override (draw dc x y left top right bottom dx dy draw-caret)
                       (send dc set-brush background-color 'solid)
                       (send dc set-pen border-color 1 'solid)
                       (define bottom-x (box 2))
                       (define bottom-y (box 2))
-                      ; (send dc set-background "blue") ;ineffective
+                      #; (send dc set-background "blue") ; ineffective
                       (send parent-editor get-snip-location this bottom-x bottom-y #t)                            
                       (send dc draw-rectangle (+ x 0) (+ y 0) (+ (unbox bottom-x) 0) (+(unbox bottom-y) 0))
-                            
+
                       (super draw dc x y left top right bottom dx dy draw-caret))))
 
 
+; -------------------------------------------------------
+; build gui and return tree with references to relevant objects
+
+(define (build-gui-block code [parent-ed my-board] [position '()])
+  (let* ([ed (new fruct-ed% [parent-editor parent-ed] [position position])]
+         [sn (new fruct-sn% [editor ed] [parent-editor parent-ed] [position position])]
+         [style (make-style position code)])
+    #; (send ed set-snip! sn)
+    (send parent-ed insert sn)
+    (if (list? code)
+        (let* ([builder (λ (sub pos) (build-gui-block sub ed (append position `(,pos))))]
+               [kids (map builder code (range 0 (length code)))])
+          (set-style! style sn ed) ; need to set style after children are inserted
+          `(,(block-data position 'list style ed sn) ,@kids))
+        (begin (set-style! style sn ed) ; styler must be first else deletes text 
+               (send ed insert (~v code))
+               ; add case for selector?
+               `(,(block-data position 'atom style ed sn))))))
 
 
-
-
-(define my-board (new fruct-ed%
-                      [parent-editor "none"]
-                      [position '(0)]))
-
-(send my-frame
-      show #t)
-
-
-
-
-
-(struct block-data (position type style ed sn))
+; -------------------------------------------------------
+; styling functions
 
 
 #; (define stylesheet '((default
@@ -138,9 +155,11 @@
 
 (define (make-style position code)
   `(my-style
-    (background-color ,(make-color (modulo (* 200 (/ (length position) 5)) 256)
-                                   222
-                                   130))
+    (background-color ,(match code
+                         [`(,(== selector) ,a ...) (make-color 0 0 200)]
+                         [_ (make-color (modulo (* 200 (/ (length position) 5)) 256)
+                                        222
+                                        130)]))
     (format ,(match code
                [`(let ,inits ,body ...) 'indent]
                [`(let* ,inits ,body ...) 'indent]
@@ -163,114 +182,46 @@
           (begin (define my-style-delta (make-object style-delta%))
                  (send my-style-delta set-delta-background color)
                  (send my-style-delta set-alignment-on 'top)
-                 (send my-style-delta set-transparent-text-backing-on #f)
+                 #; (send my-style-delta set-transparent-text-backing-on #f) ; doesn't work
                  (send ed change-style my-style-delta)))])
 
 
-; notes on styling
-; so to start, we decide the style for a list-node based on the first element
-; when that element is an atom. we'll ignore the case where the first element is a list
-
-
-(define (build-gui code [parent-ed my-board] [position '()])
-  (let* ([ed (new fruct-ed% [parent-editor parent-ed] [position position])]
-         [sn (new fruct-sn% [editor ed] [parent-editor parent-ed] [position position])])
-    (send ed set-snip! sn)
-    (send parent-ed insert sn)
-    #;(send ed change-style my-style-delta)
-    (if (list? code)
-        (begin (map (λ (sub pos) (build-gui sub ed (append position `(,pos)))) code (range 0 (length code)))
-               #; (insert test stuff here))
-        (send ed insert (~v code)))))
-
-
-; build gui and return tree with references to relevant objects
-(define (build-gui-block code [parent-ed my-board] [position '()])
-  (let* ([ed (new fruct-ed% [parent-editor parent-ed] [position position])]
-         [sn (new fruct-sn% [editor ed] [parent-editor parent-ed] [position position])]
-         [style (make-style position code)])
-    (send ed set-snip! sn)
-    (send parent-ed insert sn)
-    (if (list? code)
-        (let* ([builder (λ (sub pos) (build-gui-block sub ed (append position `(,pos))))]
-               [kids (map builder code (range 0 (length code)))])
-          (set-style! style sn ed) ; need to set style after children are inserted
-          `(,(block-data position 'list style ed sn) ,@kids))
-        (begin (set-style! style sn ed) ; styler must be first else deletes text 
-               (send ed insert (~v code))
-               ; add case for selector?
-               `(,(block-data position 'atom style ed sn))))))
-
-
-(define original-source '(define (build-gui-block code [parent-ed my-board] [position '()])
-                           (let* ([ed (new fruct-ed% [parent-editor parent-ed] [position position])]
-                                  [sn (new fruct-sn% [editor ed] [parent-editor parent-ed] [position position])]
-                                  [style (make-style position code)])
-                             (send ed set-snip! sn)
-                             (send parent-ed insert sn)
-                             (if (list? code)
-                                 (let* ([builder (λ (sub pos) (build-gui-block sub ed (append position `(,pos))))]
-                                        [kids (map builder code (range 0 (length code)))])
-                                   (set-style! style sn ed)
-                                   `(,(block-data position 'list style ed sn) ,@kids))
-                                 (begin (set-style! style sn ed)
-                                        (send ed insert (~v code))
-                                        `(,(block-data position 'atom style ed sn)))))))
-
-(define source-1 '(let (build-gui-block code [parent-ed my-board] [position '()])
-                    (let* ([ed (new fruct-ed% [parent-editor parent-ed] [position position])]
-                           [sn (new fruct-sn% [editor ed] [parent-editor parent-ed] [position position])]
-                           [style (make-style position code)])
-                      (send ed set-snip! sn)
-                      (send parent-ed insert sn)
-                      (if (list? code)
-                          (let* ([builder (λ (sub pos) (build-gui-block sub ed (append position `(,pos))))]
-                                 [kids (map builder code (range 0 (length code)))])
-                            (set-style! style sn ed)
-                            `(,(block-data position 'list style ed sn) ,@kids))
-                          (begin (set-style! style sn ed)
-                                 (send ed insert (~v code))
-                                 `(,(block-data position 'atom style ed sn)))))))
-
-(define source-0 '(0 1 (2 21 22 (23 231 232))))
-
-#|
-(define gui-block (build-gui-block source my-board))
-
-
-(send my-canvas
-      set-editor my-board)
-
-(println "prompt for read")
-(read)
-(define my-board2 (new fruct-ed%
-                       [parent-editor "none"]
-                       [position '(0)]))
-#;(send my-canvas
-        set-editor my-board2)
-#;(send my-board release-snip (block-data-sn (first gui-block)))
-(define gui-block-1 (build-gui-block source-1 my-board2))
-(send my-canvas
-      set-editor my-board2)
+#; (define (build-gui code [parent-ed my-board] [position '()])
+     (let* ([ed (new fruct-ed% [parent-editor parent-ed] [position position])]
+            [sn (new fruct-sn% [editor ed] [parent-editor parent-ed] [position position])])
+       (send ed set-snip! sn)
+       (send parent-ed insert sn)
+       #;(send ed change-style my-style-delta)
+       (if (list? code)
+           (begin (map (λ (sub pos) (build-gui sub ed (append position `(,pos)))) code (range 0 (length code)))
+                  #; (insert test stuff here))
+           (send ed insert (~v code)))))
 
 
 
-
-#; (define (loop source stream)
-     (unless (empty? stream)
-       (let* ([input (first stream)]
-              [new-source (update source input)])
-         (map display `(,input " : " ,new-source)) (newline)
-         (loop new-source (rest stream)))))
-
-#; (loop source input-stream)
-
-|#
+; -------------------------------------------------------
 
 
+(define my-frame (new frame%
+                      [label "fructure"]
+                      [width 1300]
+                      [height 900]))
 
+
+(define my-canvas (new editor-canvas%
+                       [parent my-frame]))
+
+
+(define my-board (new fruct-ed%
+                      [parent-editor "none"]
+                      [position '(0)]))
+
+
+; append selector
 (define source (simple-select original-source))
 
-(define gui-block (build-gui-block source my-board))
-
+; intialize interface
+(define gui (build-gui-block source my-board))
 (send my-canvas set-editor my-board)
+(send my-board set-caret-owner #f 'global)
+(send my-frame show #t)
