@@ -3,7 +3,7 @@
 (require racket/gui/base)
 (require fancy-app)
 (require "transform-engine.rkt")
-
+(require "utility-fns.rkt")
 
 ; -------------------------------------------------------
 ; source structure data
@@ -68,6 +68,7 @@
                       (let ([key-code (send event get-key-code)])                          
                         (when (not (equal? key-code 'release))
                           (set! source (update source key-code))
+                          (println source)
                           (set! my-board (new fruct-ed% [parent-editor "none"] [position '(0)]))
                           (let ([gui-block (build-gui-block source my-board)])
                             (send my-canvas set-editor my-board))
@@ -124,8 +125,8 @@
           (set-style! style sn ed) ; need to set style after children are inserted
           `(,(block-data position 'list style ed sn) ,@kids))
         (begin (set-style! style sn ed) ; styler must be first else deletes text 
-               (send ed insert (~v code))
-               ; add case for selector?
+               (unless (equal? code selector)
+                 (send ed insert (~v code)))
                `(,(block-data position 'atom style ed sn))))))
 
 
@@ -156,17 +157,24 @@
 (define (make-style position code)
   `(my-style
     (background-color ,(match code
-                         [`(,(== selector) ,a ...) (make-color 0 0 200)]
-                         [_ (make-color (modulo (* 200 (/ (length position) 5)) 256)
-                                        222
-                                        130)]))
+                         [`(,(== selector) ,a ...) (make-color 200 200 0)]
+                         [_ (make-color (modulo (round (* 368 (/ (length position) (tree-depth original-source)))) 256)
+                                        60
+                                        100)]))
     (format ,(match code
-               [`(let ,inits ,body ...) 'indent]
-               [`(let* ,inits ,body ...) 'indent]
+               [`((,(== selector) let) ,ls ...) 'indent]
+               [`((,(== selector) let*) ,ls ...) 'indent]
+               [`((,(== selector) if) ,ls ...) 'indent]
+               [`((,(== selector) begin) ,ls ...) 'indent]
+               [`((,(== selector) define) ,ls ...) 'indent]
+               [`((,(== selector) for) ,ls ...) 'indent]
+               [`((,a ...) ...) 'vertical] ; hack doesn't quite work
+               [`(let ,ls ...) 'indent]
+               [`(let* ,ls ...) 'indent]
                [`(if ,ls ...) 'indent]
                [`(begin ,ls ...) 'indent]
                [`(define ,ls ...) 'indent]
-               [`(for ,inits ,body ...) 'indent]
+               [`(for ,ls ...) 'indent]
                [_ 'horizontal]))))
 
 
@@ -181,6 +189,7 @@
           (send sn use-style-background #t)
           (begin (define my-style-delta (make-object style-delta%))
                  (send my-style-delta set-delta-background color)
+                 (send my-style-delta set-delta-foreground (make-color 255 255 255))
                  (send my-style-delta set-alignment-on 'top)
                  #; (send my-style-delta set-transparent-text-backing-on #f) ; doesn't work
                  (send ed change-style my-style-delta)))])
@@ -198,9 +207,8 @@
            (send ed insert (~v code)))))
 
 
-
 ; -------------------------------------------------------
-
+; gui setup
 
 (define my-frame (new frame%
                       [label "fructure"]
@@ -220,8 +228,9 @@
 ; append selector
 (define source (simple-select original-source))
 
-; intialize interface
+; build gui
 (define gui (build-gui-block source my-board))
+
 (send my-canvas set-editor my-board)
 (send my-board set-caret-owner #f 'global)
 (send my-frame show #t)
