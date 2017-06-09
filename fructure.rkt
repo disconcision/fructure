@@ -68,12 +68,9 @@
                       (let ([key-code (send event get-key-code)])                          
                         (when (not (equal? key-code 'release))
                           (set! source (update source key-code))
-                          (println source)
-                          (set! my-board (new fruct-ed% [parent-editor "none"] [position '(0)]))
-                          (let ([gui-block (build-gui-block source my-board)])
-                            (send my-canvas set-editor my-board))
-                          )
-                        ))
+                          (let* ([new-board (new fruct-ed% [parent-editor "none"] [position '(0)])]
+                                 [gui-block (build-gui-block source new-board)])
+                            (send my-canvas set-editor new-board)))))
                     ))
 
 
@@ -83,11 +80,10 @@
                     (init-field position)
                     (init-field editor)
 
-                    #; (define children '())
+                    (super-new [with-border? #f] [editor editor])
+                    
                     (define border-color "MediumVioletRed")
                     (define background-color "red")
-                    
-                    (super-new [with-border? #f] [editor editor])
                     
                     (define/public (set-background-color color)
                       (set! background-color color))
@@ -104,6 +100,7 @@
                       (define bottom-x (box 2))
                       (define bottom-y (box 2))
                       #; (send dc set-background "blue") ; ineffective
+                      #; (send editor get-extent width height) ; try this instead?
                       (send parent-editor get-snip-location this bottom-x bottom-y #t)                            
                       (send dc draw-rectangle (+ x 0) (+ y 0) (+ (unbox bottom-x) 0) (+(unbox bottom-y) 0))
 
@@ -118,14 +115,15 @@
          [sn (new fruct-sn% [editor ed] [parent-editor parent-ed] [position position])]
          [style (make-style position code)])
     #; (send ed set-snip! sn)
-    (send parent-ed insert sn)
+    (unless (equal? code selector) ; hack
+      (send parent-ed insert sn))
     (if (list? code)
         (let* ([builder (λ (sub pos) (build-gui-block sub ed (append position `(,pos))))]
                [kids (map builder code (range 0 (length code)))])
           (set-style! style sn ed) ; need to set style after children are inserted
           `(,(block-data position 'list style ed sn) ,@kids))
         (begin (set-style! style sn ed) ; styler must be first else deletes text 
-               (unless (equal? code selector)
+               (unless (equal? code selector) ; hack
                  (send ed insert (~v code)))
                `(,(block-data position 'atom style ed sn))))))
 
@@ -158,23 +156,13 @@
   `(my-style
     (background-color ,(match code
                          [`(,(== selector) ,a ...) (make-color 200 200 0)]
-                         [_ (make-color (modulo (round (* 368 (/ (length position) (tree-depth original-source)))) 256)
+                         [_ (make-color (modulo (exact-round (* 255 (sqrt (/ (length position) (tree-depth original-source))))) 256)
                                         60
                                         100)]))
     (format ,(match code
-               [`((,(== selector) let) ,ls ...) 'indent]
-               [`((,(== selector) let*) ,ls ...) 'indent]
-               [`((,(== selector) if) ,ls ...) 'indent]
-               [`((,(== selector) begin) ,ls ...) 'indent]
-               [`((,(== selector) define) ,ls ...) 'indent]
-               [`((,(== selector) for) ,ls ...) 'indent]
-               [`((,a ...) ...) 'vertical] ; hack doesn't quite work
-               [`(let ,ls ...) 'indent]
-               [`(let* ,ls ...) 'indent]
-               [`(if ,ls ...) 'indent]
-               [`(begin ,ls ...) 'indent]
-               [`(define ,ls ...) 'indent]
-               [`(for ,ls ...) 'indent]
+               [`((,(== selector) ,a) ,ls ...) (second (third (make-style position `(,a ,@ls))))] ; hack
+               [`(,form ,ls ...) #:when (member form '(let let* if begin define for)) 'indent]              
+               [`([,a ...] ...) 'vertical]
                [_ 'horizontal]))))
 
 
@@ -190,7 +178,7 @@
           (begin (define my-style-delta (make-object style-delta%))
                  (send my-style-delta set-delta-background color)
                  (send my-style-delta set-delta-foreground (make-color 255 255 255))
-                 (send my-style-delta set-alignment-on 'top)
+                 (send my-style-delta set-alignment-on 'top) ; ???
                  #; (send my-style-delta set-transparent-text-backing-on #f) ; doesn't work
                  (send ed change-style my-style-delta)))])
 
