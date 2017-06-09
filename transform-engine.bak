@@ -3,6 +3,11 @@
 (require racket/gui/base)
 (require fancy-app)
 
+(provide simple-select)
+(provide update)
+
+; -------------------------------------------------------
+
 (define-syntax define/↦
   (syntax-rules (↦)
     [(define/↦ transform [pattern ↦ result] ...)
