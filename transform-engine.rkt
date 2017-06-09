@@ -230,7 +230,6 @@
 (define (pos-to-sel tree pos)
   (tree-update tree pos simple-select))
 
-(pos-to-sel original-source '(1 2))
 
 (define/match (sel-to-pos sel-tree [pos '()])
   [(_ _) #:when (not (list? sel-tree)) #f]) ; finish this
