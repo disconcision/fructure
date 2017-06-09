@@ -5,6 +5,7 @@
 
 (provide selector)
 (provide simple-select)
+(provide simple-deselect)
 (provide update)
 
 ; -------------------------------------------------------
@@ -42,7 +43,11 @@
 
 (define selector '▹)
 
-(define simple-select [,a ↦ (▹ ,a)])
+(define simple-select
+  [,a ↦ (▹ ,a)])
+
+(define simple-deselect
+  [(▹ ,a ...) ↦ (,@a)])
 
 (define (update source input)
   (let ([transform (match input
@@ -150,53 +155,53 @@
 
 #;(module+ test (require rackunit)
   
-  ; movement
-  (check-equal? (first-child '(▹ (0 1 2 3)))
-                '((▹ 0) 1 2 3))
-  (check-equal? (last-child '(▹ (0 1 2 3)))
-                '(0 1 2 (▹ 3)))
-  (check-equal? (parent '(0 1 (▹ 2) 3))
-                '(▹ (0 1 2 3)))
-  (check-equal? (next-sibling '(0 1 (▹ 2) 3))
-                '(0 1 2 (▹ 3)))
-  (check-equal? (prev-sibling '((▹ 0) 1 2 3))
-                '(0 1 2 (▹ 3)))
+    ; movement
+    (check-equal? (first-child '(▹ (0 1 2 3)))
+                  '((▹ 0) 1 2 3))
+    (check-equal? (last-child '(▹ (0 1 2 3)))
+                  '(0 1 2 (▹ 3)))
+    (check-equal? (parent '(0 1 (▹ 2) 3))
+                  '(▹ (0 1 2 3)))
+    (check-equal? (next-sibling '(0 1 (▹ 2) 3))
+                  '(0 1 2 (▹ 3)))
+    (check-equal? (prev-sibling '((▹ 0) 1 2 3))
+                  '(0 1 2 (▹ 3)))
 
-  ; simple
-  (check-equal? (delete '("a" "b" (▹ "c") "d"))
-                '(▹ ("a" "b" "d")))
-  (check-equal? (insert-child-r '(▹ ("a" "b")))
-                '("a" "b" (▹ (☺))))
-  (check-equal? (insert-child-l '(▹ ("a" "b")))
-                '((▹ (☺)) "a" "b"))
-  (check-equal? (new-sibling-r '("a" (▹ ("b")) "d"))
-                '("a" "b" (▹ (☺)) "d"))
-  (check-equal? (new-sibling-l '("a" (▹ ("b")) "d"))
-                '("a" (▹ (☺)) "b" "d"))
-  (check-equal? (wrap '(▹ ("a" "b")))
-                '(▹ (("a" "b"))))
+    ; simple
+    (check-equal? (delete '("a" "b" (▹ "c") "d"))
+                  '(▹ ("a" "b" "d")))
+    (check-equal? (insert-child-r '(▹ ("a" "b")))
+                  '("a" "b" (▹ (☺))))
+    (check-equal? (insert-child-l '(▹ ("a" "b")))
+                  '((▹ (☺)) "a" "b"))
+    (check-equal? (new-sibling-r '("a" (▹ ("b")) "d"))
+                  '("a" "b" (▹ (☺)) "d"))
+    (check-equal? (new-sibling-l '("a" (▹ ("b")) "d"))
+                  '("a" (▹ (☺)) "b" "d"))
+    (check-equal? (wrap '(▹ ("a" "b")))
+                  '(▹ (("a" "b"))))
 
-  ; secondary
-  (check-equal? (push-sibling-r '(1 (▹ 2) 3 4))
-                '(1 3 (▹ 2) 4))
-  (check-equal? (push-sibling-l '(1 (▹ 2) 3 4))
-                '((▹ 2) 1 3 4))
-  (check-equal? (merge '(▹ (1 2) (3 4)))
-                '(▹ (1 2 3 4)))
-  (check-equal? (pop/splice '(1 (▹ (2 21 22)) 3))
-                '(▹ (1 2 21 22 3)))
-  (check-equal? (slurp-r '((▹ (1 2)) 3 4))
-                '((▹ (1 2 3)) 4))  
-  (check-equal? (slurp-l '(1 (▹ (2 3)) 4))
-                '((▹ (1 2 3)) 4))
-  (check-equal? (barf-r '((▹ (1 2 3)) 4))
-                '((▹ (1 2)) 3 4))  
-  (check-equal? (barf-l '((▹ (1 2 3)) 4))
-                '(1 (▹ (2 3)) 4))  
+    ; secondary
+    (check-equal? (push-sibling-r '(1 (▹ 2) 3 4))
+                  '(1 3 (▹ 2) 4))
+    (check-equal? (push-sibling-l '(1 (▹ 2) 3 4))
+                  '((▹ 2) 1 3 4))
+    (check-equal? (merge '(▹ (1 2) (3 4)))
+                  '(▹ (1 2 3 4)))
+    (check-equal? (pop/splice '(1 (▹ (2 21 22)) 3))
+                  '(▹ (1 2 21 22 3)))
+    (check-equal? (slurp-r '((▹ (1 2)) 3 4))
+                  '((▹ (1 2 3)) 4))  
+    (check-equal? (slurp-l '(1 (▹ (2 3)) 4))
+                  '((▹ (1 2 3)) 4))
+    (check-equal? (barf-r '((▹ (1 2 3)) 4))
+                  '((▹ (1 2)) 3 4))  
+    (check-equal? (barf-l '((▹ (1 2 3)) 4))
+                  '(1 (▹ (2 3)) 4))  
   
-  ; composition
-  (check-equal? ((wrap ⇒ insert-child-l) '(▹ (a b)))
-                '((▹ ((new))) a b)))
+    ; composition
+    (check-equal? ((wrap ⇒ insert-child-l) '(▹ (a b)))
+                  '((▹ ((new))) a b)))
 
 
 ; -------------------------------------------------------
@@ -216,14 +221,22 @@
 
 ; utility fns
 
+(define (tree-update tree pos fn)
+  (if (empty? pos)
+      (fn tree)
+      (list-update tree (first pos) (λ (a) (tree-update a (rest pos) fn)))))
+
+
 (define (pos-to-sel tree pos)
-  'tree-with-selection)
+  (tree-update tree pos simple-select))
 
-(define (sel-to-tree sel-tree)
-  'tree-without-selection)
+(pos-to-sel original-source '(1 2))
 
-(define (sel-to-pos sel-tree)
-  'position-of-selection)
+(define/match (sel-to-pos sel-tree [pos '()])
+  [(_ _) #:when (not (list? sel-tree)) #f]) ; finish this
+
+
+
 
 
 ; (⋱ pat) pattern e.g. (⋱ (S a)) matches first found a just like my macro type above
