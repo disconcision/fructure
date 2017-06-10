@@ -9,20 +9,22 @@
 ; source structure data
 
 (define original-source '(define (build-gui-block code [parent-ed my-board] [position '()])
-                           (let* ([ed (new fruct-ed% [parent-editor parent-ed] [position position])]
-                                  [sn (new fruct-sn% [editor ed] [parent-editor parent-ed] [position position])]
-                                  [style (make-style position code)])
-                             (send ed set-snip! sn)
-                             (send parent-ed insert sn)
-                             (if (list? code)
-                                 (let* ([builder (λ (sub pos) (build-gui-block sub ed (append position `(,pos))))]
-                                        [kids (map builder code (range 0 (length code)))])
-                                   (set-style! style sn ed)
-                                   `(,(block-data position 'list style ed sn) ,@kids))
-                                 (begin (set-style! style sn ed)
-                                        (send ed insert (~v code))
-                                        `(,(block-data position 'atom style ed sn)))))))
-
+                              (let* ([ed (new fruct-ed% [parent-editor parent-ed] [position position])]
+                                     [sn (new fruct-sn% [editor ed] [parent-editor parent-ed] [position position])]
+                                     [style (make-style position code)])
+                                (send ed set-snip! sn)
+                                (send parent-ed insert sn)
+                                (if (list? code)
+                                    (let* ([builder (λ (sub pos) (build-gui-block sub ed (append position `(,pos))))]
+                                           [kids (map builder code (range 0 (length code)))])
+                                      (set-style! style sn ed)
+                                      `(,(block-data position 'list style ed sn) ,@kids))
+                                    (begin (set-style! style sn ed)
+                                           (send ed insert (~v code))
+                                           `(,(block-data position 'atom style ed sn)))))))
+#; (define original-source '(let ([0 0]
+                               [0 0])0
+                           0))
 
 ; -------------------------------------------------------
 ; structures and objects for gui
@@ -30,8 +32,10 @@
 (struct block-data (position type style ed sn))
 
 
-(define fruct-ed% (class text% (super-new)
-                  
+(define fruct-ed% (class text% (super-new [line-spacing 0]) ; line spacing changes something.. padding?
+
+                    #; (send this set-sticky-styles #t)
+                    
                     (init-field parent-editor)
                     (init-field position)
                     #; (field [containing-snip (void)])
@@ -53,7 +57,7 @@
                     (define/public (format-vertical)
                       (remove-text-snips)
                       (let ([num-items (send this last-position)])
-                        (for ([pos (range 1 (sub1 (* 2 num-items)) 2)])
+                        (for ([pos (range 1 (- (* 2 num-items) 2) 2)])
                           (send this insert "\n" pos))))
                     
                     (define/public (format-indent-after start-at)
@@ -64,13 +68,13 @@
                         (for ([line-num (range 1 (sub1 num-items))])
                           (send this insert "    " (send this line-start-position line-num)))))
 
-                    (define/override (on-default-char event)
-                      (let ([key-code (send event get-key-code)])                          
-                        (when (not (equal? key-code 'release))
-                          (set! source (update source key-code))
-                          (let* ([new-board (new fruct-ed% [parent-editor "none"] [position '(0)])]
-                                 [gui-block (build-gui-block source new-board)])
-                            (send my-canvas set-editor new-board)))))
+                    #;(define/override (on-default-char event)
+                        (let ([key-code (send event get-key-code)])                          
+                          (when (not (equal? key-code 'release))
+                            (set! source (update source key-code))
+                            (let* ([new-board (new fruct-ed% [parent-editor "none"] [position '(0)])]
+                                   [gui-block (build-gui-block source new-board)])
+                              (send my-canvas set-editor new-board)))))
                     ))
 
 
@@ -95,14 +99,24 @@
                         ['indent (send editor format-indent-after 2)]))
                     
                     (define/override (draw dc x y left top right bottom dx dy draw-caret)
+                      
+                      (define a-dc dc)
+                      (define a-x x)
+                      (define a-y y)
+                      (define a-w (box 2))
+                      (define a-h (box 2))
+                      (define a-descent (box 2))                     
+                      (send this get-extent a-dc a-x a-y a-w a-h a-descent)
+                      (println a-descent)
                       (send dc set-brush background-color 'solid)
-                      (send dc set-pen border-color 1 'solid)
+                      (send dc set-pen background-color 1 'solid)
                       (define bottom-x (box 2))
                       (define bottom-y (box 2))
+                      #; (send dc set-text-mode 'transparent) ; ineffective
                       #; (send dc set-background "blue") ; ineffective
                       #; (send editor get-extent width height) ; try this instead?
                       (send parent-editor get-snip-location this bottom-x bottom-y #t)                            
-                      (send dc draw-rectangle (+ x 0) (+ y 0) (+ (unbox bottom-x) 0) (+(unbox bottom-y) 0))
+                      (send dc draw-rectangle (+ x 0) (+ y 0) (+ (unbox bottom-x) 0) (+ (unbox bottom-y) 0))
 
                       (super draw dc x y left top right bottom dx dy draw-caret))))
 
@@ -170,16 +184,16 @@
   [(`(,name (background-color ,color)
             (format ,format)) _ _)
    (begin (send sn set-background-color color)
-          (send sn set-format format)
-          #;(send sn set-align-top-line #t) ; don't exactly understand this
-          (send sn set-margin 4 4 4 4)
-          #;(send sn set-inset 0 0 0 0) ; ???
           (send sn use-style-background #t)
+          (send sn set-format format)
+          (send sn set-margin 2 2 2 2)
+          #;(send sn set-inset 0 0 0 0) ; ???
+          #;(send sn set-align-top-line #t) ; don't exactly understand this
           (begin (define my-style-delta (make-object style-delta%))
                  (send my-style-delta set-delta-background color)
                  (send my-style-delta set-delta-foreground (make-color 255 255 255))
                  (send my-style-delta set-alignment-on 'top) ; ???
-                 #; (send my-style-delta set-transparent-text-backing-on #f) ; doesn't work
+                 #;(send my-style-delta set-transparent-text-backing-on #f) ; doesn't work
                  (send ed change-style my-style-delta)))])
 
 
@@ -202,6 +216,8 @@
                       [label "fructure"]
                       [width 1300]
                       [height 900]))
+
+#; (send my-frame set-alignment 'center 'center) ;ineffective?
 
 
 (define my-canvas (new editor-canvas%
