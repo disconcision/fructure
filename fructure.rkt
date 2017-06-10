@@ -68,7 +68,7 @@
                         (for ([line-num (range 1 (sub1 num-items))])
                           (send this insert "    " (send this line-start-position line-num)))))
 
-                    #;(define/override (on-default-char event)
+                    (define/override (on-default-char event)
                         (let ([key-code (send event get-key-code)])                          
                           (when (not (equal? key-code 'release))
                             (set! source (update source key-code))
@@ -217,7 +217,7 @@
                       [width 1300]
                       [height 900]))
 
-#; (send my-frame set-alignment 'center 'center) ;ineffective?
+(send my-frame set-alignment 'center 'center) ;ineffective?
 
 
 (define my-canvas (new editor-canvas%
