@@ -3,10 +3,13 @@
 (require racket/gui/base)
 (require fancy-app)
 
-(provide selector)
-(provide simple-select)
-(provide simple-deselect)
-(provide update)
+(provide selector
+         simple-select
+         simple-deselect
+         update)
+
+(provide forms
+         insert-form)
 
 ; -------------------------------------------------------
 
@@ -36,7 +39,7 @@
     [(#%app f-expr arg-expr ...) (call f-expr arg-expr ...)]))
 
 (define-syntax-rule (↓ [pattern ↦ result] ...)
-  ([pattern ↦ result] ...))
+  ([pattern ↦ result] ...)) ; explicit fallthrough annotation
 
 
 ; -------------------------------------------------------
@@ -142,15 +145,6 @@
   [(,a ... (▹ (,b ,c ...)) ,d ...) ↦ (,@a ,b (▹ (,@c)) ,@d)])
 
 
-; mathy transforms --------------------------------------
-
-(define comm
-  [(▹ (,op ,a ,b)) ↦ (▹ (,op ,b ,a))])
-
-(define assoc
-  [(▹ (,op ,a (,op ,b ,c))) ↦ (▹ (,op (,op ,a ,b) ,c))])
-
-
 ; -------------------------------------------------------
 
 #;(module+ test (require rackunit)
@@ -203,6 +197,37 @@
     (check-equal? ((wrap ⇒ insert-child-l) '(▹ (a b)))
                   '((▹ ((new))) a b)))
 
+
+
+; mathy transforms --------------------------------------
+
+(define comm
+  [(▹ (,op ,a ,b)) ↦ (▹ (,op ,b ,a))])
+
+(define assoc
+  [(▹ (,op ,a (,op ,b ,c))) ↦ (▹ (,op (,op ,a ,b) ,c))])
+
+
+; form inserts ------------------------------------------
+; todo: generate directly from grammar in docs
+
+(define forms #hash(("define" . (define name expr))
+                    ("define-fn" . (define (name variable ...) expr))
+                    ("begin" . (begin expr expr))
+                    ("λ" . (λ (variable ...) expr))
+                    ("let" . (let ([name expr] ...) expr))
+                    ("letrec" . (letrec ([name expr] ...) expr))
+                    ("cond" . (cond [expr expr] ... [expr expr]))
+                    ("quote" . (quote expr))
+                    ("unquote" . (unquote expr))
+                    ("match" . (match expr [pattern expr] ...))
+                    ("if" . (if expr expr expr))
+                    ("map" . (map fn ls ...))))
+
+(define (insert-form name)
+  [(▹ ,a) ↦ (▹ ,(hash-ref forms name))])
+
+#; ((insert-form "define") '(0 1 2 (▹ 3)))
 
 ; -------------------------------------------------------
 
