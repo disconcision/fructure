@@ -9,22 +9,22 @@
 ; source structure data
 
 (define original-source '(define (build-gui-block code [parent-ed my-board] [position '()])
-                              (let* ([ed (new fruct-ed% [parent-editor parent-ed] [position position])]
-                                     [sn (new fruct-sn% [editor ed] [parent-editor parent-ed] [position position])]
-                                     [style (make-style position code)])
-                                (send ed set-snip! sn)
-                                (send parent-ed insert sn)
-                                (if (list? code)
-                                    (let* ([builder (λ (sub pos) (build-gui-block sub ed (append position `(,pos))))]
-                                           [kids (map builder code (range 0 (length code)))])
-                                      (set-style! style sn ed)
-                                      `(,(block-data position 'list style ed sn) ,@kids))
-                                    (begin (set-style! style sn ed)
-                                           (send ed insert (~v code))
-                                           `(,(block-data position 'atom style ed sn)))))))
+                           (let* ([ed (new fruct-ed% [parent-editor parent-ed] [position position])]
+                                  [sn (new fruct-sn% [editor ed] [parent-editor parent-ed] [position position])]
+                                  [style (make-style position code)])
+                             (send ed set-snip! sn)
+                             (send parent-ed insert sn)
+                             (if (list? code)
+                                 (let* ([builder (λ (sub pos) (build-gui-block sub ed (append position `(,pos))))]
+                                        [kids (map builder code (range 0 (length code)))])
+                                   (set-style! style sn ed)
+                                   `(,(block-data position 'list style ed sn) ,@kids))
+                                 (begin (set-style! style sn ed)
+                                        (send ed insert (~v code))
+                                        `(,(block-data position 'atom style ed sn)))))))
 #; (define original-source '(let ([0 0]
-                               [0 0])0
-                           0))
+                                  [0 0])0
+                              0))
 
 ; -------------------------------------------------------
 ; structures and objects for gui
@@ -38,12 +38,18 @@
                     
                     (init-field parent-editor)
                     (init-field position)
+                    
+                    (field [is-atomic (void)])
+                    
                     #; (field [containing-snip (void)])
 
                     (define/public (get-parent-editor) parent-editor)
                     (define/public (get-pos) position)
+                    (define/public (atomic?) is-atomic)
+                    (define/public (set-atomic! bool) (set! is-atomic bool))
                     #; (define/public (set-snip! a-snip) (set! containing-snip a-snip))
                     #; (define/public (get-snip) containing-snip)
+                    
                     
                     (define/public (remove-text-snips)
                       (for ([pos (range 0 (send this last-position))])
@@ -69,13 +75,19 @@
                           (send this insert "    " (send this line-start-position line-num)))))
 
                     (define/override (on-default-char event)
-                        (let ([key-code (send event get-key-code)])                          
-                          (when (not (equal? key-code 'release))
-                            (set! source (update source key-code))
-                            (let* ([new-board (new fruct-ed% [parent-editor "none"] [position '(0)])]
-                                   [gui-block (build-gui-block source new-board)])
-                              (send my-canvas set-editor new-board)))))
+                      (let ([key-code (send event get-key-code)])                          
+                        (match key-code
+                          [#\space (let ([input-text (read-line)])
+                                     (set! source ((insert-form input-text) source)))]
+                          [_ (when (not (equal? key-code 'release))
+                               (set! source (update source key-code))
+                               )])
+                        (let* ([new-board (new fruct-ed% [parent-editor "none"] [position '(0)])]
+                               [gui-block (build-gui-block source new-board)])
+                          (send my-canvas set-editor new-board))
+                        ))
                     ))
+
 
 
 (define fruct-sn% (class editor-snip%
@@ -107,7 +119,6 @@
                       (define a-h (box 2))
                       (define a-descent (box 2))                     
                       (send this get-extent a-dc a-x a-y a-w a-h a-descent)
-                      (println a-descent)
                       (send dc set-brush background-color 'solid)
                       (send dc set-pen background-color 1 'solid)
                       (define bottom-x (box 2))
@@ -135,8 +146,10 @@
         (let* ([builder (λ (sub pos) (build-gui-block sub ed (append position `(,pos))))]
                [kids (map builder code (range 0 (length code)))])
           (set-style! style sn ed) ; need to set style after children are inserted
+          (send ed set-atomic! #f)
           `(,(block-data position 'list style ed sn) ,@kids))
-        (begin (set-style! style sn ed) ; styler must be first else deletes text 
+        (begin (set-style! style sn ed) ; styler must be first else deletes text
+               (send ed set-atomic! #f)
                (unless (equal? code selector) ; hack
                  (send ed insert (~v code)))
                `(,(block-data position 'atom style ed sn))))))
@@ -217,7 +230,7 @@
                       [width 1300]
                       [height 900]))
 
-(send my-frame set-alignment 'center 'center) ;ineffective?
+(send my-frame set-alignment 'center 'center) ; ineffective?
 
 
 (define my-canvas (new editor-canvas%
@@ -228,6 +241,7 @@
                       [parent-editor "none"]
                       [position '(0)]))
 
+(send my-board set-atomic! #f) ; hack
 
 ; append selector
 (define source (simple-select original-source))

@@ -10,7 +10,6 @@
 
 (provide forms
          insert-form)
-
 ; -------------------------------------------------------
 
 (define-syntax define/↦
@@ -54,6 +53,10 @@
 
 (define (update source input)
   (let ([transform (match input
+                     [#\space
+                      (define text-input "")
+                      (read text-input)
+                      (insert-form text-input)]
                      [#\s first-child]
                      [#\z last-child]
                      [#\w parent]
@@ -212,8 +215,8 @@
 ; todo: generate directly from grammar in docs
 
 (define forms #hash(("define" . (define name expr))
-                    ("define-fn" . (define (name variable ...) expr))
-                    ("begin" . (begin expr expr))
+                    ("define (" . (define (name variable ...) expr))
+                    ("begin" . (begin expr expr ...))
                     ("λ" . (λ (variable ...) expr))
                     ("let" . (let ([name expr] ...) expr))
                     ("letrec" . (letrec ([name expr] ...) expr))
@@ -224,10 +227,24 @@
                     ("if" . (if expr expr expr))
                     ("map" . (map fn ls ...))))
 
+(define forms+ #hash(("define" . (define (▹ name) expr))
+                     ("define (" . (define ((▹ name) variable ...) expr))
+                     ("begin" . (begin (▹ expr) expr ....))
+                     ("λ" . (λ ((▹ variable) ...) expr))
+                     ("let" . (let ([(▹ name) expr] ...) expr))
+                     ("letrec" . (letrec ([(▹ name) expr] ...) expr))
+                     ("cond" . (cond [(▹ expr) expr] ... [expr expr]))
+                     ("quote" . (quote (▹ expr)))
+                     ("unquote" . (unquote (▹ expr)))
+                     ("match" . (match (▹ expr) [pattern expr] ...))
+                     ("if" . (if (▹ expr) expr expr))
+                     ("map" . (map (▹ fn) ls ...))))
+
 (define (insert-form name)
   [(▹ ,a) ↦ (▹ ,(hash-ref forms name))])
 
-#; ((insert-form "define") '(0 1 2 (▹ 3)))
+((insert-form "define") '(0 1 2 (▹ 3)))
+
 
 ; -------------------------------------------------------
 
