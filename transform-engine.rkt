@@ -10,6 +10,9 @@
 
 (provide forms
          insert-form)
+
+(provide pos-to-sel
+         sel-to-pos)
 ; -------------------------------------------------------
 
 (define-syntax define/↦
@@ -53,10 +56,7 @@
 
 (define (update source input)
   (let ([transform (match input
-                     [#\space
-                      (define text-input "")
-                      (read text-input)
-                      (insert-form text-input)]
+                     [#\space identity]
                      [#\s first-child]
                      [#\z last-child]
                      [#\w parent]
@@ -241,7 +241,7 @@
                      ("map" . (map (▹ fn) ls ...))))
 
 (define (insert-form name)
-  [(▹ ,a) ↦ (▹ ,(hash-ref forms name))])
+  [(▹ ,a) ↦ ,(hash-ref forms+ name)])
 
 ((insert-form "define") '(0 1 2 (▹ 3)))
 
@@ -273,7 +273,10 @@
   (tree-update tree pos simple-select))
 
 
-(define/match (sel-to-pos sel-tree [pos '()])
+(define (sel-to-pos sel-tree)
+  '(1))
+
+#; (define/match (sel-to-pos sel-tree [pos '()])
   [(_ _) #:when (not (list? sel-tree)) #f]) ; finish this
 
 

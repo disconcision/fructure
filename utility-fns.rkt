@@ -1,6 +1,8 @@
 #lang racket
 
-(provide tree-depth)
+(provide tree-depth
+         sub-at-pos
+         sub-list-at-pos)
 
 ; utility fns
 
@@ -8,3 +10,12 @@
   (if (and (list? source) (not (empty? source)))
       (add1 (apply max (map tree-depth source)))
       1))
+
+(define/match (sub-at-pos obj-tree pos)
+  [(tree `()) (first tree)]
+  [(_ `(,a . ,as)) (sub-at-pos (list-ref obj-tree (add1 (modulo (sub1 a) (sub1 (length obj-tree))))) as)])
+
+
+(define/match (sub-list-at-pos obj-tree pos)
+  [(tree `()) tree]
+  [(_ `(,a . ,as)) (sub-list-at-pos (list-ref obj-tree (add1 (modulo (sub1 a) (sub1 (length obj-tree))))) as)])

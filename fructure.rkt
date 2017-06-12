@@ -29,8 +29,10 @@
 ; -------------------------------------------------------
 ; structures and objects for gui
 
-(struct block-data (position type style ed sn))
+(struct block-data (position parent-ed type style ed sn))
 
+(define mode '0)
+(define pos '(1))
 
 (define fruct-ed% (class text% (super-new [line-spacing 0]) ; line spacing changes something.. padding?
 
@@ -40,15 +42,16 @@
                     (init-field position)
                     
                     (field [is-atomic (void)])
-                    
-                    #; (field [containing-snip (void)])
+             
+                    (field [containing-snip (void)])
 
                     (define/public (get-parent-editor) parent-editor)
                     (define/public (get-pos) position)
                     (define/public (atomic?) is-atomic)
                     (define/public (set-atomic! bool) (set! is-atomic bool))
-                    #; (define/public (set-snip! a-snip) (set! containing-snip a-snip))
-                    #; (define/public (get-snip) containing-snip)
+
+                    (define/public (set-snip! a-snip) (set! containing-snip a-snip))
+                    (define/public (get-snip) containing-snip)
                     
                     
                     (define/public (remove-text-snips)
@@ -74,19 +77,52 @@
                         (for ([line-num (range 1 (sub1 num-items))])
                           (send this insert "    " (send this line-start-position line-num)))))
 
+                    (define/public (get-text-focus)
+                      (when (not (equal? parent-editor "none"))
+                        (send parent-editor set-caret-owner this 'global)
+                        (send this select-all))
+                      )
+
+                    (define/public (get-fruct-text)
+                      (get-text-focus)
+                      )
+
                     (define/override (on-default-char event)
-                      (let ([key-code (send event get-key-code)])                          
-                        (match key-code
-                          [#\space (let ([input-text (read-line)])
-                                     (set! source ((insert-form input-text) source)))]
-                          [_ (when (not (equal? key-code 'release))
-                               (set! source (update source key-code))
-                               )])
-                        (let* ([new-board (new fruct-ed% [parent-editor "none"] [position '(0)])]
-                               [gui-block (build-gui-block source new-board)])
-                          (send my-canvas set-editor new-board))
-                        ))
+                      (let (
+                            [key-code (send event get-key-code)])
+                        (when (not (equal? key-code 'release))
+                          (cond
+                            [(equal? mode '0) 
+                             (let ()                          
+                               (match key-code
+                                 [#\space (set! mode 'get-name)
+                                          (let ([word-input-loop (λ ()
+                                                                   (println "SDfsdfsdf")
+                                                                   (send (block-data-parent-ed (sub-at-pos gui (sel-to-pos source))) set-caret-owner (block-data-sn (sel-to-pos source)) 'global)
+                                                                   (send (block-data-ed (sub-at-pos gui (sel-to-pos source))) insert "SDfkey-code")
+                                                                   (sleep 0.5)
+                                                                   #;(send my-board select-all (block-data-sn (sub-at-pos gui '())) 'global)
+                                                                   #; (just need to replace this, parent-editor with external references)
+                                                                   #; (send my-board set-caret-owner containing-snip 'global)
+                                                                   #; (send this select-all)
+                                                                   #; (when (not (equal? parent-editor "none"))
+                                                                        (send parent-editor set-caret-owner this 'global)
+                                                                        (send this select-all)
+                                                                        (println "insideee")
+                                                                        (send this insert key-code))
+                                                                   )])
+                                            (println "looping")
+                                            (word-input-loop))]
+                                 [_ 
+                                  (set! source (update source key-code))
+                                  ])
+                               (let* ([new-board (new fruct-ed% [parent-editor "none"] [position '(0)])]
+                                      [gui-block (build-gui-block source new-board)])
+                                 (send my-canvas set-editor new-board))
+                               )]
+                            [(equal? mode '1) void]))))
                     ))
+
 
 
 
@@ -139,7 +175,7 @@
   (let* ([ed (new fruct-ed% [parent-editor parent-ed] [position position])]
          [sn (new fruct-sn% [editor ed] [parent-editor parent-ed] [position position])]
          [style (make-style position code)])
-    #; (send ed set-snip! sn)
+    (send ed set-snip! sn)
     (unless (equal? code selector) ; hack
       (send parent-ed insert sn))
     (if (list? code)
@@ -147,12 +183,12 @@
                [kids (map builder code (range 0 (length code)))])
           (set-style! style sn ed) ; need to set style after children are inserted
           (send ed set-atomic! #f)
-          `(,(block-data position 'list style ed sn) ,@kids))
+          `(,(block-data position parent-ed 'list style ed sn) ,@kids))
         (begin (set-style! style sn ed) ; styler must be first else deletes text
                (send ed set-atomic! #f)
                (unless (equal? code selector) ; hack
                  (send ed insert (~v code)))
-               `(,(block-data position 'atom style ed sn))))))
+               `(,(block-data position parent-ed 'atom style ed sn))))))
 
 
 ; -------------------------------------------------------
