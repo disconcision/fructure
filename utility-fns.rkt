@@ -2,6 +2,7 @@
 
 (provide tree-depth
          sub-at-pos
+         obj-at-pos
          sub-list-at-pos)
 
 ; utility fns
@@ -15,6 +16,9 @@
   [(tree `()) (first tree)]
   [(_ `(,a . ,as)) (sub-at-pos (list-ref obj-tree (add1 (modulo (sub1 a) (sub1 (length obj-tree))))) as)])
 
+(define/match (obj-at-pos obj-tree pos)
+  [(_ `()) (first obj-tree)]
+  [(_ `(,a . ,as)) (obj-at-pos (list-ref (rest obj-tree) a) as)])
 
 (define/match (sub-list-at-pos obj-tree pos)
   [(tree `()) tree]

@@ -8,23 +8,23 @@
 ; -------------------------------------------------------
 ; source structure data
 
-(define original-source '(define (build-gui-block code [parent-ed my-board] [position '()])
-                           (let* ([ed (new fruct-ed% [parent-editor parent-ed] [position position])]
-                                  [sn (new fruct-sn% [editor ed] [parent-editor parent-ed] [position position])]
-                                  [style (make-style position code)])
-                             (send ed set-snip! sn)
-                             (send parent-ed insert sn)
-                             (if (list? code)
-                                 (let* ([builder (λ (sub pos) (build-gui-block sub ed (append position `(,pos))))]
-                                        [kids (map builder code (range 0 (length code)))])
-                                   (set-style! style sn ed)
-                                   `(,(block-data position 'list style ed sn) ,@kids))
-                                 (begin (set-style! style sn ed)
-                                        (send ed insert (~v code))
-                                        `(,(block-data position 'atom style ed sn)))))))
-#; (define original-source '(let ([0 0]
-                                  [0 0])0
-                              0))
+#; (define original-source '(define (build-gui-block code [parent-ed my-board] [position '()])
+                              (let* ([ed (new fruct-ed% [parent-editor parent-ed] [position position])]
+                                     [sn (new fruct-sn% [editor ed] [parent-editor parent-ed] [position position])]
+                                     [style (make-style position code)])
+                                (send ed set-snip! sn)
+                                (send parent-ed insert sn)
+                                (if (list? code)
+                                    (let* ([builder (λ (sub pos) (build-gui-block sub ed (append position `(,pos))))]
+                                           [kids (map builder code (range 0 (length code)))])
+                                      (set-style! style sn ed)
+                                      `(,(block-data position 'list style ed sn) ,@kids))
+                                    (begin (set-style! style sn ed)
+                                           (send ed insert (~v code))
+                                           `(,(block-data position 'atom style ed sn)))))))
+(define original-source '(let ([0 0]
+                               [0 0])0
+                           0))
 
 ; -------------------------------------------------------
 ; structures and objects for gui
@@ -88,40 +88,32 @@
                       )
 
                     (define/override (on-default-char event)
-                      (let (
-                            [key-code (send event get-key-code)])
+                      (let ([key-code (send event get-key-code)])
                         (when (not (equal? key-code 'release))
-                          (cond
-                            [(equal? mode '0) 
-                             (let ()                          
-                               (match key-code
-                                 [#\space (set! mode 'get-name)
-                                          (let ([word-input-loop (λ ()
-                                                                   (println "SDfsdfsdf")
-                                                                   (send (block-data-parent-ed (sub-at-pos gui (sel-to-pos source))) set-caret-owner (block-data-sn (sel-to-pos source)) 'global)
-                                                                   (send (block-data-ed (sub-at-pos gui (sel-to-pos source))) insert "SDfkey-code")
-                                                                   (sleep 0.5)
-                                                                   #;(send my-board select-all (block-data-sn (sub-at-pos gui '())) 'global)
-                                                                   #; (just need to replace this, parent-editor with external references)
-                                                                   #; (send my-board set-caret-owner containing-snip 'global)
-                                                                   #; (send this select-all)
-                                                                   #; (when (not (equal? parent-editor "none"))
-                                                                        (send parent-editor set-caret-owner this 'global)
-                                                                        (send this select-all)
-                                                                        (println "insideee")
-                                                                        (send this insert key-code))
-                                                                   )])
-                                            (println "looping")
-                                            (word-input-loop))]
-                                 [_ 
-                                  (set! source (update source key-code))
-                                  ])
-                               (let* ([new-board (new fruct-ed% [parent-editor "none"] [position '(0)])]
-                                      [gui-block (build-gui-block source new-board)])
-                                 (send my-canvas set-editor new-board))
-                               )]
-                            [(equal? mode '1) void]))))
-                    ))
+                          (match key-code
+                            [#\space 
+                    
+                             (println (sel-to-pos source))
+                             (println (third gui))
+                             (println (block-data-sn (obj-at-pos (third gui) (sel-to-pos source))))
+                             (println (send (block-data-ed (obj-at-pos (third gui) (sel-to-pos source))) get-pos))
+                             (begin (define my-style-delta (make-object style-delta%))
+                                    (send my-style-delta set-delta-background (make-color 255 255 255))
+                                    (send my-style-delta set-delta-foreground (make-color 255 255 255))
+                                    (send (block-data-ed (obj-at-pos (third gui) (sel-to-pos source))) change-style my-style-delta))
+                             #; (send (block-data-parent-ed (obj-at-pos (third gui) (sel-to-pos source))) set-caret-owner (block-data-sn (obj-at-pos (third gui) (sel-to-pos source))) 'global)
+                             (send (block-data-ed (obj-at-pos (third gui) (sel-to-pos source))) insert "SDfkey-code")
+                             #;(sleep 1.5)
+                             #;(send my-board select-all (block-data-sn (obj-at-pos gui '())) 'global)
+                             ]                                     
+                            [_ 
+                             (set! source (update source key-code))
+                             ])
+                          (let* ([new-board (new fruct-ed% [parent-editor "none"] [position '(0)])]
+                                 [gui-block (build-gui-block source new-board)])
+                            (send my-canvas set-editor new-board))     
+                               
+                          )))))
 
 
 
@@ -275,7 +267,7 @@
 
 (define my-board (new fruct-ed%
                       [parent-editor "none"]
-                      [position '(0)]))
+                      [position '()]))
 
 (send my-board set-atomic! #f) ; hack
 

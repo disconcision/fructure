@@ -273,12 +273,19 @@
   (tree-update tree pos simple-select))
 
 
-(define (sel-to-pos sel-tree)
-  '(1))
+(define/match (sel-to-pos sel-tree [pos '()])
+  [(_ _) #:when (not (list? sel-tree)) #f]
+  [(`(▹ ,a) _) '()]
+  [(_ _) (let ([result (filter identity
+                        (map (λ (sub num)
+                               (let ([a (sel-to-pos sub pos)])
+                                 (if a `(,num ,@a) #f)))
+                             sel-tree
+                             (range 0 (length sel-tree))))])
+           (if (empty? result) #f (first result)))])
 
-#; (define/match (sel-to-pos sel-tree [pos '()])
-  [(_ _) #:when (not (list? sel-tree)) #f]) ; finish this
-
+; do proper tests!!
+#;(sel-to-pos '((▹ "sdf") 0 1    3))
 
 
 
