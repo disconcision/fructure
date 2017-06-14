@@ -1,4 +1,0 @@
-#lang racket
-
-
-(define abcdef 6)

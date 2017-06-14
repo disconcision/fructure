@@ -3,11 +3,16 @@
 (require racket/gui/base)
 (require fancy-app)
 
-(provide selector)
-(provide simple-select)
-(provide simple-deselect)
-(provide update)
+(provide selector
+         simple-select
+         simple-deselect
+         update)
 
+(provide forms
+         insert-form)
+
+(provide pos-to-sel
+         sel-to-pos)
 ; -------------------------------------------------------
 
 (define-syntax define/↦
@@ -36,7 +41,7 @@
     [(#%app f-expr arg-expr ...) (call f-expr arg-expr ...)]))
 
 (define-syntax-rule (↓ [pattern ↦ result] ...)
-  ([pattern ↦ result] ...))
+  ([pattern ↦ result] ...)) ; explicit fallthrough annotation
 
 
 ; -------------------------------------------------------
@@ -51,6 +56,7 @@
 
 (define (update source input)
   (let ([transform (match input
+                     [#\space identity]
                      [#\s first-child]
                      [#\z last-child]
                      [#\w parent]
@@ -142,15 +148,6 @@
   [(,a ... (▹ (,b ,c ...)) ,d ...) ↦ (,@a ,b (▹ (,@c)) ,@d)])
 
 
-; mathy transforms --------------------------------------
-
-(define comm
-  [(▹ (,op ,a ,b)) ↦ (▹ (,op ,b ,a))])
-
-(define assoc
-  [(▹ (,op ,a (,op ,b ,c))) ↦ (▹ (,op (,op ,a ,b) ,c))])
-
-
 ; -------------------------------------------------------
 
 #;(module+ test (require rackunit)
@@ -204,6 +201,51 @@
                   '((▹ ((new))) a b)))
 
 
+
+; mathy transforms --------------------------------------
+
+(define comm
+  [(▹ (,op ,a ,b)) ↦ (▹ (,op ,b ,a))])
+
+(define assoc
+  [(▹ (,op ,a (,op ,b ,c))) ↦ (▹ (,op (,op ,a ,b) ,c))])
+
+
+; form inserts ------------------------------------------
+; todo: generate directly from grammar in docs
+
+(define forms #hash(("define" . (define name expr))
+                    ("define (" . (define (name variable ...) expr))
+                    ("begin" . (begin expr expr ...))
+                    ("λ" . (λ (variable ...) expr))
+                    ("let" . (let ([name expr] ...) expr))
+                    ("letrec" . (letrec ([name expr] ...) expr))
+                    ("cond" . (cond [expr expr] ... [expr expr]))
+                    ("quote" . (quote expr))
+                    ("unquote" . (unquote expr))
+                    ("match" . (match expr [pattern expr] ...))
+                    ("if" . (if expr expr expr))
+                    ("map" . (map fn ls ...))))
+
+(define forms+ #hash(("define" . (define (▹ name) expr))
+                     ("define (" . (define ((▹ name) variable ...) expr))
+                     ("begin" . (begin (▹ expr) expr ....))
+                     ("λ" . (λ ((▹ variable) ...) expr))
+                     ("let" . (let ([(▹ name) expr] ...) expr))
+                     ("letrec" . (letrec ([(▹ name) expr] ...) expr))
+                     ("cond" . (cond [(▹ expr) expr] ... [expr expr]))
+                     ("quote" . (quote (▹ expr)))
+                     ("unquote" . (unquote (▹ expr)))
+                     ("match" . (match (▹ expr) [pattern expr] ...))
+                     ("if" . (if (▹ expr) expr expr))
+                     ("map" . (map (▹ fn) ls ...))))
+
+(define (insert-form name)
+  [(▹ ,a) ↦ ,(hash-ref forms+ name)])
+
+((insert-form "define") '(0 1 2 (▹ 3)))
+
+
 ; -------------------------------------------------------
 
 (define original-source '(1 (2 21 22) 3))
@@ -231,7 +273,10 @@
   (tree-update tree pos simple-select))
 
 
-(define/match (sel-to-pos sel-tree [pos '()])
+(define (sel-to-pos sel-tree)
+  '(1))
+
+#; (define/match (sel-to-pos sel-tree [pos '()])
   [(_ _) #:when (not (list? sel-tree)) #f]) ; finish this
 
 
