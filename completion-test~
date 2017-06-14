@@ -1,0 +1,6 @@
+#lang racket
+
+
+(define ns (dynamic-require "test.rkt" 'ns))
+
+(namespace-mapped-symbols ns)
