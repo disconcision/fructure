@@ -31,7 +31,6 @@
 
 (struct block-data (position parent-ed type style ed sn))
 
-(define mode '0)
 (define pos '(1))
 
 (define fruct-ed% (class text% (super-new [line-spacing 0]) ; line spacing changes something.. padding?
@@ -94,23 +93,25 @@
                             [#\space 
                     
                              (println (sel-to-pos source))
-                             (println (third gui))
+                             #;(println (third gui))
                              (println (block-data-sn (obj-at-pos (third gui) (sel-to-pos source))))
-                             (println (send (block-data-ed (obj-at-pos (third gui) (sel-to-pos source))) get-pos))
+                             #;(println (send (block-data-ed (obj-at-pos (third gui) (sel-to-pos source))) get-pos))
+                             (send (block-data-ed (obj-at-pos (third gui) (sel-to-pos source))) insert "SDfkey-code")
                              (begin (define my-style-delta (make-object style-delta%))
                                     (send my-style-delta set-delta-background (make-color 255 255 255))
                                     (send my-style-delta set-delta-foreground (make-color 255 255 255))
                                     (send (block-data-ed (obj-at-pos (third gui) (sel-to-pos source))) change-style my-style-delta))
                              #; (send (block-data-parent-ed (obj-at-pos (third gui) (sel-to-pos source))) set-caret-owner (block-data-sn (obj-at-pos (third gui) (sel-to-pos source))) 'global)
-                             (send (block-data-ed (obj-at-pos (third gui) (sel-to-pos source))) insert "SDfkey-code")
-                             #;(sleep 1.5)
+                             
+                             (sleep 1.5)
                              #;(send my-board select-all (block-data-sn (obj-at-pos gui '())) 'global)
                              ]                                     
                             [_ 
                              (set! source (update source key-code))
                              ])
                           (let* ([new-board (new fruct-ed% [parent-editor "none"] [position '(0)])]
-                                 [gui-block (build-gui-block source new-board)])
+                                 #;[gui-block (build-gui-block source new-board)])
+                            (set! gui (build-gui-block source new-board))
                             (send my-canvas set-editor new-board))     
                                
                           )))))
@@ -176,7 +177,7 @@
           (set-style! style sn ed) ; need to set style after children are inserted
           (send ed set-atomic! #f)
           `(,(block-data position parent-ed 'list style ed sn) ,@kids))
-        (begin (set-style! style sn ed) ; styler must be first else deletes text
+        (begin (set-style! style sn ed) ; styler must be  first else deletes text
                (send ed set-atomic! #f)
                (unless (equal? code selector) ; hack
                  (send ed insert (~v code)))
@@ -198,7 +199,7 @@
 #; (define (find-style atom)
      (let ([style (filter (λ (style) (equal? atom (first style))) stylesheet)])
        (if (empty? style)
-           'default
+           'default 
            (first (first style)))))
 
 
@@ -276,6 +277,15 @@
 
 ; build gui
 (define gui (build-gui-block source my-board))
+
+gui
+
+(define (traverse gui)
+  (if (list? gui)
+      (map traverse gui)
+      (block-data-sn gui)))
+
+(traverse (third gui))
 
 (send my-canvas set-editor my-board)
 (send my-board set-caret-owner #f 'global)
