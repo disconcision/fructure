@@ -22,9 +22,12 @@
                                     (begin (set-style! style sn ed)
                                            (send ed insert (~v code))
                                            `(,(block-data position 'atom style ed sn)))))))
-(define original-source '(let ([0 0]
-                               [0 0])0
-                           0))
+#; (define original-source '(let ([a b]
+                               [c d])
+                           e
+                           f))
+
+(define original-source '("0" "1" "a" ("20" "21" ("220")) "3"))
 
 ; -------------------------------------------------------
 ; structures and objects for gui
@@ -93,15 +96,13 @@
                             [#\space 
                     
                              (println (sel-to-pos source))
-                             #;(println (third gui))
-                             (println (block-data-sn (obj-at-pos (third gui) (sel-to-pos source))))
-                             #;(println (send (block-data-ed (obj-at-pos (third gui) (sel-to-pos source))) get-pos))
-                             (send (block-data-ed (obj-at-pos (third gui) (sel-to-pos source))) insert "SDfkey-code")
+                             (println (block-data-sn (obj-at-pos gui (sel-to-pos source))))
+                             (send (block-data-ed (obj-at-pos gui (sel-to-pos source))) insert "!!!!!" 0)
                              (begin (define my-style-delta (make-object style-delta%))
                                     (send my-style-delta set-delta-background (make-color 255 255 255))
                                     (send my-style-delta set-delta-foreground (make-color 255 255 255))
-                                    (send (block-data-ed (obj-at-pos (third gui) (sel-to-pos source))) change-style my-style-delta))
-                             #; (send (block-data-parent-ed (obj-at-pos (third gui) (sel-to-pos source))) set-caret-owner (block-data-sn (obj-at-pos (third gui) (sel-to-pos source))) 'global)
+                                    (send (block-data-ed (obj-at-pos gui (sel-to-pos source))) change-style my-style-delta))
+                             #; (send (block-data-parent-ed (obj-at-pos gui (sel-to-pos source))) set-caret-owner (block-data-sn (obj-at-pos (third gui) (sel-to-pos source))) 'global)
                              
                              (sleep 1.5)
                              #;(send my-board select-all (block-data-sn (obj-at-pos gui '())) 'global)
@@ -169,7 +170,7 @@
          [sn (new fruct-sn% [editor ed] [parent-editor parent-ed] [position position])]
          [style (make-style position code)])
     (send ed set-snip! sn)
-    (unless (equal? code selector) ; hack
+    (unless #f #;(equal? code selector) ; hack
       (send parent-ed insert sn))
     (if (list? code)
         (let* ([builder (λ (sub pos) (build-gui-block sub ed (append position `(,pos))))]
@@ -179,7 +180,7 @@
           `(,(block-data position parent-ed 'list style ed sn) ,@kids))
         (begin (set-style! style sn ed) ; styler must be  first else deletes text
                (send ed set-atomic! #f)
-               (unless (equal? code selector) ; hack
+               (unless #f #;(equal? code selector) ; hack
                  (send ed insert (~v code)))
                `(,(block-data position parent-ed 'atom style ed sn))))))
 
@@ -278,14 +279,13 @@
 ; build gui
 (define gui (build-gui-block source my-board))
 
-gui
 
 (define (traverse gui)
   (if (list? gui)
       (map traverse gui)
       (block-data-sn gui)))
 
-(traverse (third gui))
+(traverse gui)
 
 (send my-canvas set-editor my-board)
 (send my-board set-caret-owner #f 'global)

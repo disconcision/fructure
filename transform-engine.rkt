@@ -243,7 +243,7 @@
 (define (insert-form name)
   [(▹ ,a) ↦ ,(hash-ref forms+ name)])
 
-((insert-form "define") '(0 1 2 (▹ 3)))
+#; ((insert-form "define") '(0 1 2 (▹ 3)))
 
 
 ; -------------------------------------------------------

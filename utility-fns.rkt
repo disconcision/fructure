@@ -17,7 +17,7 @@
   [(_ `(,a . ,as)) (sub-at-pos (list-ref obj-tree (add1 (modulo (sub1 a) (sub1 (length obj-tree))))) as)])
 
 (define/match (obj-at-pos obj-tree pos)
-  [(_ `()) (first obj-tree)]
+  [(_ `()) (first (third obj-tree))] 
   [(_ `(,a . ,as)) (obj-at-pos (list-ref (rest obj-tree) a) as)])
 
 (define/match (sub-list-at-pos obj-tree pos)
