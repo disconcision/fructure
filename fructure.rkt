@@ -23,9 +23,9 @@
                                            (send ed insert (~v code))
                                            `(,(block-data position 'atom style ed sn)))))))
 #; (define original-source '(let ([a b]
-                               [c d])
-                           e
-                           f))
+                                  [c d])
+                              e
+                              f))
 
 (define original-source '("0" "1" "a" ("20" "21" ("220")) "3"))
 
@@ -35,6 +35,8 @@
 (struct block-data (position parent-ed type style ed sn))
 
 (define pos '(1))
+(define mode 'nav)
+(define num-chars 0)
 
 (define fruct-ed% (class text% (super-new [line-spacing 0]) ; line spacing changes something.. padding?
 
@@ -92,28 +94,52 @@
                     (define/override (on-default-char event)
                       (let ([key-code (send event get-key-code)])
                         (when (not (equal? key-code 'release))
-                          (match key-code
-                            [#\space 
+                          (cond
+                            [(equal? mode 'nav)
+                             (match key-code
+                               [#\space 
                     
-                             (println (sel-to-pos source))
-                             (println (block-data-sn (obj-at-pos gui (sel-to-pos source))))
-                             (send (block-data-ed (obj-at-pos gui (sel-to-pos source))) insert "!!!!!" 0)
-                             (begin (define my-style-delta (make-object style-delta%))
-                                    (send my-style-delta set-delta-background (make-color 255 255 255))
-                                    (send my-style-delta set-delta-foreground (make-color 255 255 255))
-                                    (send (block-data-ed (obj-at-pos gui (sel-to-pos source))) change-style my-style-delta))
-                             #; (send (block-data-parent-ed (obj-at-pos gui (sel-to-pos source))) set-caret-owner (block-data-sn (obj-at-pos (third gui) (sel-to-pos source))) 'global)
+                                (send (block-data-parent-ed (obj-at-pos gui (sel-to-pos source))) set-caret-owner (block-data-sn (obj-at-pos gui (sel-to-pos source))) 'global)
+                                (send (block-data-ed (obj-at-pos gui (sel-to-pos source))) set-position 0)
+                                (if (equal? mode 'nav) (set! mode 'text-entry) (set! mode 'nav))
+
+                                #; (println (sel-to-pos source))
+                                #; (println (block-data-sn (obj-at-pos gui (sel-to-pos source))))
+                                #; (send (block-data-ed (obj-at-pos gui (sel-to-pos source))) select-all)
+                                #; (send (block-data-ed (obj-at-pos gui (sel-to-pos source))) insert "!!!!!" 0)
+                                #; (begin (define my-style-delta (make-object style-delta%))
+                                          (send my-style-delta set-delta-background (make-color 255 255 255))
+                                          (send my-style-delta set-delta-foreground (make-color 255 255 255))
+                                          (send (block-data-ed (obj-at-pos gui (sel-to-pos source))) change-style my-style-delta))
+                                #; (send (block-data-parent-ed (obj-at-pos gui (sel-to-pos source))) set-caret-owner (block-data-sn (obj-at-pos (third gui) (sel-to-pos source))) 'global)
+                                #; (sleep 1.5)
+                                ]                                     
+                               [_ 
+                                (set! source (update source key-code))
+                                (let* ([new-board (new fruct-ed% [parent-editor "none"] [position '(0)])]
+                                       )
+                                  (set! gui (build-gui-block source new-board))
+                                  (send my-canvas set-editor new-board))
+                                ])]
+                            [(equal? mode 'text-entry)
                              
-                             (sleep 1.5)
-                             #;(send my-board select-all (block-data-sn (obj-at-pos gui '())) 'global)
-                             ]                                     
-                            [_ 
-                             (set! source (update source key-code))
+                             (match (string key-code)
+                               [" " (if (equal? mode 'nav) (set! mode 'text-entry) (set! mode 'nav))
+                                    (println num-chars)
+                                    (define form-name (send (block-data-ed (obj-at-pos gui (sel-to-pos source))) get-text 0 num-chars))
+                                    (set! num-chars 0)
+                                    (set! source ((insert-form form-name) source))
+                                    ;following is verbatim update code from above; refactor
+                                    (let* ([new-board (new fruct-ed% [parent-editor "none"] [position '(0)])]
+                                           )
+                                      (set! gui (build-gui-block source new-board))
+                                      (send my-canvas set-editor new-board))
+                                    ]
+                               [(regexp #rx"[A-Za-z0-9_]")
+                                (set! num-chars (add1 num-chars))
+                                (send (block-data-ed (obj-at-pos gui (sel-to-pos source))) insert key-code)])
                              ])
-                          (let* ([new-board (new fruct-ed% [parent-editor "none"] [position '(0)])]
-                                 #;[gui-block (build-gui-block source new-board)])
-                            (set! gui (build-gui-block source new-board))
-                            (send my-canvas set-editor new-board))     
+                               
                                
                           )))))
 
