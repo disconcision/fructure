@@ -215,36 +215,39 @@
 ; todo: generate directly from grammar in docs
 
 (define forms #hash(("define" . (define name expr))
-                    ("define (" . (define (name variable ...) expr))
-                    ("begin" . (begin expr expr ...))
-                    ("λ" . (λ (variable ...) expr))
-                    ("let" . (let ([name expr] ...) expr))
-                    ("letrec" . (letrec ([name expr] ...) expr))
-                    ("cond" . (cond [expr expr] ... [expr expr]))
+                    ("define ()" . (define (name variable ⋯) expr))
+                    ("begin" . (begin expr expr ⋯))
+                    ("λ" . (λ (variable ⋯) expr))
+                    ("let" . (let ([name expr] ⋯) expr))
+                    ("letrec" . (letrec ([name expr] ⋯) expr))
+                    ("cond" . (cond [expr expr] ⋯ [expr expr]))
                     ("quote" . (quote expr))
                     ("unquote" . (unquote expr))
-                    ("match" . (match expr [pattern expr] ...))
+                    ("match" . (match expr [pattern expr] ⋯))
                     ("if" . (if expr expr expr))
-                    ("map" . (map fn ls ...))))
+                    ("map" . (map fn ls ⋯))))
 
-(define forms+ #hash(("define" . (define (▹ name) expr))
-                     ("define (" . (define ((▹ name) variable ...) expr))
-                     ("begin" . (begin (▹ expr) expr ....))
-                     ("λ" . (λ ((▹ variable) ...) expr))
-                     ("let" . (let ([(▹ name) expr] ...) expr))
-                     ("letrec" . (letrec ([(▹ name) expr] ...) expr))
-                     ("cond" . (cond [(▹ expr) expr] ... [expr expr]))
+(define forms+ #hash(("define" . (define (▹ /name/) /expr/)) ; how about this notation?
+                     ("λ" . (λ ((▹ variable) ⋯) expr))
+                     ("define ()" . (define ((▹ name) variable ⋯) expr))
+                     ("let" . (let ([(▹ name) expr] ⋯) expr))
+                     ("letrec" . (letrec ([(▹ name) expr] ⋯) expr))
+                     ("begin" . (begin (▹ expr) expr ⋯))
+                     ("if" . (if (▹ expr) expr expr))
+                     ("cond" . (cond [(▹ expr) expr] ⋯ [expr expr]))
+                     ("match" . (match (▹ expr) [pattern expr] ⋯))
                      ("quote" . (quote (▹ expr)))
                      ("unquote" . (unquote (▹ expr)))
-                     ("match" . (match (▹ expr) [pattern expr] ...))
-                     ("if" . (if (▹ expr) expr expr))
-                     ("map" . (map (▹ fn) ls ...))))
+                     ("map" . (map (▹ fn) ls ⋯))))
 
 (define (insert-form name)
   [(▹ ,a) ↦ ,(hash-ref forms+ name)])
 
 #; ((insert-form "define") '(0 1 2 (▹ 3)))
 
+
+; idea: slight tint to functions depending on arity (also struct size?)
+; just enough to make it obvious when nearby variables/fns are much more light/heavyweight
 
 ; -------------------------------------------------------
 
@@ -277,11 +280,11 @@
   [(_ _) #:when (not (list? sel-tree)) #f]
   [(`(▹ ,a) _) '()]
   [(_ _) (let ([result (filter identity
-                        (map (λ (sub num)
-                               (let ([a (sel-to-pos sub pos)])
-                                 (if a `(,num ,@a) #f)))
-                             sel-tree
-                             (range 0 (length sel-tree))))])
+                               (map (λ (sub num)
+                                      (let ([a (sel-to-pos sub pos)])
+                                        (if a `(,num ,@a) #f)))
+                                    sel-tree
+                                    (range 0 (length sel-tree))))])
            (if (empty? result) #f (first result)))])
 
 ; do proper tests!!

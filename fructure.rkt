@@ -8,7 +8,7 @@
 ; -------------------------------------------------------
 ; source structure data
 
-#; (define original-source '(define (build-gui-block code [parent-ed my-board] [position '()])
+(define original-source '(define (build-gui-block code [parent-ed my-board] [position '()])
                               (let* ([ed (new fruct-ed% [parent-editor parent-ed] [position position])]
                                      [sn (new fruct-sn% [editor ed] [parent-editor parent-ed] [position position])]
                                      [style (make-style position code)])
@@ -27,7 +27,7 @@
                               e
                               f))
 
-(define original-source '("0" "1" "a" ("20" "21" ("220")) "3"))
+#; (define original-source '("0" "1" "a" ("20" "21" ("220")) "3"))
 
 ; -------------------------------------------------------
 ; structures and objects for gui
@@ -125,7 +125,7 @@
                              
                              (match (string key-code)
                                [" " (if (equal? mode 'nav) (set! mode 'text-entry) (set! mode 'nav))
-                                    (println num-chars)
+                                    #; (println num-chars)
                                     (define form-name (send (block-data-ed (obj-at-pos gui (sel-to-pos source))) get-text 0 num-chars))
                                     (set! num-chars 0)
                                     (set! source ((insert-form form-name) source))
@@ -196,7 +196,7 @@
          [sn (new fruct-sn% [editor ed] [parent-editor parent-ed] [position position])]
          [style (make-style position code)])
     (send ed set-snip! sn)
-    (unless #f #;(equal? code selector) ; hack
+    (unless (equal? code selector) ; hack
       (send parent-ed insert sn))
     (if (list? code)
         (let* ([builder (λ (sub pos) (build-gui-block sub ed (append position `(,pos))))]
@@ -206,7 +206,7 @@
           `(,(block-data position parent-ed 'list style ed sn) ,@kids))
         (begin (set-style! style sn ed) ; styler must be  first else deletes text
                (send ed set-atomic! #f)
-               (unless #f #;(equal? code selector) ; hack
+               (unless (equal? code selector) ; hack
                  (send ed insert (~v code)))
                `(,(block-data position parent-ed 'atom style ed sn))))))
 
@@ -316,3 +316,66 @@
 (send my-canvas set-editor my-board)
 (send my-board set-caret-owner #f 'global)
 (send my-frame show #t)
+
+
+
+
+; note on nav fixing
+
+; things nav might depend on:
+; style (direction, child-num, linebreaks)
+; whether or not it's an atom
+; style/atomicity of parent/children/siblings
+
+; if linebreak after, down selects next child
+; if linebreak before, up selects prev child, left selects parent, right does nothing (or parent?)
+; if linebreak before and at end: same but down selects ?? parent ??
+
+; make left/right (or up/down inside vertical block) at beginning/end of block exit block instead of wrapping
+; or if last
+
+; more advanced
+; 'sibling' cases for identically shaped siblings which can be moved around in like a grid
+; must be both horizontal or both vertical
+; identical shaped := something like: if sibling has same 'list shape' up to the level of depth where the selector is
+
+
+; if horizontal, should right go: ($new (f ...) -> (new ($f)) ie skip to first child?
+; makes it slower to get to second child (as well as selecting child instead of child.first obviously)
+; but to alleviate bracketted case: when press space to edit an atom at beginning of list, could automatically select parent list
+
+
+
+
+; notes on modes
+
+; what if the key used to quit insert mode picked the action
+; like instead of insert, exiting with SHIFT searched on entered string instead
+; could use as main command entry mode
+; would need to actually build an intermediary structure though, not just an intermeidary string
+; and draw that structure as an overlay somehow (to start, let's try a different pane)
+
+
+; notes on panes
+
+; three to start
+; stage, kit, and pattern
+
+
+
+; pattern autoselect:
+; when select node, automatch it's subtree to available patterns
+; generate hashmap of pattern vars to selected's children
+; for first child (interpreted as symbol literal), color grey
+; for other childern, re-color according to color map (in correspondance with hashmap)
+; populate kit.environment with hashmap (in list form?)
+
+
+
+; affordances:
+; write <...> into tree, select it to create new child of relevant type (when parent form takes list args)
+; affordances are contextual patterns; they depend on (their position in) their parent form
+
+
+; transformers:
+; as close to possible as exactly what meets the eye
