@@ -17,7 +17,7 @@
   [(_ `(,a . ,as)) (sub-at-pos (list-ref obj-tree (add1 (modulo (sub1 a) (sub1 (length obj-tree))))) as)])
 
 (define/match (obj-at-pos obj-tree pos)
-  [(_ `()) (first (third obj-tree))] ; third because we don't want the selector itself
+  [(_ `()) (first obj-tree #;(third obj-tree))] ; third because we don't want the selector itself
   [(_ `(,a . ,as)) (obj-at-pos (list-ref (rest obj-tree) a) as)])
 
 #; (define/match (sub-list-at-pos obj-tree pos)

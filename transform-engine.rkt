@@ -57,11 +57,11 @@
 (define (update source input)
   (let ([transform (match input
                      [#\space identity]
-                     [#\s first-child]
+                     [#\e #;#\s first-child]
                      [#\z last-child]
-                     [#\w parent]
-                     [#\d next-sibling]
-                     [#\a prev-sibling]
+                     [#\q #;#\w parent]
+                     [#\d next-escape]
+                     [#\a prev-escape]
                      [#\i delete]
                      [#\o insert-child-r]
                      [#\u insert-child-l]
@@ -78,7 +78,7 @@
       (loop new-source (rest stream)))))
 
 
-; move selector -----------------------------------------
+; simple nav --------------------------------------------
 
 (define first-child
   [(▹ (,a ,b ...)) ↦ ((▹ ,a) ,@b)])
@@ -89,14 +89,55 @@
 (define parent
   [(,a ... (▹ ,b ...) ,c ...) ↦ (▹ (,@a ,@b ,@c))])
 
-(define next-sibling
+(define next-sibling-wrap
   (↓ [(,a ... (▹ ,b) ,c ,d ...) ↦ (,@a ,b (▹ ,c) ,@d)]
      [(,a ,b ... (▹ ,c)) ↦ ((▹ ,a) ,@b ,c)]))
 
-(define prev-sibling
+(define prev-sibling-wrap
   (↓ [(,a ... ,b (▹ ,c) ,d ...) ↦ (,@a (▹ ,b) ,c ,@d)]
      [((▹ ,a) ,b ... ,c) ↦ (,a ,@b (▹ ,c))]))
 
+
+; escape nav --------------------------------------------
+; disadvantage: next compose prev != identity
+
+(define next-escape
+  (↓ [(,a ... (▹ ,b) ,c ,d ...) ↦ (,@a ,b (▹ ,c) ,@d)]
+     [(,x ... (,a ... (▹ ,b)) ,y ,z ...) ↦ (,@x (,@a ,b) (▹ ,y) ,@z)]
+     [(,s ... (,x ... (,a ... (▹ ,b))) ,r ,t ...) ↦ (,@s (,@x (,@a ,b)) (▹ ,r) ,@t)]))
+
+(define prev-escape
+  (↓ [(,a ... ,b (▹ ,c) ,d ...) ↦ (,@a (▹ ,b) ,c ,@d)]
+     [(,x ... ,y ((▹ ,a) ,b ...) ,z ...) ↦ (,@x (▹ ,y) (,a ,@b) ,@z)]
+     [(,s ... ,r (((▹ ,a) ,b ...) ,z ...) ,t ...) ↦ (,@s (▹ ,r) ((,a ,@b) ,@z) ,@t)]))
+
+; atomic nav --------------------------------------------
+
+(define next-atomic
+  (↓ [(,a ... (▹ ,b) ,c ,d ...) ↦ ,(if (list? c)
+                                       `(,@a ,b ((▹ ,(first c)) ,@(rest c)) ,@d)
+                                       `(,@a ,b (▹ ,c) ,@d))]
+     [(,x ... (,a ... (▹ ,b)) ,y ,z ...) ↦ ,(if (list? y)
+                                                `(,@x (,@a ,b) ((▹ ,(first y)) ,@(rest y)) ,@z)
+                                                `(,@x (,@a ,b) (▹ ,y) ,@z))]
+     [(,s ... (,x ... (,a ... (▹ ,b))) ,r ,t ...) ↦ ,(if (list? r)
+                                                         `(,@s (,@x (,@a ,b)) ((▹ ,(first r)) ,@(rest r)) ,@t)
+                                                         `(,@s (,@x (,@a ,b)) (▹ ,r) ,@t))]))
+
+; works sometimes, waaay too hacky, need to actually recurse
+; get next-escape
+; if selected is atomic, return
+; if selected is list, recurse, kind-of?
+
+; with \\\ pattern (and macro-style ...):
+#; (define next-atomic
+     (↓ [(,a ... (▹ ,b) ,(⋱ (? atomic? c)) ,d ...) ↦ (,a ... ,b ,(⋱ (▹ ,c)) ,d ...)]
+        [((⋱ (,a ... (▹ ,b))) ,(⋱ (? atomic? y)) ,z ...) ↦  ((⋱ (,a ... ,b)) ,(⋱ (▹ ,y)) ,z ...)]))
+
+; with above plus implicit pattern variables
+#; (define next-atomic
+     (↓ [(... (▹ ,a) ,(⋱ (? atomic? b)) ...) ↦ (... ,a ,(⋱ (▹ ,b)) ...)]
+        [((⋱ (... (▹ ,a))) ,(⋱ (? atomic? b)) ...) ↦  ((⋱ (... ,a)) ,(⋱ (▹ ,b)) ...)]))
 
 ; simple transforms -------------------------------------
 

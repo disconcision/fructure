@@ -9,19 +9,19 @@
 ; source structure data
 
 (define original-source '(define (build-gui-block code [parent-ed my-board] [position '()])
-                              (let* ([ed (new fruct-ed% [parent-editor parent-ed] [position position])]
-                                     [sn (new fruct-sn% [editor ed] [parent-editor parent-ed] [position position])]
-                                     [style (make-style position code)])
-                                (send ed set-snip! sn)
-                                (send parent-ed insert sn)
-                                (if (list? code)
-                                    (let* ([builder (λ (sub pos) (build-gui-block sub ed (append position `(,pos))))]
-                                           [kids (map builder code (range 0 (length code)))])
-                                      (set-style! style sn ed)
-                                      `(,(block-data position 'list style ed sn) ,@kids))
-                                    (begin (set-style! style sn ed)
-                                           (send ed insert (~v code))
-                                           `(,(block-data position 'atom style ed sn)))))))
+                           (let* ([ed (new fruct-ed% [parent-editor parent-ed] [position position])]
+                                  [sn (new fruct-sn% [editor ed] [parent-editor parent-ed] [position position])]
+                                  [style (make-style position code)])
+                             (send ed set-snip! sn)
+                             (send parent-ed insert sn)
+                             (if (list? code)
+                                 (let* ([builder (λ (sub pos) (build-gui-block sub ed (append position `(,pos))))]
+                                        [kids (map builder code (range 0 (length code)))])
+                                   (set-style! style sn ed)
+                                   `(,(block-data position 'list style ed sn) ,@kids))
+                                 (begin (set-style! style sn ed)
+                                        (send ed insert (~v code))
+                                        `(,(block-data position 'atom style ed sn)))))))
 #; (define original-source '(let ([a b]
                                   [c d])
                               e
@@ -81,52 +81,49 @@
                         (for ([line-num (range 1 (sub1 num-items))])
                           (send this insert "    " (send this line-start-position line-num)))))
 
-                    (define/public (get-text-focus)
-                      (when (not (equal? parent-editor "none"))
-                        (send parent-editor set-caret-owner this 'global)
-                        (send this select-all))
-                      )
+                    (define (before-linebreak? sn parent-ed)
+                      (let* ([snip-pos (send parent-ed get-snip-position sn)]
+                             [next-snip (send parent-ed find-snip (add1 snip-pos) 'after-or-none)])
+                        (if (equal? next-snip #f)
+                            #f
+                            (equal? (send next-snip get-text 0 1) "\n"))))
 
-                    (define/public (get-fruct-text)
-                      (get-text-focus)
-                      )
-
+                    (define (after-linebreak? sn parent-ed)
+                      (let* ([snip-pos (send parent-ed get-snip-position sn)]
+                             [prev-snip (send parent-ed find-snip snip-pos 'before-or-none)])
+                        (if (equal? prev-snip #f)
+                            #f
+                            (or (equal? (send prev-snip get-text 0 1) "\n")
+                                (equal? (send prev-snip get-text 0 1) " ")
+                                #|this hacky second case deals with indents|#))))
+                    
                     (define/override (on-default-char event)
-                      (let ([key-code (send event get-key-code)])
+                      (match-let* ([key-code (send event get-key-code)]
+                                   [pos (sel-to-pos source)]
+                                   [obj (obj-at-pos gui pos)]
+                                   [(block-data position parent-ed type style ed sn) obj])
                         (when (not (equal? key-code 'release))
                           (cond
                             [(equal? mode 'nav)
                              (match key-code
-                               [#\space 
-                    
-                                (send (block-data-parent-ed (obj-at-pos gui (sel-to-pos source))) set-caret-owner (block-data-sn (obj-at-pos gui (sel-to-pos source))) 'global)
-                                (send (block-data-ed (obj-at-pos gui (sel-to-pos source))) set-position 0)
-                                (if (equal? mode 'nav) (set! mode 'text-entry) (set! mode 'nav))
-
-                                #; (println (sel-to-pos source))
-                                #; (println (block-data-sn (obj-at-pos gui (sel-to-pos source))))
-                                #; (send (block-data-ed (obj-at-pos gui (sel-to-pos source))) select-all)
-                                #; (send (block-data-ed (obj-at-pos gui (sel-to-pos source))) insert "!!!!!" 0)
-                                #; (begin (define my-style-delta (make-object style-delta%))
-                                          (send my-style-delta set-delta-background (make-color 255 255 255))
-                                          (send my-style-delta set-delta-foreground (make-color 255 255 255))
-                                          (send (block-data-ed (obj-at-pos gui (sel-to-pos source))) change-style my-style-delta))
-                                #; (send (block-data-parent-ed (obj-at-pos gui (sel-to-pos source))) set-caret-owner (block-data-sn (obj-at-pos (third gui) (sel-to-pos source))) 'global)
-                                #; (sleep 1.5)
-                                ]                                     
-                               [_ 
-                                (set! source (update source key-code))
-                                (let* ([new-board (new fruct-ed% [parent-editor "none"] [position '(0)])]
-                                       )
-                                  (set! gui (build-gui-block source new-board))
-                                  (send my-canvas set-editor new-board))
-                                ])]
+                               [#\space (send parent-ed set-caret-owner sn 'global)
+                                        (send ed set-position 0)
+                                        (if (equal? mode 'nav) (set! mode 'text-entry) (set! mode 'nav))]                                     
+                               [_ (define (relativize-direction key-code)
+                                    (cond
+                                      [(and (before-linebreak? sn parent-ed) (equal? key-code #\s)) #\d]
+                                      [(and (after-linebreak? sn parent-ed) (equal? key-code #\w)) #\a]
+                                      [else key-code]))
+                                  (set! key-code (relativize-direction key-code))
+                                  (set! source (update source key-code))
+                                  (let* ([new-board (new fruct-ed% [parent-editor "none"] [position '(0)])])
+                                    (set! gui (build-gui-block source new-board))
+                                    (send my-canvas set-editor new-board))
+                                  ])]
                             [(equal? mode 'text-entry)
-                             
                              (match (string key-code)
                                [" " (if (equal? mode 'nav) (set! mode 'text-entry) (set! mode 'nav))
-                                    #; (println num-chars)
-                                    (define form-name (send (block-data-ed (obj-at-pos gui (sel-to-pos source))) get-text 0 num-chars))
+                                    (define form-name (send ed get-text 0 num-chars))
                                     (set! num-chars 0)
                                     (set! source ((insert-form form-name) source))
                                     ;following is verbatim update code from above; refactor
@@ -135,14 +132,10 @@
                                       (set! gui (build-gui-block source new-board))
                                       (send my-canvas set-editor new-board))
                                     ]
-                               [(regexp #rx"[A-Za-z0-9_]")
-                                (set! num-chars (add1 num-chars))
-                                (send (block-data-ed (obj-at-pos gui (sel-to-pos source))) insert key-code)])
-                             ])
-                               
-                               
-                          )))))
-
+                               [(regexp #rx"[A-Za-z0-9_]") (set! num-chars (add1 num-chars))
+                                                           (send ed insert key-code)])
+                             ]
+                            ))))))
 
 
 
@@ -311,7 +304,7 @@
       (map traverse gui)
       (block-data-sn gui)))
 
-(traverse gui)
+#;(traverse gui)
 
 (send my-canvas set-editor my-board)
 (send my-board set-caret-owner #f 'global)
