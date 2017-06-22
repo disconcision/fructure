@@ -2,6 +2,7 @@
 
 (require racket/gui/base)
 (require fancy-app)
+(require "utility-fns.rkt")
 
 (provide selector
          simple-select
@@ -13,35 +14,53 @@
 
 (provide pos-to-sel
          sel-to-pos)
+
+(provide atomic?
+         proper-list?
+         tree-depth
+         obj-at-pos)
+
 ; -------------------------------------------------------
 
-(define-syntax define/↦
-  (syntax-rules (↦)
-    [(define/↦ transform [pattern ↦ result] ...)
-     (define/match (transform source) [(pattern) result] ...
-       [(_) (if (list? source)
-                (map transform source)
-                source)])]))
+(define-match-expander atom
+  (syntax-rules ()
+    [(atom <name>)
+     (? (compose not pair?) <name>)]))
+
+#; (define-syntax define/↦
+     (syntax-rules (↦)
+       [(define/↦ transform [pattern ↦ result] ...)
+        (define/match (transform source) [(pattern) result] ...
+          [(_) (if (list? source)
+                   (map transform source)
+                   source)])]))
 
 (require (rename-in racket (#%app call)))
 (define-syntax #%app
-  (syntax-rules (↦ ↓ ⇒)
-    [(#%app f ⇒ g)
+  (syntax-rules (↦ ↓ ⇐ ∘ ≡)
+    [(#%app f ⇐ g)
      (compose f g)]
+    [(#%app f ∘ g)
+     (compose f g)]
+    [[#%app pattern ≡]
+     (match-lambda
+       [`pattern #true]
+       [_ #false])]
     [[#%app pattern ↦ result]
      (#%app [pattern ↦ result])]
     [(#%app [pattern ↦ result] ...)
-     (letrec ([transform (λ (source)
-                           (match source
-                             [`pattern `result] ...
-                             [_ (if (list? source)
-                                    (map transform source)
-                                    source)]))])
+     (letrec ([transform (match-lambda
+                           [`pattern `result] ...
+                           [a #:when (not (pair? a)) a]
+                           [ls (map transform ls)])])
        transform)]
     [(#%app f-expr arg-expr ...) (call f-expr arg-expr ...)]))
 
 (define-syntax-rule (↓ [pattern ↦ result] ...)
   ([pattern ↦ result] ...)) ; explicit fallthrough annotation
+
+(define ∘ compose)
+(define ⇐ compose)
 
 
 ; -------------------------------------------------------
@@ -113,25 +132,49 @@
 
 ; atomic nav --------------------------------------------
 
-(define (atom? source) (or (empty? source) (not (list? source))))
 
-#; (define/match (first-contained-atom source)
-     [((? atom? a)) a]
-     [(`(,a . ,as)) (first-contained-atom a)])
-  
-#;(first-contained-atom '((▹ ((((5)))))))
+(define/match (first-contained-atom source)
+  [(`(▹ ,(atom a))) `(▹ ,a)]
+  [(`(▹ ,x ,xs ...)) (map first-contained-atom-inner `(,x . ,xs))]
+  [((atom a)) a] 
+  [(ls) (map first-contained-atom ls)])
 
-; partial design, way too hacky
-#;(define next-atomic
-    (↓ [(,a ... (▹ ,b) ,c ,d ...) ↦ ,(if (list? c)
-                                         `(,@a ,b ((▹ ,(first c)) ,@(rest c)) ,@d)
-                                         `(,@a ,b (▹ ,c) ,@d))]
-       [(,x ... (,a ... (▹ ,b)) ,y ,z ...) ↦ ,(if (list? y)
-                                                  `(,@x (,@a ,b) ((▹ ,(first y)) ,@(rest y)) ,@z)
-                                                  `(,@x (,@a ,b) (▹ ,y) ,@z))]
-       [(,s ... (,x ... (,a ... (▹ ,b))) ,r ,t ...) ↦ ,(if (list? r)
-                                                           `(,@s (,@x (,@a ,b)) ((▹ ,(first r)) ,@(rest r)) ,@t)
-                                                           `(,@s (,@x (,@a ,b)) (▹ ,r) ,@t))]))
+; still not quite right, check num brackets in test
+(define/match (first-contained-atom-inner source)
+  [((atom a)) `(▹ ,a)]
+  [(`(,a ,b ...)) `(,(first-contained-atom-inner a) ,@b)])
+
+(define/match (first-contained-thing source)
+  [(5) `(▹ 5)]
+  [(`(5 ,b ...)) `((▹ 5) ,@b)]
+  #; [((atom a)) `(▹ ,a)]
+  #; [(`(,(atom a) ,b ...)) `((▹ ,a) ,@b)]
+  [(`(,a ,b ...)) `(,(first-contained-thing a) ,@b)]
+  [((atom a)) a]
+  #;[(`(,a ... ,(atom b) ,c ...)) `(,@a (▹ ,b) ,@c)] ; breath-first search?
+  #;[(_) (if (list? source)
+             (map first-contained-atom-inner source)
+             source)]
+  [(ls) (map first-contained-thing ls)])
+
+
+(first-contained-atom '(1 2 (▹ (((9) 5) 6))))
+
+(define next-atomic
+  (↓ [(,a ... (▹ ,b) ,c ,d ...) ↦ ,(if (list? c)
+                                       `(,@a ,b ((▹ ,(first c)) ,@(rest c)) ,@d)
+                                       `(,@a ,b (▹ ,c) ,@d))]
+     [(,x ... (,a ... (▹ ,b)) ,y ,z ...) ↦ ,(if (list? y)
+                                                `(,@x (,@a ,b) ((▹ ,(first y)) ,@(rest y)) ,@z)
+                                                `(,@x (,@a ,b) (▹ ,y) ,@z))]
+     [(,s ... (,x ... (,a ... (▹ ,b))) ,r ,t ...) ↦ ,(if (list? r)
+                                                         `(,@s (,@x (,@a ,b)) ((▹ ,(first r)) ,@(rest r)) ,@t)
+                                                         `(,@s (,@x (,@a ,b)) (▹ ,r) ,@t))]))
+
+; works sometimes, waaay too hacky, need to actually recurse
+; get next-escape
+; if selected is atomic, return
+; if selected is list, recurse, kind-of?
 
 ; with \\\ pattern (and macro-style ...):
 #; (define next-atomic
@@ -149,16 +192,16 @@
   [(,a ... (▹ ,b ...) ,c ...) ↦ (▹ (,@a ,@c ))])
 
 (define insert-child-r
-  [(▹ (,a ...)) ↦ (,@a (▹ (new)))])
+  [(▹ (,a ...)) ↦ (,@a (▹ (☺)))])
 
 (define insert-child-l
-  [(▹ (,a ...)) ↦ ((▹ (new)) ,@a)])
+  [(▹ (,a ...)) ↦ ((▹ (☺)) ,@a)])
 
 (define new-sibling-r
-  [(,a ... (▹ (,b ...)) ,c ...) ↦ (,@a ,@b (▹ (new)) ,@c)])
+  [(,a ... (▹ (,b ...)) ,c ...) ↦ (,@a ,@b (▹ (☺)) ,@c)])
 
 (define new-sibling-l
-  [(,a ... (▹ (,b ...)) ,c ...) ↦ (,@a (▹ (new)) ,@b ,@c)])
+  [(,a ... (▹ (,b ...)) ,c ...) ↦ (,@a (▹ (☺)) ,@b ,@c)])
 
 (define wrap
   [(▹ (,a ...)) ↦ (▹ ((,@a)))])
@@ -195,55 +238,60 @@
 
 ; -------------------------------------------------------
 
-#;(module+ test (require rackunit)
-  
-    ; movement
-    (check-equal? (first-child '(▹ (0 1 2 3)))
-                  '((▹ 0) 1 2 3))
-    (check-equal? (last-child '(▹ (0 1 2 3)))
-                  '(0 1 2 (▹ 3)))
-    (check-equal? (parent '(0 1 (▹ 2) 3))
-                  '(▹ (0 1 2 3)))
-    (check-equal? (next-sibling '(0 1 (▹ 2) 3))
-                  '(0 1 2 (▹ 3)))
-    (check-equal? (prev-sibling '((▹ 0) 1 2 3))
-                  '(0 1 2 (▹ 3)))
+(module+ test (require rackunit)
 
-    ; simple
-    (check-equal? (delete '("a" "b" (▹ "c") "d"))
-                  '(▹ ("a" "b" "d")))
-    (check-equal? (insert-child-r '(▹ ("a" "b")))
-                  '("a" "b" (▹ (☺))))
-    (check-equal? (insert-child-l '(▹ ("a" "b")))
-                  '((▹ (☺)) "a" "b"))
-    (check-equal? (new-sibling-r '("a" (▹ ("b")) "d"))
-                  '("a" "b" (▹ (☺)) "d"))
-    (check-equal? (new-sibling-l '("a" (▹ ("b")) "d"))
-                  '("a" (▹ (☺)) "b" "d"))
-    (check-equal? (wrap '(▹ ("a" "b")))
-                  '(▹ (("a" "b"))))
+  ; selection
 
-    ; secondary
-    (check-equal? (push-sibling-r '(1 (▹ 2) 3 4))
-                  '(1 3 (▹ 2) 4))
-    (check-equal? (push-sibling-l '(1 (▹ 2) 3 4))
-                  '((▹ 2) 1 3 4))
-    (check-equal? (merge '(▹ (1 2) (3 4)))
-                  '(▹ (1 2 3 4)))
-    (check-equal? (pop/splice '(1 (▹ (2 21 22)) 3))
-                  '(▹ (1 2 21 22 3)))
-    (check-equal? (slurp-r '((▹ (1 2)) 3 4))
-                  '((▹ (1 2 3)) 4))  
-    (check-equal? (slurp-l '(1 (▹ (2 3)) 4))
-                  '((▹ (1 2 3)) 4))
-    (check-equal? (barf-r '((▹ (1 2 3)) 4))
-                  '((▹ (1 2)) 3 4))  
-    (check-equal? (barf-l '((▹ (1 2 3)) 4))
-                  '(1 (▹ (2 3)) 4))  
+  (check-equal? (simple-deselect '((((▹ 1)))))
+                '((((1)))))
   
-    ; composition
-    (check-equal? ((wrap ⇒ insert-child-l) '(▹ (a b)))
-                  '((▹ ((new))) a b)))
+  ; movement
+  (check-equal? (first-child '(▹ (0 1 2 3)))
+                '((▹ 0) 1 2 3))
+  (check-equal? (last-child '(▹ (0 1 2 3)))
+                '(0 1 2 (▹ 3)))
+  (check-equal? (parent '(0 1 (▹ 2) 3))
+                '(▹ (0 1 2 3)))
+  (check-equal? (next-sibling-wrap '(0 1 (▹ 2) 3))
+                '(0 1 2 (▹ 3)))
+  (check-equal? (prev-sibling-wrap '((▹ 0) 1 2 3))
+                '(0 1 2 (▹ 3)))
+
+  ; simple
+  (check-equal? (delete '("a" "b" (▹ "c") "d"))
+                '(▹ ("a" "b" "d")))
+  (check-equal? (insert-child-r '(▹ ("a" "b")))
+                '("a" "b" (▹ (☺))))
+  (check-equal? (insert-child-l '(▹ ("a" "b")))
+                '((▹ (☺)) "a" "b"))
+  (check-equal? (new-sibling-r '("a" (▹ ("b")) "d"))
+                '("a" "b" (▹ (☺)) "d"))
+  (check-equal? (new-sibling-l '("a" (▹ ("b")) "d"))
+                '("a" (▹ (☺)) "b" "d"))
+  (check-equal? (wrap '(▹ ("a" "b")))
+                '(▹ (("a" "b"))))
+
+  ; secondary
+  (check-equal? (push-sibling-r '(1 (▹ 2) 3 4))
+                '(1 3 (▹ 2) 4))
+  (check-equal? (push-sibling-l '(1 (▹ 2) 3 4))
+                '((▹ 2) 1 3 4))
+  (check-equal? (merge '(▹ (1 2) (3 4)))
+                '(▹ (1 2 3 4)))
+  (check-equal? (pop/splice '(1 (▹ (2 21 22)) 3))
+                '(▹ (1 2 21 22 3)))
+  (check-equal? (slurp-r '((▹ (1 2)) 3 4))
+                '((▹ (1 2 3)) 4))  
+  (check-equal? (slurp-l '(1 (▹ (2 3)) 4))
+                '((▹ (1 2 3)) 4))
+  (check-equal? (barf-r '((▹ (1 2 3)) 4))
+                '((▹ (1 2)) 3 4))  
+  (check-equal? (barf-l '((▹ (1 2 3)) 4))
+                '(1 (▹ (2 3)) 4))  
+  
+  ; composition
+  (check-equal? ((wrap ∘ insert-child-l) '(▹ (a b)))
+                '((▹ ((☺))) a b)))
 
 
 
@@ -306,20 +354,32 @@
 #; (loop source input-stream)
 
 
-; -------------------------------------------------------
+; utility fns - trees -----------------------------------
+
+(define atomic?
+  (compose not pair?))
+
+(define proper-list?
+  [(,x ,xs ...) ≡])
+
+#; (define proper-list?
+     (conjoin list? (compose not empty?)))
+
+(define (tree-depth source)
+  (if (atomic? source)
+      1
+      (add1 (apply max (map tree-depth source)))))
 
 
-; utility fns
+; utility fns -------------------------------------------
 
 (define (tree-update tree pos fn)
   (if (empty? pos)
       (fn tree)
       (list-update tree (first pos) (λ (a) (tree-update a (rest pos) fn)))))
 
-
 (define (pos-to-sel tree pos)
   (tree-update tree pos simple-select))
-
 
 (define/match (sel-to-pos sel-tree [pos '()])
   [(_ _) #:when (not (list? sel-tree)) #f]
@@ -332,8 +392,13 @@
                                     (range 0 (length sel-tree))))])
            (if (empty? result) #f (first result)))])
 
+(define/match (obj-at-pos obj-tree pos)
+  [(_ `()) (first obj-tree #;(third obj-tree))] ; use third if you don't want the selector itself
+  [(_ `(,a . ,as)) (obj-at-pos (list-ref (rest obj-tree) a) as)])
+
+
 ; do proper tests!!
-#;(sel-to-pos '((▹ "sdf") 0 1    3))
+#;(sel-to-pos '((▹ "sdf") 0 1 3))
 
 
 
