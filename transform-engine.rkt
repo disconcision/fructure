@@ -113,21 +113,25 @@
 
 ; atomic nav --------------------------------------------
 
-(define next-atomic
-  (↓ [(,a ... (▹ ,b) ,c ,d ...) ↦ ,(if (list? c)
-                                       `(,@a ,b ((▹ ,(first c)) ,@(rest c)) ,@d)
-                                       `(,@a ,b (▹ ,c) ,@d))]
-     [(,x ... (,a ... (▹ ,b)) ,y ,z ...) ↦ ,(if (list? y)
-                                                `(,@x (,@a ,b) ((▹ ,(first y)) ,@(rest y)) ,@z)
-                                                `(,@x (,@a ,b) (▹ ,y) ,@z))]
-     [(,s ... (,x ... (,a ... (▹ ,b))) ,r ,t ...) ↦ ,(if (list? r)
-                                                         `(,@s (,@x (,@a ,b)) ((▹ ,(first r)) ,@(rest r)) ,@t)
-                                                         `(,@s (,@x (,@a ,b)) (▹ ,r) ,@t))]))
+(define (atom? source) (or (empty? source) (not (list? source))))
 
-; works sometimes, waaay too hacky, need to actually recurse
-; get next-escape
-; if selected is atomic, return
-; if selected is list, recurse, kind-of?
+#; (define/match (first-contained-atom source)
+     [((? atom? a)) a]
+     [(`(,a . ,as)) (first-contained-atom a)])
+  
+#;(first-contained-atom '((▹ ((((5)))))))
+
+; partial design, way too hacky
+#;(define next-atomic
+    (↓ [(,a ... (▹ ,b) ,c ,d ...) ↦ ,(if (list? c)
+                                         `(,@a ,b ((▹ ,(first c)) ,@(rest c)) ,@d)
+                                         `(,@a ,b (▹ ,c) ,@d))]
+       [(,x ... (,a ... (▹ ,b)) ,y ,z ...) ↦ ,(if (list? y)
+                                                  `(,@x (,@a ,b) ((▹ ,(first y)) ,@(rest y)) ,@z)
+                                                  `(,@x (,@a ,b) (▹ ,y) ,@z))]
+       [(,s ... (,x ... (,a ... (▹ ,b))) ,r ,t ...) ↦ ,(if (list? r)
+                                                           `(,@s (,@x (,@a ,b)) ((▹ ,(first r)) ,@(rest r)) ,@t)
+                                                           `(,@s (,@x (,@a ,b)) (▹ ,r) ,@t))]))
 
 ; with \\\ pattern (and macro-style ...):
 #; (define next-atomic
