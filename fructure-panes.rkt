@@ -41,6 +41,12 @@
 
 (define fruct-ed%
   (class text%
+
+    (define/public (set-format format)
+      (match format
+        ['horizontal (format-horizontal)]
+        ['vertical (format-vertical)]
+        ['indent (format-indent-after 2)]))
          
     (define/public (remove-text-snips)
       (for ([pos (range 0 (send this last-position))])
@@ -75,21 +81,12 @@
   (class editor-snip%
                     
     (init-field parent-editor)
-    (init-field editor)
-
-    (super-new [with-border? #f] [editor editor])
                     
     (define border-color "MediumVioletRed")
     (define background-color "red")
                     
     (define/public (set-background-color color)
       (set! background-color color))
-
-    (define/public (set-format format)
-      (match format
-        ['horizontal (send editor format-horizontal)]
-        ['vertical (send editor format-vertical)]
-        ['indent (send editor format-indent-after 2)]))
                     
     (define/override (draw dc x y left top right bottom dx dy draw-caret)
 
@@ -105,16 +102,23 @@
       (define a-y y)
       (define a-w (box 2))
       (define a-h (box 2))
-      (define a-descent (box 2))                     
-      (define bottom-x (box 2))
-      (define bottom-y (box 2))
+      (define a-descent (box 2))
+      (define a-space (box 2))
+      (define a-lspace (box 2))
+      (define a-rspace (box 2)) 
 
-      (send this get-extent a-dc a-x a-y a-w a-h a-descent)
-      (send parent-editor get-snip-location this bottom-x bottom-y #t)
+      (send this get-extent a-dc a-x a-y a-w a-h a-descent a-space a-lspace a-rspace)
       
-      (send dc draw-rectangle (+ x 0) (+ y 0) (+ (unbox bottom-x) 0) (+ (unbox bottom-y) 0))
+      (send dc draw-rectangle (+ x 0) (+ y 0) (+ (unbox a-w) 0) (+ (unbox a-h) 0))
 
-      (super draw dc x y left top right bottom dx dy draw-caret))))
+      #; (define bottom-x (box 2))
+      #; (define bottom-y (box 2))
+      #; (send parent-editor get-snip-location this bottom-x bottom-y #t)
+      #; (send dc draw-rectangle (+ x 0) (+ y 0) (+ (unbox bottom-x) 0) (+ (unbox bottom-y) 0))
+
+      (super draw dc x y left top right bottom dx dy draw-caret))
+    
+    (super-new [with-border? #f])))
 
 
 ; core gui fns ------------------------------------------
@@ -132,7 +136,7 @@
                [kids (map builder code (range 0 (length code)))])
           (set-style! style sn ed) ; need to set style after children are inserted
           `(,(block-data position parent-ed 'list style ed sn) ,@kids))
-        (begin (set-style! style sn ed) ; styler must be  first else deletes text
+        (begin (set-style! style sn ed) ; styler must be first since it deletes text
                (unless (equal? code selector) ; hack
                  (send ed insert (~v code)))
                `(,(block-data position parent-ed 'atom style ed sn))))))
@@ -144,8 +148,8 @@
   (let* ([new-main-board (new fruct-board%)]
          [new-kit-board (new fruct-ed%)]
          [new-stage-board (new fruct-ed%)]
-         [stage-board-snip (new fruct-sn% [editor new-stage-board] [parent-editor new-main-board] #;[position '()])]
-         [kit-snip (new fruct-sn% [editor new-kit-board] [parent-editor new-main-board] #;[position '()])])
+         [stage-board-snip (new fruct-sn% [editor new-stage-board] [parent-editor new-main-board])]
+         [kit-snip (new fruct-sn% [editor new-kit-board] [parent-editor new-main-board])])
     (set! stage-gui (build-gui-block source new-stage-board))
     (set! kit-gui (build-gui-block kit new-kit-board))
     (send new-main-board insert stage-board-snip)
@@ -180,7 +184,7 @@
 
 ; toggle-mode: toggles mode
 
-(define (toggle-mode)
+(define (toggle-mode!)
   (if (equal? mode 'navigation) (set! mode 'text-entry) (set! mode 'navigation)))
 
 
@@ -194,14 +198,14 @@
     (when (not (equal? key-code 'release)) ; lets ignore key releases for now
       (case mode
         ['navigation (match key-code
-                       [#\space (toggle-mode)
+                       [#\space (toggle-mode!)
                                 (send parent-ed set-caret-owner sn 'global)
                                 (send ed set-position 0)]                                     
                        [_ (set! key-code (relativize-direction key-code sn parent-ed))
                           (set! source (update source key-code))
                           (update-gui)])]
         ['text-entry (match key-code
-                       [#\space (toggle-mode)      
+                       [#\space (toggle-mode!)      
                                 (let ([input-chars (send ed get-text 0 num-chars)])
                                   (set! source ((insert-form input-chars) source))
                                   (set! num-chars 0))
@@ -250,14 +254,14 @@
             (format ,format)) _ _)
    (begin (send sn set-background-color color)
           (send sn use-style-background #t)
-          (send sn set-format format)
+          (send ed set-format format)
           (send sn set-margin 2 2 2 2)
           #;(send sn set-inset 0 0 0 0) ; ???
           #;(send sn set-align-top-line #t) ; don't exactly understand this
           (begin (define my-style-delta (make-object style-delta%))
                  (send my-style-delta set-delta-background color)
                  (send my-style-delta set-delta-foreground (make-color 255 255 255))
-                 (send my-style-delta set-alignment-on 'top) ; ???
+                 #; (send my-style-delta set-alignment-on 'top) ; ???
                  #;(send my-style-delta set-transparent-text-backing-on #f) ; ineffective
                  (send ed change-style my-style-delta)))])
 
@@ -312,14 +316,7 @@
 ; whether or not it's an atom
 ; style/atomicity of parent/children/siblings
 
-; if linebreak after, down selects next child
-; if linebreak before, up selects prev child, left selects parent, right does nothing (or parent?)
-; if linebreak before and at end: same but down selects ?? parent ??
-
-; make left/right (or up/down inside vertical block) at beginning/end of block exit block instead of wrapping
-; or if last
-
-; more advanced
+; more advanced nav:
 ; 'sibling' cases for identically shaped siblings which can be moved around in like a grid
 ; must be both horizontal or both vertical
 ; identical shaped := something like: if sibling has same 'list shape' up to the level of depth where the selector is

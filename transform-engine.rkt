@@ -13,12 +13,12 @@
          insert-form)
 
 (provide pos-to-sel
-         sel-to-pos)
+         sel-to-pos
+         obj-at-pos)
 
 (provide atomic?
          proper-list?
-         tree-depth
-         obj-at-pos)
+         tree-depth)
 
 ; -------------------------------------------------------
 
@@ -158,7 +158,7 @@
   [(ls) (map first-contained-thing ls)])
 
 
-(first-contained-atom '(1 2 (▹ (((9) 5) 6))))
+#; (first-contained-atom '(1 2 (▹ (((9) 5) 6))))
 
 (define next-atomic
   (↓ [(,a ... (▹ ,b) ,c ,d ...) ↦ ,(if (list? c)
@@ -398,7 +398,7 @@
 
 
 ; do proper tests!!
-#;(sel-to-pos '((▹ "sdf") 0 1 3))
+#; (sel-to-pos '((▹ "sdf") 0 1 3))
 
 
 
