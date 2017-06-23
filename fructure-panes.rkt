@@ -13,6 +13,7 @@
                                   [style (make-style position code)])
                              (send ed set-snip! sn)
                              (send parent-ed insert sn)
+                             (define albatross (lazy dog (eating dirt)))
                              (if (list? code)
                                  (let* ([builder (λ (sub pos) (build-gui-block sub ed (append position `(,pos))))]
                                         [kids (map builder code (range 0 (length code)))])
@@ -31,6 +32,8 @@
 
 (struct block-data (position parent-ed type style ed sn))
 
+(struct fruct (type name meta))
+(struct meta (parent ed sn))
 
 (define fruct-board%
   (class pasteboard% 
@@ -96,10 +99,7 @@
       #; (send dc set-text-mode 'transparent) ; ineffective
       #; (send dc set-background "blue") ; ineffective
       #; (send editor get-extent width height) ; try this instead?
-      
-      (define a-dc dc)
-      (define a-x x)
-      (define a-y y)
+
       (define a-w (box 2))
       (define a-h (box 2))
       (define a-descent (box 2))
@@ -107,10 +107,16 @@
       (define a-lspace (box 2))
       (define a-rspace (box 2)) 
 
-      (send this get-extent a-dc a-x a-y a-w a-h a-descent a-space a-lspace a-rspace)
+      (send this get-extent dc x y a-w a-h a-descent a-space a-lspace a-rspace)
       
       (send dc draw-rectangle (+ x 0) (+ y 0) (+ (unbox a-w) 0) (+ (unbox a-h) 0))
 
+      (define-values (top-x top-y bot-x bot-y) (values x y (+ x (unbox a-w)) (+ y (unbox a-h))))
+      (send dc set-pen (make-color 255 255 255) 1 'solid)
+      (send dc draw-line top-x top-y top-x (- bot-y 1))
+      (send dc draw-line top-x top-y (+ 2 top-x) top-y)
+      (send dc draw-line top-x (- bot-y 1) (+ 2 top-x) (- bot-y 1))
+      
       #; (define bottom-x (box 2))
       #; (define bottom-y (box 2))
       #; (send parent-editor get-snip-location this bottom-x bottom-y #t)
@@ -140,6 +146,39 @@
                (unless (equal? code selector) ; hack
                  (send ed insert (~v code)))
                `(,(block-data position parent-ed 'atom style ed sn))))))
+
+; ----------------------
+; if it's a list, consider its first element
+; if the first element is a symbol, then consider it as naming a form
+; actually that's too specific
+; instead, match the code against available forms
+; all forms are lists beginning with a symbol
+; let's try an example
+#; (build-fruct '(define <id> <expr>))
+#; ((fruct 'form-wrapper 'define (meta 'parent 'new-ed 'new-sn))
+    ((fruct 'form-head '????? (meta "form-wrapper struct" 'new-ed2 'new-sn2) ,@(build-fruct "form-head source")))
+    ((fruct 'form-child 'id (meta "form-wrapper struct" 'new-ed3 'new-sn3)) ,@(build-fruct "form-child source"))
+    ((fruct 'form-child 'expr (meta "form-wrapper struct" 'new-ed4 'new-sn4) ,@(build-fruct "form-child source"))))
+
+
+(define (build-fruct code [parent-ed "no default"] [position '()] [in-form? #f])
+  (let* ([ed (new fruct-ed%)]
+         [sn (new fruct-sn% [editor ed] [parent-editor parent-ed])]
+         [style (make-style position code)])
+    (unless (equal? code selector) ; hack
+      (send parent-ed insert sn))
+    (if (list? code)
+        (let* ([new-fruct (fruct 'type 'name (meta 'parent 'ed 'sn))]
+               [builder (λ (sub pos) (build-fruct sub ed (append position `(,pos))))]
+               [kids (map builder code (range 0 (length code)))])
+          (set-style! style sn ed) ; need to set style after children are inserted
+          `(,new-fruct ,@kids))
+        (let* ([new-fruct (fruct 'type 'name (meta 'parent 'ed 'sn))])
+          (set-style! style sn ed) ; styler must be first since it deletes text
+          (unless (equal? code selector) ; hack
+            (send ed insert (~v code)))
+          `(,new-fruct)))))
+; ----------------------
 
 
 ; update-gui: create a new gui to replace the one currently in the canvas
@@ -222,6 +261,13 @@
                           (background-color "green")
                           (format format-vertical-fixed-indent-after 2))))
 
+
+#; (define id expr)
+#; (style0 (style1) (style2) (style3))
+; match (,a (,(block-data _ _ (form define) _ _ _) ,b ,c)
+
+#; (define (name args ...) body ...)
+#; (style0 (style1) (style2 (style2) (style3)) (style4))
 
 #; (define (find-style atom)
      (let ([style (filter (λ (style) (equal? atom (first style))) stylesheet)])
