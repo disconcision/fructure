@@ -135,30 +135,33 @@
 
 (define/match (first-contained-atom source)
   [(`(▹ ,(atom a))) `(▹ ,a)]
-  [(`(▹ ,x ,xs ...)) (map first-contained-atom-inner `(,x . ,xs))]
+  [(`(▹ ,ls)) (first-contained-atom-inner ls)]
   [((atom a)) a] 
   [(ls) (map first-contained-atom ls)])
 
-; still not quite right, check num brackets in test
 (define/match (first-contained-atom-inner source)
   [((atom a)) `(▹ ,a)]
   [(`(,a ,b ...)) `(,(first-contained-atom-inner a) ,@b)])
 
-(define/match (first-contained-thing source)
-  [(5) `(▹ 5)]
-  [(`(5 ,b ...)) `((▹ 5) ,@b)]
-  #; [((atom a)) `(▹ ,a)]
-  #; [(`(,(atom a) ,b ...)) `((▹ ,a) ,@b)]
-  [(`(,a ,b ...)) `(,(first-contained-thing a) ,@b)]
-  [((atom a)) a]
-  #;[(`(,a ... ,(atom b) ,c ...)) `(,@a (▹ ,b) ,@c)] ; breath-first search?
-  #;[(_) (if (list? source)
-             (map first-contained-atom-inner source)
-             source)]
-  [(ls) (map first-contained-thing ls)])
+(define/match (next-atom source)
+  [(`(,a ... (▹ ,b) ,c ,d ...)) (println "1")`(,@a ,b ,(first-contained-atom `(▹ ,c)) ,@d)]
+  [(`(,x ... (,a ... (▹ ,b)) ,y ...)) (println "2") (next-atom `(,@x (▹ (,@a ,b)) ,@y))]
+  [((atom a)) (println "3") a] 
+  [(ls) (println "4") (map next-atom ls)])
+
+; note: templates that are dynamic: when update the num of args in define/match
+; should also update the num of args in the patterns in each pattern-result pair
+
+(first-contained-atom '(▹ ((9) 8)))
+
+(first-contained-atom '(1 2 (▹ (((((9) 7) 8) 5) 6))))
 
 
-#; (first-contained-atom '(1 2 (▹ (((9) 5) 6))))
+(next-atom '((▹ 7)))
+(next-atom '((▹ 7) 8))
+(next-atom '(((▹ 7)) 8))
+(next-atom '((6 (▹ 7)) 8))
+(next-atom '((((▹ 7))) 8))
 
 (define next-atomic
   (↓ [(,a ... (▹ ,b) ,c ,d ...) ↦ ,(if (list? c)
