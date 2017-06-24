@@ -8,14 +8,14 @@
 ; source structure data ---------------------------------
 
 (define original-source '(define (build-gui-block code [parent-ed my-board] [position '()])
-                           (let* ([ed (new fruct-ed% [parent-editor parent-ed] [position position])]
+                           (let ([ed (new fruct-ed% [parent-editor parent-ed] [position position])]
                                   [sn (new fruct-sn% [editor ed] [parent-editor parent-ed] [position position])]
                                   [style (make-style position code)])
                              (send ed set-snip! sn)
                              (send parent-ed insert sn)
                              (define albatross (lazy dog (eating dirt)))
                              (if (list? code)
-                                 (let* ([builder (λ (sub pos) (build-gui-block sub ed (append position `(,pos))))]
+                                 (let ([builder (λ (sub pos) (build-gui-block sub ed (append position `(,pos))))]
                                         [kids (map builder code (range 0 (length code)))])
                                    (set-style! style sn ed)
                                    `(,(block-data position 'list style ed sn) ,@kids))
@@ -144,7 +144,8 @@
           `(,(block-data position parent-ed 'list style ed sn) ,@kids))
         (begin (set-style! style sn ed) ; styler must be first since it deletes text
                (unless (equal? code selector) ; hack
-                 (send ed insert (~v code)))
+                 (send ed insert (cond [(symbol? code) (symbol->string code)]
+                                       [else (~v code)])))
                `(,(block-data position parent-ed 'atom style ed sn))))))
 
 ; ----------------------
@@ -161,7 +162,7 @@
     ((fruct 'form-child 'expr (meta "form-wrapper struct" 'new-ed4 'new-sn4) ,@(build-fruct "form-child source"))))
 
 
-(define (build-fruct code [parent-ed "no default"] [position '()] [in-form? #f])
+(define (build-fruct code [parent-ed "no default"] [position '()] [form-context '()])
   (let* ([ed (new fruct-ed%)]
          [sn (new fruct-sn% [editor ed] [parent-editor parent-ed])]
          [style (make-style position code)])
@@ -262,9 +263,18 @@
                           (format format-vertical-fixed-indent-after 2))))
 
 
-#; (define id expr)
-#; (style0 (style1) (style2) (style3))
-; match (,a (,(block-data _ _ (form define) _ _ _) ,b ,c)
+#; '(define <id> <expr>)
+#; (style0 (style1) "pass-style" "pass-style")
+; match (,a (,(block-data _ _ (form 'define) _ _ _) ,b ,c)
+#; (style
+    (background-color (make-color 128 128 128))
+    (text-color 'whatever)
+    (format 'indent)
+    (border-style 'square-bracket))
+#; (style
+    (backgorund-color 'parent)
+    (string-form "define") ;use string-form to eg display quote as '
+    )
 
 #; (define (name args ...) body ...)
 #; (style0 (style1) (style2 (style2) (style3)) (style4))
