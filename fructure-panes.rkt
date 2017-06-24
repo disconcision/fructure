@@ -9,14 +9,14 @@
 
 (define original-source '(define (build-gui-block code [parent-ed my-board] [position '()])
                            (let ([ed (new fruct-ed% [parent-editor parent-ed] [position position])]
-                                  [sn (new fruct-sn% [editor ed] [parent-editor parent-ed] [position position])]
-                                  [style (make-style position code)])
+                                 [sn (new fruct-sn% [editor ed] [parent-editor parent-ed] [position position])]
+                                 [style (make-style position code)])
                              (send ed set-snip! sn)
                              (send parent-ed insert sn)
                              (define albatross (lazy dog (eating dirt)))
                              (if (list? code)
                                  (let ([builder (λ (sub pos) (build-gui-block sub ed (append position `(,pos))))]
-                                        [kids (map builder code (range 0 (length code)))])
+                                       [kids (map builder code (range 0 (length code)))])
                                    (set-style! style sn ed)
                                    `(,(block-data position 'list style ed sn) ,@kids))
                                  (begin (set-style! style sn ed)
@@ -43,88 +43,134 @@
 
 
 (define fruct-ed%
-  (class text%
+  (class text% (super-new [line-spacing 0])
+    
+    (define/public (set-text-color color)
+      (begin ; must be after super so style field is intialized
+        (define my-style-delta (make-object style-delta%))
+      
+        #; (send my-style-delta set-delta-background color) ; just text bkg
+        #; (send my-style-delta set-alignment-on 'top) ; ???
+        #; (send my-style-delta set-transparent-text-backing-on #f) ; ineffective
 
+        (send my-style-delta set-delta-foreground color)
+        (send this change-style my-style-delta)))
+    
     (define/public (set-format format)
       (match format
         ['horizontal (format-horizontal)]
         ['vertical (format-vertical)]
         ['indent (format-indent-after 2)]))
+
+    (define/public (set-string-form string)
+      (remove-text-snips)
+      (send this insert string))
          
-    (define/public (remove-text-snips)
+    (define (remove-text-snips)
       (for ([pos (range 0 (send this last-position))])
         (when (is-a? (send this find-snip pos 'before) string-snip%)
           (send this release-snip (send this find-snip pos 'before))
           (remove-text-snips))))
 
-    (define/public (format-horizontal)
+    (define (format-horizontal)
       (remove-text-snips))
                     
-    (define/public (format-vertical)
+    (define (format-vertical)
       (remove-text-snips)
       (let ([num-items (send this last-position)])
         (for ([pos (range 1 (- (* 2 num-items) 2) 2)])
           (send this insert "\n" pos))))
                     
-    (define/public (format-indent-after start-at)
+    (define (format-indent-after start-at)
       (remove-text-snips)
       (let ([num-items (send this last-position)])
         (for ([pos (range start-at (* 2 (sub1 num-items)) 2)])
           (send this insert "\n" pos))
         (for ([line-num (range 1 (sub1 num-items))])
           (send this insert "    " (send this line-start-position line-num)))))
-    
+
     (define/override (on-default-char event)
-      (char-input event))
-    
-    (super-new [line-spacing 0])))
+      (char-input event))))
 
 
 (define fruct-sn%
-  (class editor-snip%
+  (class editor-snip% (super-new [with-border? #f])
                     
     (init-field parent-editor)
-                    
-    (define border-color "MediumVioletRed")
-    (define background-color "red")
-                    
+    
+    (field [background-color (make-color 0 255 0)])
+    (field [border-color (make-color 0 255 0)])
+    (field [border-style 'none])
+    
     (define/public (set-background-color color)
       (set! background-color color))
-                    
-    (define/override (draw dc x y left top right bottom dx dy draw-caret)
+    
+    (define/public (set-border-color color)
+      (set! border-color color))
+    
+    (define/public (set-border-style style)
+      (set! border-style style))
 
-      (send dc set-brush background-color 'solid)
-      (send dc set-pen background-color 1 'solid)
-      
+    (define/public (set-margins l t r b)
+      #; (send this set-inset 0 0 0 0) ; ???
+      #; (send this set-align-top-line #t) ; ???
+      (send this set-margin l t r b))
+
+    
+    (define/override (draw dc x y left top right bottom dx dy draw-caret)
+ 
       #; (send dc set-text-mode 'transparent) ; ineffective
       #; (send dc set-background "blue") ; ineffective
       #; (send editor get-extent width height) ; try this instead?
 
-      (define a-w (box 2))
-      (define a-h (box 2))
-      (define a-descent (box 2))
-      (define a-space (box 2))
-      (define a-lspace (box 2))
-      (define a-rspace (box 2)) 
-
-      (send this get-extent dc x y a-w a-h a-descent a-space a-lspace a-rspace)
-      
-      (send dc draw-rectangle (+ x 0) (+ y 0) (+ (unbox a-w) 0) (+ (unbox a-h) 0))
-
-      (define-values (top-x top-y bot-x bot-y) (values x y (+ x (unbox a-w)) (+ y (unbox a-h))))
-      (send dc set-pen (make-color 255 255 255) 1 'solid)
-      (send dc draw-line top-x top-y top-x (- bot-y 1))
-      (send dc draw-line top-x top-y (+ 2 top-x) top-y)
-      (send dc draw-line top-x (- bot-y 1) (+ 2 top-x) (- bot-y 1))
-      
       #; (define bottom-x (box 2))
       #; (define bottom-y (box 2))
       #; (send parent-editor get-snip-location this bottom-x bottom-y #t)
       #; (send dc draw-rectangle (+ x 0) (+ y 0) (+ (unbox bottom-x) 0) (+ (unbox bottom-y) 0))
 
-      (super draw dc x y left top right bottom dx dy draw-caret))
-    
-    (super-new [with-border? #f])))
+      
+      (define-values (a-w a-h a-descent a-space a-lspace a-rspace)
+        (values (box 0) (box 0) (box 0) (box 0) (box 0) (box 0) ))
+ 
+      (send this get-extent dc x y a-w a-h a-descent a-space a-lspace a-rspace)
+      
+      (define-values (top-x top-y bot-x bot-y width height)
+        (values x y (+ x (unbox a-w)) (+ y (unbox a-h)) (unbox a-w) (unbox a-h)))
+
+      
+      (define (draw-background color)
+        (send this use-style-background #t) ; otherwise whiteness ensues
+        (send dc set-brush color 'solid)
+        (send dc set-pen color 1 'solid)
+        (send dc draw-rectangle (+ x 0) (+ y 0) (+ width 0) (+ height 0)))
+
+      (define (draw-left-square-bracket color)
+        (send dc set-pen color 1 'solid)
+        (send dc draw-line top-x top-y top-x (+ bot-y -1))
+        (send dc draw-line top-x top-y (+ 2 top-x) top-y)
+        (send dc draw-line top-x (+ bot-y -1) (+ 2 top-x) (+ bot-y -1)))
+
+      (define (draw-right-square-bracket color)
+        (send dc set-pen color 1 'solid)
+        (send dc draw-line bot-x top-y bot-x (+ bot-y -1))
+        (send dc draw-line bot-x top-y (+ -2 bot-x) top-y)
+        (send dc draw-line bot-x (+ bot-y -1) (+ -2 bot-x) (+ bot-y -1)))
+
+      (define (draw-square-brackets color)
+        (draw-left-square-bracket color)
+        #;(draw-right-square-bracket color))
+
+      
+      ; actual draw calls (order sensitive!) -------------------------
+      
+      (draw-background background-color)
+      
+      (case border-style
+        ['none void]
+        ['square-brackets (draw-square-brackets border-color)])
+
+
+      (super draw dc x y left top right bottom dx dy draw-caret))))
 
 
 ; core gui fns ------------------------------------------
@@ -148,7 +194,8 @@
                                        [else (~v code)])))
                `(,(block-data position parent-ed 'atom style ed sn))))))
 
-; ----------------------
+
+; ----------------------------------------------------------------------------------------
 ; if it's a list, consider its first element
 ; if the first element is a symbol, then consider it as naming a form
 ; actually that's too specific
@@ -179,7 +226,7 @@
           (unless (equal? code selector) ; hack
             (send ed insert (~v code)))
           `(,new-fruct)))))
-; ----------------------
+; ----------------------------------------------------------------------------------------
 
 
 ; update-gui: create a new gui to replace the one currently in the canvas
@@ -267,8 +314,8 @@
 #; (style0 (style1) "pass-style" "pass-style")
 ; match (,a (,(block-data _ _ (form 'define) _ _ _) ,b ,c)
 #; (style
-    (background-color (make-color 128 128 128))
-    (text-color 'whatever)
+    (background-color (make-color 0 43 54))
+    (text-color (make-color 108 113 196))
     (format 'indent)
     (border-style 'square-bracket))
 #; (style
@@ -309,18 +356,11 @@
   [(`(,name (background-color ,color)
             (format ,format)) _ _)
    (begin (send sn set-background-color color)
-          (send sn use-style-background #t)
+          (send sn set-border-color (make-color 30 205 90))
+          (send sn set-border-style 'square-brackets)
           (send ed set-format format)
-          (send sn set-margin 2 2 2 2)
-          #;(send sn set-inset 0 0 0 0) ; ???
-          #;(send sn set-align-top-line #t) ; don't exactly understand this
-          (begin (define my-style-delta (make-object style-delta%))
-                 (send my-style-delta set-delta-background color)
-                 (send my-style-delta set-delta-foreground (make-color 255 255 255))
-                 #; (send my-style-delta set-alignment-on 'top) ; ???
-                 #;(send my-style-delta set-transparent-text-backing-on #f) ; ineffective
-                 (send ed change-style my-style-delta)))])
-
+          (send ed set-text-color (make-color 255 255 210))
+          (send sn set-margins 4 2 2 2))])
 
 ; -------------------------------------------------------
 ; gui setup
