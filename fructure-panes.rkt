@@ -98,7 +98,7 @@
                     
     (init-field parent-editor)
     
-    (field [background-color (make-color 0 255 0)])
+    (field [background-color (make-color 28 28 28)])
     (field [border-color (make-color 0 255 0)])
     (field [border-style 'none])
     
@@ -134,7 +134,7 @@
  
       (send this get-extent dc x y a-w a-h a-descent a-space a-lspace a-rspace)
       
-      (define-values (top-x top-y bot-x bot-y width height)
+      (define-values (left-x top-y right-x bot-y width height)
         (values x y (+ x (unbox a-w)) (+ y (unbox a-h)) (unbox a-w) (unbox a-h)))
 
       
@@ -146,19 +146,20 @@
 
       (define (draw-left-square-bracket color)
         (send dc set-pen color 1 'solid)
-        (send dc draw-line top-x top-y top-x (+ bot-y -1))
-        (send dc draw-line top-x top-y (+ 2 top-x) top-y)
-        (send dc draw-line top-x (+ bot-y -1) (+ 2 top-x) (+ bot-y -1)))
+        (send dc draw-line left-x top-y left-x (+ bot-y -1))
+        (send dc draw-line left-x top-y (+ 2 left-x) top-y)
+        (send dc draw-line left-x (+ bot-y -1) (+ 2 left-x) (+ bot-y -1)))
 
       (define (draw-right-square-bracket color)
+        (set! color (make-color 120 145 222))
         (send dc set-pen color 1 'solid)
-        (send dc draw-line bot-x top-y bot-x (+ bot-y -1))
-        (send dc draw-line bot-x top-y (+ -2 bot-x) top-y)
-        (send dc draw-line bot-x (+ bot-y -1) (+ -2 bot-x) (+ bot-y -1)))
+        (send dc draw-line (+ -1 right-x) top-y (+ -1 right-x) (+ bot-y -1))
+        (send dc draw-line right-x top-y (+ -2 right-x) top-y)
+        (send dc draw-line right-x (+ bot-y -1) (+ -2 right-x) (+ bot-y -1)))
 
       (define (draw-square-brackets color)
         (draw-left-square-bracket color)
-        #;(draw-right-square-bracket color))
+        (draw-right-square-bracket color))
 
       
       ; actual draw calls (order sensitive!) -------------------------
@@ -169,7 +170,7 @@
         ['none void]
         ['square-brackets (draw-square-brackets border-color)])
 
-
+      (send dc set-pen (make-color 255 255 255) 1 'solid)
       (super draw dc x y left top right bottom dx dy draw-caret))))
 
 
@@ -237,13 +238,19 @@
          [new-stage-board (new fruct-ed%)]
          [stage-board-snip (new fruct-sn% [editor new-stage-board] [parent-editor new-main-board])]
          [kit-snip (new fruct-sn% [editor new-kit-board] [parent-editor new-main-board])])
+
     (set! stage-gui (build-gui-block source new-stage-board))
     (set! kit-gui (build-gui-block kit new-kit-board))
+    
     (send new-main-board insert stage-board-snip)
     (send new-main-board insert kit-snip)
+    
     (send new-main-board move-to stage-board-snip 200 0)
     (send my-canvas set-editor new-main-board)
-    (send new-main-board set-caret-owner #f 'global)))
+    (send new-main-board set-caret-owner #f 'global)
+
+    #;(style new-main-board)))
+
 
 
 ; relativize-direction: change direction of nav keystrokes depending on visual layout
@@ -388,6 +395,8 @@
 (define kit-gui '())
 
 (update-gui)
+
+
 
 ; init globals
 (define mode 'navigation)
