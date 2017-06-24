@@ -152,15 +152,15 @@
 ; note: templates that are dynamic: when update the num of args in define/match
 ; should also update the num of args in the patterns in each pattern-result pair
 
-(first-contained-atom '(▹ ((9) 8)))
+#; (first-contained-atom '(▹ ((9) 8)))
 
-(first-contained-atom '(1 2 (▹ (((((9) 7) 8) 5) 6))))
+#; (first-contained-atom '(1 2 (▹ (((((9) 7) 8) 5) 6))))
 
 
-(next-atom '((▹ 7)))
-(next-atom '((▹ 7) 8))
-(next-atom '(((▹ 7)) 8))
-(next-atom '((6 (▹ 7)) 8))
+#; (next-atom '((▹ 7)))
+#; (next-atom '((▹ 7) 8))
+#; (next-atom '(((▹ 7)) 8))
+#; (next-atom '((6 (▹ 7)) 8))
 (next-atom '((((▹ 7))) 8))
 
 (define next-atomic
