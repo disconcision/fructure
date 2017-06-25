@@ -213,8 +213,157 @@
     ((fruct 'form-child 'expr (meta "form-wrapper struct" 'new-ed4 'new-sn4) ,@(build-fruct "form-child source"))))
 
 
-(struct fruct (type name meta))
-(struct meta (sn ed parent-ed style))
+(define stylesheet '(("default")
+                     ("define"
+                      (wrapper
+                       (background-color (make-color 71 60 99))
+                       (text-color (make-color 211 196 253))
+                       (format 'indent)
+                       (border-style 'square-brackets)
+                       (border-color (make-color 255 255 255)#;'parent))
+                      (head
+                       (background-color (make-color 132 255 251))
+                       (text-color (make-color 45 156 188))
+                       (border-style 'square-brackets)
+                       (border-color (make-color 71 60 99)#;'parent))
+                      (child))))
+
+
+(define (get-style fruct-name fruct-type position)
+  0
+  #;`(my-style
+      (background-color ,(match code
+                           [`(,(== selector) ,a ...) (make-color 200 200 0)]
+                           [_ (make-color (modulo (exact-round (* 255 (sqrt (/ (length position) (tree-depth original-source))))) 256)
+                                          60
+                                          100)]))
+      (format ,(match code
+                 [`((,(== selector) ,a) ,ls ...) (second (third (make-style position `(,a ,@ls))))] ; hacky
+                 [`(,form ,ls ...) #:when (member form '(let let* if begin define for)) 'indent]              
+                 [`([,a ...] ...) 'vertical]
+                 [_ 'horizontal]))))
+
+
+
+
+
+(struct fruct (type name style meta))
+(struct meta (sn ed parent-ed))
+
+
+(define (atom->string source)
+  (cond [(symbol? source) (symbol->string source)]
+        [else (~v source)]))
+
+
+(define (gui-pass:object source [parent-ed "no default"])
+  (let* ([ed (new fruct-ed%)]
+         [sn (new fruct-sn% [editor ed] [parent-editor parent-ed])]
+         [mt (meta sn ed parent-ed)])
+    (if (list? source)
+        `(,(fruct 0 0 0 mt) ,@(map (λ (sub) (gui-pass:object sub ed)) source))
+        `(,(fruct 0 (atom->string source) 0 mt)))))
+
+
+; source data for "define" form:
+#; `(define ,(atom id) ,expr)
+#; `(("define" 'wrapper) ("define" 'head) "none" "none")
+
+
+(define (gui-pass:forms source obj-src [form-context "none"])
+  (match-let ([`(,(fruct _ _ _ mt) ,obj-kids ...) obj-src])
+    (match form-context
+      ["none"
+       (match source
+         [`(define ,(atom id) ,expr)
+          (match-let ([`((,name ,type) ,xs ...)
+                       `(("define" 'wrapper) ("define" 'head) "none" "none")])
+            `(,(fruct type name 0 mt) ,@(map gui-pass:forms source obj-kids xs)))]
+         [`(,function ,args ...) 0]
+         [(atom a) 0])]
+      [`(,name ,type)
+       `(,(fruct type name 0 mt))]
+      [`((,name ,type) ,xs ...)
+       `(,(fruct type name 0 mt) ,@(map gui-pass:forms source obj-kids xs))])))
+
+
+(define/match (gui-pass:style obj-src [position '()])
+  [((fruct type name _ mt) _)
+   (fruct type name (get-style name type position) mt)]
+  [(`(,ls ...) _)
+   (map (λ (sub pos) (gui-pass:style sub (append position `(,pos))))
+        (rest obj-src) (range 0 (length (rest obj-src))))])
+
+
+(define/match (gui-pass:set-style! obj-src [parent-style 'default])
+  [((fruct _ _ style (meta sn ed parent-ed)) _)
+   (style! style parent-style sn ed)]
+  [(`(,(fruct _ _ style _) ,ls ...) _)
+   (map (λ (sub) (gui-pass:set-style! sub style))
+        (rest obj-src))])
+
+
+(define (style! style parent-style sn ed)
+  (let ([get (λ (property) (get-property style parent-style property))])
+    (send sn set-background-color (get  'background-color))
+    (send sn set-border-color (get 'border-color))
+    (send sn set-border-style (get 'border-style))
+    (send ed set-format (get 'format))
+    (send ed set-text-color (get 'text-color))
+    (send sn set-margins 4 2 2 2)))
+
+
+(define (get-property style parent-style property)
+  ; search style (simple list of prop/val pairs) for property
+  ; if not found, return default (from top of stylesheet)
+  ; if it's not parent, return it
+  ; if it is, search parent, return it if found
+  ; otherwise return default
+  0)
+
+(define/match (gui-pass:insert! obj-src)
+  [((fruct _ _ _ (meta sn _ parent-ed)))
+   (send parent-ed insert sn)]
+  [(`(,ls ...))
+   (map gui-pass:insert! obj-src)])
+
+
+(define/match (gui-pass:insert-text! obj-src)
+  [(`(,(fruct _ name _ (meta _ ed _))))
+   (send ed insert name)]
+  [(`(,x  ,xs ...))
+   (map gui-pass:insert-text! xs)])
+
+
+(define (new-gui source parent-ed)
+  (let ([obj-source (gui-pass:object source parent-ed)])
+    (gui-pass:insert! obj-source)
+    (gui-pass:insert-text! obj-source)
+    (set! obj-source (gui-pass:forms source obj-source))
+    (set! obj-source (gui-pass:style source obj-source))
+    (gui-pass:set-style! obj-source)))
+
+
+
+
+
+#;(define (build-gui-block code [parent-ed "no default"] [position '()])
+    (let* ([ed (new fruct-ed%)]
+           [sn (new fruct-sn% [editor ed] [parent-editor parent-ed])]
+           [style (make-style position code)])
+      (unless (equal? code selector) ; hack
+        (send parent-ed insert sn))
+      (if (list? code)
+          (let* ([builder (λ (sub pos) (build-gui-block sub ed (append position `(,pos))))]
+                 [kids (map builder code (range 0 (length code)))])
+            (set-style! style sn ed) ; need to set style after children are inserted
+            `(,(block-data position parent-ed 'list style ed sn) ,@kids))
+          (begin (set-style! style sn ed) ; styler must be first since it deletes text
+                 (unless (equal? code selector) ; hack
+                   (send ed insert (cond [(symbol? code) (symbol->string code)]
+                                         [else (~v code)])))
+                 `(,(block-data position parent-ed 'atom style ed sn))))))
+
 
 
 (define (build-fruct code [parent-ed "default"] [position '()] [form-context "none"])
@@ -225,45 +374,48 @@
     (unless (equal? code selector) ; hack
       (send parent-ed insert sn))
     (match form-context
-      ["none" (match code
-             [`(define ,(atom name) ,expr) (let* ([fruct-type 'wrapper]
-                                                  [fruct-name "define"]
-                                                  [new-fruct (fruct fruct-type fruct-name
-                                                                    (meta sn ed parent-ed empty-style))]
-                                                  [builder (λ (sub pos frm)
-                                                             (build-fruct sub ed (append position `(,pos)) frm))]
-                                                  [kids (map builder
-                                                             code
-                                                             (range 0 (length code))
-                                                             '(('head "define") "none" "none"))]
-                                                  [style (make-style position code)])
-                                             #;(set-style! style sn ed)
-                                             `(,new-fruct ,@kids))]
-             [_ (if (list? code)
-                    (let* ([new-fruct (fruct 'no-type "no-name"
-                                             (meta sn ed parent-ed empty-style))]
-                           [builder (λ (sub pos) (build-fruct sub ed (append position `(,pos))))]
-                           [kids (map builder code (range 0 (length code)))]
-                           [style (make-style position code)])
-                      (set-style! style sn ed) ; need to set style after children are inserted
-                      `(,new-fruct ,@kids))
-                    (let* ([new-fruct (fruct 'no-type "no-name"
-                                             (meta sn ed parent-ed empty-style))]
-                           [style (make-style position code)])
-                      (set-style! style sn ed) ; styler must be first since it deletes text
-                      (unless (equal? code selector) ; hack
-                        (send ed insert (cond [(symbol? code) (symbol->string code)]
-                                              [else (~v code)])))
-                      `(,new-fruct)))])]
+      ["none" (match (simple-deselect code)
+                [`(define ,(atom name) ,expr) (let* ([fruct-type 'wrapper]
+                                                     [fruct-name "define"]
+                                                     [fruct-template '(('head "define") "none" "none")]
+                                                     [new-fruct (fruct fruct-type fruct-name
+                                                                       (meta sn ed parent-ed empty-style))]
+                                                     [builder (λ (sub pos frm)
+                                                                (build-fruct sub ed (append position `(,pos)) frm))]
+                                                     [kids (map builder
+                                                                code
+                                                                (range 0 (length code))
+                                                                fruct-template)]
+                                                     [style (get-style fruct-name fruct-type position)])
+                                                #;(set-style! style sn ed)
+                                                `(,new-fruct ,@kids))]
+                [_ (if (list? code)
+                       (let* ([new-fruct (fruct 'no-type "no-name"
+                                                (meta sn ed parent-ed empty-style))]
+                              [builder (λ (sub pos) (build-fruct sub ed (append position `(,pos))))]
+                              [kids (map builder code (range 0 (length code)))]
+                              [style (get-style fruct-name fruct-type position)])
+                         (set-style! style sn ed) ; need to set style after children are inserted
+                         `(,new-fruct ,@kids))
+                       (let* ([new-fruct (fruct 'no-type "no-name"
+                                                (meta sn ed parent-ed empty-style))]
+                              [style (get-style fruct-name fruct-type position)])
+                         (set-style! style sn ed) ; styler must be first since it deletes text
+                         (unless (equal? code selector) ; hack
+                           (send ed insert (cond [(symbol? code) (symbol->string code)]
+                                                 [else (~v code)])))
+                         `(,new-fruct)))])]
       [`(,fruct-type ,fruct-name) (let* ([new-fruct (fruct fruct-type fruct-name
                                                            (meta sn ed parent-ed empty-style))]
-                                         [style (make-style position code)])
+                                         [style (get-style fruct-name fruct-type position)])
                                     #;(set-style! style sn ed) ; styler must be first since it deletes text
                                     (unless (equal? code selector) ; hack
                                       (send ed insert (cond [(symbol? code) (symbol->string code)]
                                                             [else (~v code)])))
                                     `(,new-fruct))])
     ))
+
+
 ; ----------------------------------------------------------------------------------------
 
 
@@ -276,7 +428,9 @@
          [stage-board-snip (new fruct-sn% [editor new-stage-board] [parent-editor new-main-board])]
          [kit-snip (new fruct-sn% [editor new-kit-board] [parent-editor new-main-board])])
 
-    (set! stage-gui (build-fruct source new-stage-board))
+    (set! stage-gui (new-gui '(define albatross (lazy dog (eating dirt))) new-stage-board))
+    
+    #;(set! stage-gui (new-gui source new-stage-board))
     (set! kit-gui (build-gui-block kit new-kit-board))
     
     (send new-main-board insert stage-board-snip)
@@ -325,7 +479,7 @@
   (match-let* ([key-code (send event get-key-code)]
                [pos (sel-to-pos source)]
                [obj (obj-at-pos stage-gui pos)]
-               [(fruct type name (meta sn ed parent-ed style)) obj]
+               [(fruct type name style (meta sn ed parent-ed)) obj]
                #;[(block-data position parent-ed type style ed sn) obj])
     (when (not (equal? key-code 'release)) ; lets ignore key releases for now
       (case mode
@@ -362,7 +516,7 @@
     (background-color (make-color 0 43 54))
     (text-color (make-color 108 113 196))
     (format 'indent)
-    (border-style 'square-bracket))
+    (border-style 'square-brackets))
 #; (style
     (backgorund-color 'parent)
     (string-form "define") ;use string-form to eg display quote as '

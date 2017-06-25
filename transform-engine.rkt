@@ -144,10 +144,15 @@
   [(`(,a ,b ...)) `(,(first-contained-atom-inner a) ,@b)])
 
 (define/match (next-atom source)
-  [(`(,a ... (▹ ,b) ,c ,d ...)) (println "1")`(,@a ,b ,(first-contained-atom `(▹ ,c)) ,@d)]
-  [(`(,x ... (,a ... (▹ ,b)) ,y ...)) (println "2") (next-atom `(,@x (▹ (,@a ,b)) ,@y))]
-  [((atom a)) (println "3") a] 
-  [(ls) (println "4") (map next-atom ls)])
+  [(`(,a ... (▹ ,b) ,c ,d ...)) `(,@a ,b ,(first-contained-atom `(▹ ,c)) ,@d)]
+  [(`(,x ... (,a ... (▹ ,b)) ,y ...)) (next-atom `(,@x (▹ (,@a ,b)) ,@y))]
+  [((atom a)) a] 
+  [(ls) (map next-atom ls)])
+
+(define/match (selector-at-end? source)
+  [(`(,a ... (▹ ,b))) #true]
+  [(`(,a ... (▹ ,b) ,c ,d ...)) #false] 
+  [(ls) (map next-atom ls)]) ; not done!!!!!
 
 ; note: templates that are dynamic: when update the num of args in define/match
 ; should also update the num of args in the patterns in each pattern-result pair
