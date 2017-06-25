@@ -10,6 +10,7 @@
     [(atom <name>)
      (? (compose not pair?) <name>)]))
 
+
 ; source structure data ---------------------------------
 
 (define original-source '(define (build-gui-block code [parent-ed my-board] [position '()])
@@ -55,8 +56,11 @@
       #; (send my-style-delta set-delta-background color) ; text bkg
       #; (send my-style-delta set-alignment-on 'top) ; ???
       #; (send my-style-delta set-transparent-text-backing-on #f) ; ineffective
-
-      (send my-style-delta set-delta-foreground color)
+      
+      (match color
+        [`(color ,r ,g ,b)
+         (send my-style-delta set-delta-foreground (make-color r g b))])
+      
       (send this change-style my-style-delta))
     
     (define/public (set-format format)
@@ -106,10 +110,14 @@
     (field [border-style 'none])
     
     (define/public (set-background-color color)
-      (set! background-color color))
+      (match color
+        [`(color ,r ,g ,b)
+         (set! background-color (make-color r g b))]))
     
     (define/public (set-border-color color)
-      (set! border-color color))
+      (match color
+        [`(color ,r ,g ,b)
+         (set! border-color (make-color r g b))]))
     
     (define/public (set-border-style style)
       (set! border-style style))
@@ -213,38 +221,51 @@
     ((fruct 'form-child 'expr (meta "form-wrapper struct" 'new-ed4 'new-sn4) ,@(build-fruct "form-child source"))))
 
 
-(define stylesheet '(("default")
+(define stylesheet '(("default"
+                      (default
+                        (background-color (color 255 255 255))
+                        (text-color (color 128 128 128))
+                        (format horizontal)
+                        (border-style none)
+                        (border-color (color 255 255 255))))
                      ("define"
                       (wrapper
-                       (background-color (make-color 71 60 99))
-                       (text-color (make-color 211 196 253))
-                       (format 'indent)
-                       (border-style 'square-brackets)
-                       (border-color (make-color 255 255 255)#;'parent))
+                       (background-color (color 71 60 99))
+                       (text-color (color 211 196 253))
+                       (format indent)
+                       (border-style square-brackets)
+                       (border-color (color 255 255 255) #;parent))
                       (head
-                       (background-color (make-color 132 255 251))
-                       (text-color (make-color 45 156 188))
-                       (border-style 'square-brackets)
-                       (border-color (make-color 71 60 99)#;'parent))
-                      (child))))
+                       (background-color (color 132 255 251))
+                       (text-color (color 45 156 188))
+                       (border-style square-brackets)
+                       (border-color (color 71 60 99) #;parent))
+                      (child))
+                     ("atom"
+                      (atom
+                       (background-color (color 0 255 0))
+                       (text-color (color 211 196 253))
+                       (border-style square-brackets)
+                       (border-color (color 255 255 255))))
+                     ("function"
+                      (wrapper
+                       (background-color (color 0 0 255))
+                       (text-color (color 211 196 253))
+                       (format indent)
+                       (border-style square-brackets)
+                       (border-color (color 255 255 255)))
+                      (head
+                       (background-color (color 255 0 0))
+                       (text-color (color 211 196 253))
+                       (border-style square-brackets)
+                       (border-color (color 255 255 255))))))
 
 
-(define (get-style fruct-name fruct-type position)
-  0
-  #;`(my-style
-      (background-color ,(match code
-                           [`(,(== selector) ,a ...) (make-color 200 200 0)]
-                           [_ (make-color (modulo (exact-round (* 255 (sqrt (/ (length position) (tree-depth original-source))))) 256)
-                                          60
-                                          100)]))
-      (format ,(match code
-                 [`((,(== selector) ,a) ,ls ...) (second (third (make-style position `(,a ,@ls))))] ; hacky
-                 [`(,form ,ls ...) #:when (member form '(let let* if begin define for)) 'indent]              
-                 [`([,a ...] ...) 'vertical]
-                 [_ 'horizontal]))))
+(define (lookup-style fruct-name fruct-type)
+  (let ([result (rest (assoc fruct-type (rest (assoc fruct-name stylesheet))))])
+    (if result result (println "style lookup error"))))
 
-
-
+(lookup-style "define" 'head)
 
 
 (struct fruct (type name style meta))
@@ -277,34 +298,49 @@
        (match source
          [`(define ,(atom id) ,expr)
           (match-let ([`((,name ,type) ,xs ...)
-                       `(("define" 'wrapper) ("define" 'head) "none" "none")])
+                       `(("define" wrapper) ("define" head) "none" "none")])
             `(,(fruct type name 0 mt) ,@(map gui-pass:forms source obj-kids xs)))]
-         [`(,function ,args ...) 0]
-         [(atom a) 0])]
+         #; [`(,function ,args ...) "not implemented"]
+         [(atom a) `(,(fruct 'atom "atom" 0 mt))]
+         [`(,function ,args ...) (match-let ([`((,name ,type) ,xs ...)
+                                              `(("function" wrapper) ("function" head) ,@(make-list (length args) "none"))])
+                                   `(,(fruct type name 0 mt) ,@(map gui-pass:forms source obj-kids xs)))])]
       [`(,name ,type)
        `(,(fruct type name 0 mt))]
-      [`((,name ,type) ,xs ...)
-       `(,(fruct type name 0 mt) ,@(map gui-pass:forms source obj-kids xs))])))
+      #;[`((,name ,type) ,xs ...)
+         `(,(fruct type name 0 mt) ,@(map gui-pass:forms source obj-kids xs))])))
 
 
-(define/match (gui-pass:style obj-src [position '()])
-  [((fruct type name _ mt) _)
-   (fruct type name (get-style name type position) mt)]
-  [(`(,ls ...) _)
-   (map (λ (sub pos) (gui-pass:style sub (append position `(,pos))))
-        (rest obj-src) (range 0 (length (rest obj-src))))])
+(define/match (gui-pass:lookup-style obj-src)
+  [((fruct type name _ mt))
+   (fruct type name (lookup-style name type) mt)]
+  [(`(,ls ...))
+   (map gui-pass:lookup-style obj-src)])
 
 
-(define/match (gui-pass:set-style! obj-src [parent-style 'default])
-  [((fruct _ _ style (meta sn ed parent-ed)) _)
-   (style! style parent-style sn ed)]
-  [(`(,(fruct _ _ style _) ,ls ...) _)
-   (map (λ (sub) (gui-pass:set-style! sub style))
-        (rest obj-src))])
+(define (cascade-style style parent-style position)
+  0)
+
+(define/match (gui-pass:cascade-style obj-src [parent-style 'default] [position '()])
+  [((fruct type name (app (λ (x) (cascade-style x parent-style position)) style) mt) _ _)
+   (fruct type name style mt)]
+  [(`(,(fruct type name (app (λ (x) (cascade-style x parent-style position)) style) mt) ,ls ...) _ _)
+   `((fruct type name style mt)
+     ,@(map (λ (sub p-s pos) (gui-pass:cascade-style sub p-s (append position `(,pos))))
+            (rest obj-src)
+            (range 0 (length (rest obj-src)))
+            (cascade-style style parent-style position)))])
 
 
-(define (style! style parent-style sn ed)
-  (let ([get (λ (property) (get-property style parent-style property))])
+(define/match (gui-pass:set-style! obj-src)
+  [((fruct _ _ style (meta sn ed _)))
+   (style! style sn ed)]
+  [(`(,ls ...))
+   (map gui-pass:set-style! obj-src)])
+
+
+(define (style! style sn ed)
+  (let ([get (λ (property) (get-property style property))])
     (send sn set-background-color (get  'background-color))
     (send sn set-border-color (get 'border-color))
     (send sn set-border-style (get 'border-style))
@@ -313,13 +349,12 @@
     (send sn set-margins 4 2 2 2)))
 
 
-(define (get-property style parent-style property)
-  ; search style (simple list of prop/val pairs) for property
-  ; if not found, return default (from top of stylesheet)
-  ; if it's not parent, return it
-  ; if it is, search parent, return it if found
-  ; otherwise return default
-  0)
+(define (get-property style property)
+  (let ([result (assoc property style)])
+    (if result
+        (second result)
+        (second (assoc property (lookup-style "default" 'default))))))
+
 
 (define/match (gui-pass:insert! obj-src)
   [((fruct _ _ _ (meta sn _ parent-ed)))
@@ -330,7 +365,7 @@
 
 (define/match (gui-pass:insert-text! obj-src)
   [(`(,(fruct _ name _ (meta _ ed _))))
-   (send ed insert name)]
+   (send ed insert name)(println name)]
   [(`(,x  ,xs ...))
    (map gui-pass:insert-text! xs)])
 
@@ -338,10 +373,13 @@
 (define (new-gui source parent-ed)
   (let ([obj-source (gui-pass:object source parent-ed)])
     (gui-pass:insert! obj-source)
-    (gui-pass:insert-text! obj-source)
+    
     (set! obj-source (gui-pass:forms source obj-source))
-    (set! obj-source (gui-pass:style source obj-source))
-    (gui-pass:set-style! obj-source)))
+    (set! obj-source (gui-pass:lookup-style obj-source))
+    #;(set! obj-source (gui-pass:cascade-style obj-source))
+    (gui-pass:set-style! obj-source)
+    (gui-pass:insert-text! obj-source) ; must be after style cause style deletes text
+    (println "new-gui setup done")))
 
 
 
@@ -366,54 +404,54 @@
 
 
 
-(define (build-fruct code [parent-ed "default"] [position '()] [form-context "none"])
-  (let* ([ed (new fruct-ed%)]
-         [sn (new fruct-sn% [editor ed] [parent-editor parent-ed])]
-         [empty-style '(style)]
-         #;[style (make-style position code)])
-    (unless (equal? code selector) ; hack
-      (send parent-ed insert sn))
-    (match form-context
-      ["none" (match (simple-deselect code)
-                [`(define ,(atom name) ,expr) (let* ([fruct-type 'wrapper]
-                                                     [fruct-name "define"]
-                                                     [fruct-template '(('head "define") "none" "none")]
-                                                     [new-fruct (fruct fruct-type fruct-name
-                                                                       (meta sn ed parent-ed empty-style))]
-                                                     [builder (λ (sub pos frm)
-                                                                (build-fruct sub ed (append position `(,pos)) frm))]
-                                                     [kids (map builder
-                                                                code
-                                                                (range 0 (length code))
-                                                                fruct-template)]
-                                                     [style (get-style fruct-name fruct-type position)])
-                                                #;(set-style! style sn ed)
-                                                `(,new-fruct ,@kids))]
-                [_ (if (list? code)
-                       (let* ([new-fruct (fruct 'no-type "no-name"
-                                                (meta sn ed parent-ed empty-style))]
-                              [builder (λ (sub pos) (build-fruct sub ed (append position `(,pos))))]
-                              [kids (map builder code (range 0 (length code)))]
-                              [style (get-style fruct-name fruct-type position)])
-                         (set-style! style sn ed) ; need to set style after children are inserted
-                         `(,new-fruct ,@kids))
-                       (let* ([new-fruct (fruct 'no-type "no-name"
-                                                (meta sn ed parent-ed empty-style))]
-                              [style (get-style fruct-name fruct-type position)])
-                         (set-style! style sn ed) ; styler must be first since it deletes text
-                         (unless (equal? code selector) ; hack
-                           (send ed insert (cond [(symbol? code) (symbol->string code)]
-                                                 [else (~v code)])))
-                         `(,new-fruct)))])]
-      [`(,fruct-type ,fruct-name) (let* ([new-fruct (fruct fruct-type fruct-name
-                                                           (meta sn ed parent-ed empty-style))]
-                                         [style (get-style fruct-name fruct-type position)])
-                                    #;(set-style! style sn ed) ; styler must be first since it deletes text
-                                    (unless (equal? code selector) ; hack
-                                      (send ed insert (cond [(symbol? code) (symbol->string code)]
-                                                            [else (~v code)])))
-                                    `(,new-fruct))])
-    ))
+#; (define (build-fruct code [parent-ed "default"] [position '()] [form-context "none"])
+     (let* ([ed (new fruct-ed%)]
+            [sn (new fruct-sn% [editor ed] [parent-editor parent-ed])]
+            [empty-style '(style)]
+            #;[style (make-style position code)])
+       (unless (equal? code selector) ; hack
+         (send parent-ed insert sn))
+       (match form-context
+         ["none" (match (simple-deselect code)
+                   [`(define ,(atom name) ,expr) (let* ([fruct-type 'wrapper]
+                                                        [fruct-name "define"]
+                                                        [fruct-template '(('head "define") "none" "none")]
+                                                        [new-fruct (fruct fruct-type fruct-name
+                                                                          (meta sn ed parent-ed empty-style))]
+                                                        [builder (λ (sub pos frm)
+                                                                   (build-fruct sub ed (append position `(,pos)) frm))]
+                                                        [kids (map builder
+                                                                   code
+                                                                   (range 0 (length code))
+                                                                   fruct-template)]
+                                                        [style (get-style fruct-name fruct-type position)])
+                                                   #;(set-style! style sn ed)
+                                                   `(,new-fruct ,@kids))]
+                   [_ (if (list? code)
+                          (let* ([new-fruct (fruct 'no-type "no-name"
+                                                   (meta sn ed parent-ed empty-style))]
+                                 [builder (λ (sub pos) (build-fruct sub ed (append position `(,pos))))]
+                                 [kids (map builder code (range 0 (length code)))]
+                                 [style (get-style fruct-name fruct-type position)])
+                            (set-style! style sn ed) ; need to set style after children are inserted
+                            `(,new-fruct ,@kids))
+                          (let* ([new-fruct (fruct 'no-type "no-name"
+                                                   (meta sn ed parent-ed empty-style))]
+                                 [style (get-style fruct-name fruct-type position)])
+                            (set-style! style sn ed) ; styler must be first since it deletes text
+                            (unless (equal? code selector) ; hack
+                              (send ed insert (cond [(symbol? code) (symbol->string code)]
+                                                    [else (~v code)])))
+                            `(,new-fruct)))])]
+         [`(,fruct-type ,fruct-name) (let* ([new-fruct (fruct fruct-type fruct-name
+                                                              (meta sn ed parent-ed empty-style))]
+                                            [style (get-style fruct-name fruct-type position)])
+                                       #;(set-style! style sn ed) ; styler must be first since it deletes text
+                                       (unless (equal? code selector) ; hack
+                                         (send ed insert (cond [(symbol? code) (symbol->string code)]
+                                                               [else (~v code)])))
+                                       `(,new-fruct))])
+       ))
 
 
 ; ----------------------------------------------------------------------------------------
@@ -429,9 +467,9 @@
          [kit-snip (new fruct-sn% [editor new-kit-board] [parent-editor new-main-board])])
 
     #;(set! stage-gui (new-gui '(define albatross (lazy dog (eating dirt))) new-stage-board))    
-    #;(set! stage-gui (new-gui source new-stage-board))
+    (set! stage-gui (new-gui source new-stage-board))
 
-    (set! stage-gui (build-gui-block source new-stage-board))
+    #;(set! stage-gui (build-gui-block source new-stage-board))
     (set! kit-gui (build-gui-block kit new-kit-board))
     
     (send new-main-board insert stage-board-snip)
@@ -467,6 +505,12 @@
     [(and (after-linebreak?) (equal? key-code #\w)) #\a]
     [else key-code]))
 
+; notes on updating for atomic nav:
+; first draft:
+; when press up, find first grandparent with parent with vertical format
+; select next sibling of that grandparent,
+; unless last, then find next grandparent with vertical format, etc
+
 
 ; toggle-mode: toggles mode
 
@@ -500,51 +544,15 @@
                        [(app string (regexp #rx"[A-Za-z0-9_]")) (set! num-chars (add1 num-chars))
                                                                 (send ed insert key-code)])]))))
 
-; stylesheets -------------------------------------------
-
-#; (define stylesheet '((default
-                          (background-color "blue")
-                          (format format-horizontal))
-                        (define
-                          (background-color "green")
-                          (format format-vertical-fixed-indent-after 2))))
-
-
-#; '(define <id> <expr>)
-#; (style0 (style1) "pass-style" "pass-style")
-; match (,a (,(block-data _ _ (form 'define) _ _ _) ,b ,c)
-#; (style
-    (background-color (make-color 0 43 54))
-    (text-color (make-color 108 113 196))
-    (format 'indent)
-    (border-style 'square-brackets))
-#; (style
-    (backgorund-color 'parent)
-    (string-form "define") ;use string-form to eg display quote as '
-    )
-
-#; (define (name args ...) body ...)
-#; (style0 (style1) (style2 (style2) (style3)) (style4))
-
-#; (define (find-style atom)
-     (let ([style (filter (λ (style) (equal? atom (first style))) stylesheet)])
-       (if (empty? style)
-           'default 
-           (first (first style)))))
-
-
-#; (define/match (show-style-tree gui-tree)
-     [(`(,(block-data _ _ style _ _) ,ls ...)) 
-      `(,style ,@(map show-style-tree ls))])
-
+; old style fns -------------------------------------------
 
 (define (make-style position code)
   `(my-style
     (background-color ,(match code
-                         [`(,(== selector) ,a ...) (make-color 200 200 0)]
-                         [_ (make-color (modulo (exact-round (* 255 (sqrt (/ (length position) (tree-depth original-source))))) 256)
-                                        60
-                                        100)]))
+                         [`(,(== selector) ,a ...) '(color 200 200 0)]
+                         [_ `(color ,(modulo (exact-round (* 255 (sqrt (/ (length position) (tree-depth original-source))))) 256)
+                                    60
+                                    100)]))
     (format ,(match code
                [`((,(== selector) ,a) ,ls ...) (second (third (make-style position `(,a ,@ls))))] ; hacky
                [`(,form ,ls ...) #:when (member form '(let let* if begin define for)) 'indent]              
@@ -556,14 +564,14 @@
   [(`(,name (background-color ,color)
             (format ,format)) _ _)
    (begin (send sn set-background-color color)
-          (send sn set-border-color (make-color 30 205 90))
+          (send sn set-border-color '(color 30 205 90))
           (send sn set-border-style 'square-brackets)
           (send ed set-format format)
-          (send ed set-text-color (make-color 255 255 210))
+          (send ed set-text-color '(color 255 255 210))
           (send sn set-margins 4 2 2 2))])
 
-; -------------------------------------------------------
-; gui setup
+
+; gui setup ---------------------------------------------
 
 (define my-frame
   (new frame%
@@ -588,8 +596,6 @@
 (define kit-gui '())
 
 (update-gui)
-
-
 
 ; init globals
 (define mode 'navigation)
