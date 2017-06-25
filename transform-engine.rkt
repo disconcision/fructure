@@ -71,7 +71,7 @@
   [,a ↦ (▹ ,a)])
 
 (define simple-deselect
-  [(▹ ,a ...) ↦ (,@a)])
+  [(▹ ,a) ↦ ,a]) ; note: doesn't work if a is list. needs new rule with context
 
 (define (update source input)
   (let ([transform (match input
@@ -79,8 +79,8 @@
                      [#\e #;#\s first-child]
                      [#\z last-child]
                      [#\q #;#\w parent]
-                     [#\d next-escape]
-                     [#\a prev-escape]
+                     [#\d next-atom #;next-escape]
+                     [#\a prev-atom #;prev-escape]
                      [#\i delete]
                      [#\o insert-child-r]
                      [#\u insert-child-l]
@@ -143,46 +143,64 @@
   [((atom a)) `(▹ ,a)]
   [(`(,a ,b ...)) `(,(first-contained-atom-inner a) ,@b)])
 
-(define/match (next-atom source)
-  [(`(,a ... (▹ ,b) ,c ,d ...)) `(,@a ,b ,(first-contained-atom `(▹ ,c)) ,@d)]
-  [(`(,x ... (,a ... (▹ ,b)) ,y ...)) (next-atom `(,@x (▹ (,@a ,b)) ,@y))]
+(define/match (last-contained-atom source)
+  [(`(▹ ,(atom a))) `(▹ ,a)]
+  [(`(▹ ,ls)) (last-contained-atom-inner ls)]
   [((atom a)) a] 
-  [(ls) (map next-atom ls)])
+  [(ls) (map last-contained-atom ls)])
+
+(define/match (last-contained-atom-inner source)
+  [((atom a)) `(▹ ,a)]
+  [(`(,a ... ,b )) `(,@a ,(last-contained-atom-inner b))])
+
+(define/match (selector-at-start? source)
+  [((atom a)) #false]
+  [(`(▹ ,a)) #true]
+  [(`(,a ,b ...)) (selector-at-start? a)])
 
 (define/match (selector-at-end? source)
-  [(`(,a ... (▹ ,b))) #true]
-  [(`(,a ... (▹ ,b) ,c ,d ...)) #false] 
-  [(ls) (map next-atom ls)]) ; not done!!!!!
+  [((atom a)) #false]
+  [(`(▹ ,a)) #true]
+  [(`(,a ... ,b)) (selector-at-end? b)])
+
+#; (define/match (next-atom source)
+     [(`(▹ ,a)) `(▹ ,a)]
+     [(`(,a ... ,(? selector-at-end? b) ,c ,d ...)) `(,@a ,(simple-deselect b) ,(first-contained-atom `(▹ ,c)) ,@d)]
+     [((atom a)) a] 
+     [(ls) (map next-atom ls)])
+
+#; (define/match (prev-atom source)
+     [(`(▹ ,a)) `(▹ ,a)]
+     [(`(,a ... ,b ,(? selector-at-start? c) ,d ...)) `(,@a ,(last-contained-atom `(▹ ,b)) ,(simple-deselect c) ,@d)]
+     [((atom a)) a] 
+     [(ls) (map prev-atom ls)])
+
+(define next-atom
+  (↓ [(▹ ,a) ↦ (▹ ,a)]
+     [(,a ... ,(? selector-at-end? b) ,c ,d ...) ↦ (,@a ,(simple-deselect b) ,(first-contained-atom `(▹ ,c)) ,@d)]))
+
+(define prev-atom
+  (↓ [(▹ ,a) ↦ (▹ ,a)]
+     [(,a ... ,b ,(? selector-at-start? c) ,d ...) ↦ (,@a ,(last-contained-atom `(▹ ,b)) ,(simple-deselect c) ,@d)]))
+
 
 ; note: templates that are dynamic: when update the num of args in define/match
 ; should also update the num of args in the patterns in each pattern-result pair
 
-#; (first-contained-atom '(▹ ((9) 8)))
 
-#; (first-contained-atom '(1 2 (▹ (((((9) 7) 8) 5) 6))))
-
-
-#; (next-atom '((▹ 7)))
-#; (next-atom '((▹ 7) 8))
-#; (next-atom '(((▹ 7)) 8))
-#; (next-atom '((6 (▹ 7)) 8))
+#|
+(selector-at-end? '(()((▹ 6) 9)))
+(first-contained-atom '(▹ ((9) 8)))
+(first-contained-atom '(1 2 (▹ (((((9) 7) 8) 5) 6))))
+(prev-atom (prev-atom (prev-atom (prev-atom '(1 2 (((((( 9) 7) (▹ 8)) 5) 6)))))))
+(next-atom '((▹ 7)))
+(next-atom '((▹ 7) 8))
+(next-atom '(((▹ 7)) 8))
+(next-atom '((6 (▹ 7)) 8))
 (next-atom '((((▹ 7))) 8))
+(next-atom '((((▹ 7)) 2) 8))
+|#
 
-(define next-atomic
-  (↓ [(,a ... (▹ ,b) ,c ,d ...) ↦ ,(if (list? c)
-                                       `(,@a ,b ((▹ ,(first c)) ,@(rest c)) ,@d)
-                                       `(,@a ,b (▹ ,c) ,@d))]
-     [(,x ... (,a ... (▹ ,b)) ,y ,z ...) ↦ ,(if (list? y)
-                                                `(,@x (,@a ,b) ((▹ ,(first y)) ,@(rest y)) ,@z)
-                                                `(,@x (,@a ,b) (▹ ,y) ,@z))]
-     [(,s ... (,x ... (,a ... (▹ ,b))) ,r ,t ...) ↦ ,(if (list? r)
-                                                         `(,@s (,@x (,@a ,b)) ((▹ ,(first r)) ,@(rest r)) ,@t)
-                                                         `(,@s (,@x (,@a ,b)) (▹ ,r) ,@t))]))
-
-; works sometimes, waaay too hacky, need to actually recurse
-; get next-escape
-; if selected is atomic, return
-; if selected is list, recurse, kind-of?
 
 ; with \\\ pattern (and macro-style ...):
 #; (define next-atomic
@@ -193,6 +211,7 @@
 #; (define next-atomic
      (↓ [(... (▹ ,a) ,(⋱ (? atomic? b)) ...) ↦ (... ,a ,(⋱ (▹ ,b)) ...)]
         [((⋱ (... (▹ ,a))) ,(⋱ (? atomic? b)) ...) ↦  ((⋱ (... ,a)) ,(⋱ (▹ ,b)) ...)]))
+
 
 ; simple transforms -------------------------------------
 
@@ -251,7 +270,7 @@
   ; selection
 
   (check-equal? (simple-deselect '((((▹ 1)))))
-                '((((1)))))
+                '(((1))))
   
   ; movement
   (check-equal? (first-child '(▹ (0 1 2 3)))

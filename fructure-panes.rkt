@@ -428,9 +428,10 @@
          [stage-board-snip (new fruct-sn% [editor new-stage-board] [parent-editor new-main-board])]
          [kit-snip (new fruct-sn% [editor new-kit-board] [parent-editor new-main-board])])
 
-    (set! stage-gui (new-gui '(define albatross (lazy dog (eating dirt))) new-stage-board))
-    
+    #;(set! stage-gui (new-gui '(define albatross (lazy dog (eating dirt))) new-stage-board))    
     #;(set! stage-gui (new-gui source new-stage-board))
+
+    (set! stage-gui (build-gui-block source new-stage-board))
     (set! kit-gui (build-gui-block kit new-kit-board))
     
     (send new-main-board insert stage-board-snip)
@@ -479,8 +480,8 @@
   (match-let* ([key-code (send event get-key-code)]
                [pos (sel-to-pos source)]
                [obj (obj-at-pos stage-gui pos)]
-               [(fruct type name style (meta sn ed parent-ed)) obj]
-               #;[(block-data position parent-ed type style ed sn) obj])
+               #;[(fruct type name style (meta sn ed parent-ed)) obj]
+               [(block-data position parent-ed type style ed sn) obj])
     (when (not (equal? key-code 'release)) ; lets ignore key releases for now
       (case mode
         ['navigation (match key-code
