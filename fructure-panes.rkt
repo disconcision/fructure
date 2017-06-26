@@ -288,6 +288,12 @@
     `(("function" wrapper) ("function" head) ,@(make-list (length args) "none"))]))
 
 
+#; `(define ,(atom id) ,expr ...)
+#; `(wrapper (head) (name) (hole) ...)
+; get symbol 'define from first expression then rewrite second
+; 
+
+
 (define (cascade-style style parent-style position)
   0)
 ; need to fill in references to default and parent properties
