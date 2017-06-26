@@ -245,7 +245,7 @@
                       (unidentified
                        (background-color (color 237 177 77))
                        (text-color (color 128 128 128))
-                       (format vertical)
+                       (format horizontal)
                        (border-style none)
                        (border-color (color 255 255 255))))
                      ("define"
@@ -386,9 +386,7 @@
         `(,(fruct 0 0 (atom->string source) 0 mt)))))
 
 
-; source data for "define" form:
-#; `(define ,(atom id) ,expr)
-#; `(("define" 'wrapper) ("define" 'head) "none" "none")
+
 
 
 (define (ignore-me source) ; temp hack so selector fucks rendering less
@@ -396,38 +394,65 @@
     [`(,(== selector) ,a) a]
     [_ source]))
 
+
+; source data:
+#; (atom a)
+#; `(("atom" atom))
+
+#; `(define ,(atom id) ,expr ...)
+#; `(("define" wrapper) ("define" head) ("define" name) ,@(make-list (length expr) "none"))
+
+#; `(send ,target ,method ,args ...)
+#; `(("send" wrapper) ("send" head) ("send" target) ("send" method) ,@(make-list (length args) "none"))
+
+#; `(define (,id ,vars ...) ,expr ...)
+#; `(("define" wrapper) ("define" head) (("define" fn-wrapper) ("define" name) ,@(make-list (length vars) '("define" var))) ,@(make-list (length expr) "none"))
+
+#; `(let ((,id ,expr-for-let) ...) ,expr ...)
+#; `(("let" wrapper) ("let" head) (("let" inits-wrapper) ,@(make-list (length id) '(("let" pair-wrapper) ("let" name) "none"))) ,@(make-list (length expr) "none"))
+
+#; `(,(atom function) ,args ...) 
+#; `(("function" wrapper) ("function" head) ,@(make-list (length args) "none"))
+
+
 (define (gui-pass:forms source obj-src [form-context "none"])
-  (match-let ([`(,(fruct _ _ text _ mt) ,obj-kids ...) obj-src])
+  (match-let ([`(,(fruct _ _ text style mt) ,obj-kids ...) obj-src])
     (match form-context
       ["none"
        (match source
+         #;[<pat>
+            (match-let* ([`((,name ,type) ,xs ...) <style-pat>]
+                         [kids (if (empty? xs) xs (map gui-pass:forms source obj-kids xs))])
+              `(,(fruct type name text style mt) ,@kids))]
          [(atom a)
-          `(,(fruct 'atom "atom" text 0 mt))]
+          (match-let ([`((,name ,type) ,xs ...)
+                       `(("atom" atom))])          
+            `(,(fruct type name text style mt)))]
          [`(send ,target ,method ,args ...)
           (match-let ([`((,name ,type) ,xs ...)
                        `(("send" wrapper) ("send" head) ("send" target) ("send" method) ,@(make-list (length args) "none"))])
-            `(,(fruct type name text 0 mt) ,@(map gui-pass:forms source obj-kids xs)))]
+            `(,(fruct type name text style mt) ,@(map gui-pass:forms source obj-kids xs)))]
          [`(define ,(atom id) ,expr ...)
           (match-let ([`((,name ,type) ,xs ...)
                        `(("define" wrapper) ("define" head) ("define" name) ,@(make-list (length expr) "none"))])
-            `(,(fruct type name text 0 mt) ,@(map gui-pass:forms source obj-kids xs)))]
-         [`(,(== 'define) (,id ,vars ...) ,expr)
+            `(,(fruct type name text style mt) ,@(map gui-pass:forms source obj-kids xs)))]
+         [`(,(app ignore-me 'define) (,id ,vars ...) ,expr ...)
           (match-let ([`((,name ,type) ,xs ...)
-                       `(("define" wrapper) ("define" head) (("define" fn-wrapper) ("define" name) ,@(make-list (length vars) '("define" var))) "none")])
-            `(,(fruct type name text 0 mt) ,@(map gui-pass:forms source obj-kids xs)))]
-         [`(let ((,id ,expr-for-let) ...) ,expr ...)
+                       `(("define" wrapper) ("define" head) (("define" fn-wrapper) ("define" name) ,@(make-list (length vars) '("define" var))) ,@(make-list (length expr) "none"))])
+            `(,(fruct type name text style mt) ,@(map gui-pass:forms source obj-kids xs)))]
+         [`(,(app ignore-me 'let) ((,id ,expr-for-let) ...) ,expr ...)
           (match-let ([`((,name ,type) ,xs ...)
-                       `(("let" wrapper) ("let" head) (("let" inits-wrapper) #;,@(make-list (length id) "none") ,@(make-list (length id) '(("let" pair-wrapper) ("let" name) "none"))) ,@(make-list (length expr) "none"))])
-            `(,(fruct type name text 0 mt) ,@(map gui-pass:forms source obj-kids xs)))]
-         [`(,(app ignore-me (atom function)) ,args ...)
+                       `(("let" wrapper) ("let" head) (("let" inits-wrapper) ,@(make-list (length id) '(("let" pair-wrapper) ("let" name) "none"))) ,@(make-list (length expr) "none"))])
+            `(,(fruct type name text style mt) ,@(map gui-pass:forms source obj-kids xs)))]
+         [`(,(atom function) ,args ...)
           (match-let ([`((,name ,type) ,xs ...) ; atom function is temp hack to prevent rendering errors
                        `(("function" wrapper) ("function" head) ,@(make-list (length args) "none"))])
-            `(,(fruct type name text 0 mt) ,@(map gui-pass:forms source obj-kids xs)))]
-         [ls `(,(fruct 'unidentified "unidentified" text 0 mt) ,@(map gui-pass:forms source obj-kids))])]
-      [`(,(atom name) ,type) ; the if below is a bit of a hack to escape things unaccounted-for in the form grammar
-       (if (list? source) `(,(fruct type name text 0 mt) ,@(map gui-pass:forms source obj-kids)) `(,(fruct type name text 0 mt)))]
+            `(,(fruct type name text style mt) ,@(map gui-pass:forms source obj-kids xs)))]
+         [ls `(,(fruct 'unidentified "unidentified" text style mt) ,@(map gui-pass:forms source obj-kids))])]
+      [`(,(atom name) ,type) ; the if below is a bit of a hack to escape-hatch things unaccounted-for in the form grammar
+       (if (list? source) `(,(fruct type name text style mt) ,@(map gui-pass:forms source obj-kids)) `(,(fruct type name text 0 mt)))]
       [`((,name ,type) ,xs ...)
-       `(,(fruct type name text 0 mt) ,@(map gui-pass:forms source obj-kids xs))])
+       `(,(fruct type name text style mt) ,@(map gui-pass:forms source obj-kids xs))])
     ))
 
 
@@ -459,14 +484,15 @@
 
 
 (define/match (gui-pass:insert! obj-src)
-  [((fruct _ _ _ _ (meta sn _ parent-ed)))
-   (send parent-ed insert sn)]
+  [((fruct _ _ text _ (meta sn _ parent-ed)))
+   (unless (equal? text "▹") ; hack to surpress selector
+     (send parent-ed insert sn))]
   [(_) (map gui-pass:insert! obj-src)])
 
 
 (define/match (gui-pass:insert-text! obj-src)
   [((fruct type _ text _ (meta sn ed _)))
-   (when (not (equal? text "?"))#;#t #;(or (equal? type 'atom) (equal? type 'head) (equal? type 'name))
+   (when (not (equal? text "?"))
      (send ed insert text))]
   [(_) (map gui-pass:insert-text! obj-src)])
 
