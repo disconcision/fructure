@@ -306,11 +306,16 @@
                        (text-color (color 239 165 241))
                        (border-style square-brackets)
                        (border-color (color 98 59 99) #;wrapper-bkg))
-                      (inner-wrapper
+                      (inits-wrapper
                        (background-color (color 98 59 99) #;wrapper-bkg)
                        (format vertical)
                        (border-style square-brackets)
                        (border-color (color 132 255 251)))
+                      (pair-wrapper
+                       (background-color (color 98 59 99) #;wrapper-bkg)
+                       (format horizontal)
+                       (border-style square-brackets)
+                       (border-color (color 98 59 99)))                      
                       (name
                        (background-color (color 132 255 251))
                        (text-color (color 45 156 188))
@@ -412,7 +417,7 @@
             `(,(fruct type name text 0 mt) ,@(map gui-pass:forms source obj-kids xs)))]
          [`(let ((,id ,expr-for-let) ...) ,expr ...)
           (match-let ([`((,name ,type) ,xs ...)
-                       `(("let" wrapper) ("let" head) (("let" inner-wrapper) ,@(make-list (length id) "none")#;,@(make-list (length id) '(("let" name) "none"))) ,@(make-list (length expr) "none"))])
+                       `(("let" wrapper) ("let" head) (("let" inits-wrapper) #;,@(make-list (length id) "none") ,@(make-list (length id) '(("let" pair-wrapper) ("let" name) "none"))) ,@(make-list (length expr) "none"))])
             `(,(fruct type name text 0 mt) ,@(map gui-pass:forms source obj-kids xs)))]
          [`(,(app ignore-me (atom function)) ,args ...)
           (match-let ([`((,name ,type) ,xs ...) ; atom function is temp hack to prevent rendering errors
@@ -421,8 +426,8 @@
          [ls `(,(fruct 'unidentified "unidentified" text 0 mt) ,@(map gui-pass:forms source obj-kids))])]
       [`(,(atom name) ,type) ; the if below is a bit of a hack to escape things unaccounted-for in the form grammar
        (if (list? source) `(,(fruct type name text 0 mt) ,@(map gui-pass:forms source obj-kids)) `(,(fruct type name text 0 mt)))]
-      [`((,name ,type) ,xs ...) (println form-context)
-                                `(,(fruct type name text 0 mt) ,@(map gui-pass:forms source obj-kids xs))])
+      [`((,name ,type) ,xs ...)
+       `(,(fruct type name text 0 mt) ,@(map gui-pass:forms source obj-kids xs))])
     ))
 
 
