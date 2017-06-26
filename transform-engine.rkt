@@ -420,7 +420,7 @@
            (if (empty? result) #f (first result)))])
 
 (define/match (obj-at-pos obj-tree pos)
-  [(_ `()) (first obj-tree #;(third obj-tree))] ; use third if you don't want the selector itself
+  [(_ `()) (first obj-tree) #;(third obj-tree)] ; use third if you don't want the selector itself
   [(_ `(,a . ,as)) (obj-at-pos (list-ref (rest obj-tree) a) as)])
 
 
