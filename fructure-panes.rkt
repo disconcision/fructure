@@ -14,7 +14,7 @@
 
 ; source structure data ---------------------------------
 
-#; (define original-source2 '(define (build-gui-block code arg2 [parent-ed my-board] [position '()])
+(define original-source '(define (build-gui-block code arg2 [parent-ed my-board] [position '()])
                                (let ([ed (new fruct-ed% [parent-editor parent-ed] [position position])]
                                      [sn (new fruct-sn% [editor ed] [parent-editor parent-ed] [position position])]
                                      [style (make-style position code)])
@@ -30,7 +30,7 @@
                                             (send ed insert (~v code))
                                             `(,(block-data position 'atom style ed sn)))))))
 
-(define original-source '(define (update-gui)
+#;(define original-source '(define (update-gui)
                            (let ([new-main-board (new fruct-board%)]
                                  [new-kit-board (new fruct-ed%)]
                                  [new-stage-board (new fruct-ed%)]
@@ -70,8 +70,10 @@
                                [kids (if (empty? xs) xs (map recursor source obj-kids xs))])
                     `(,(fruct type name text style mt) ,@kids))] ...
                  [ls `(,(fruct 'unidentified "unidentified" text style mt) ,@(map recursor source obj-kids))])]
-              [`(,(atom name) ,type) ; the if below is a bit of a hack to escape-hatch things unaccounted-for in the form grammar
-               (if (list? source) `(,(fruct type name text style mt) ,@(map recursor source obj-kids)) `(,(fruct type name text 0 mt)))]
+              [`(,(atom name) ,type) 
+               (if (list? source) ; bit of a hack to escape-hatch things unaccounted-for in the form grammar
+                   `(,(fruct type name text style mt) ,@(map recursor source obj-kids))
+                   `(,(fruct type name text 0 mt)))]
               [`((,name ,type) ,xs (... ...))
                `(,(fruct type name text style mt) ,@(map recursor source obj-kids xs))])
             ))])
@@ -356,7 +358,6 @@
     (send new-main-board set-caret-owner #f 'global)))
 
 
-
 ; relativize-direction: change direction of nav keystrokes depending on visual layout
 
 (define (relativize-direction key-code sn parent-ed)
@@ -408,6 +409,7 @@
                                 (send ed set-position 0)]                                     
                        [_ (set! key-code (relativize-direction key-code sn parent-ed))
                           (set! source (update source key-code))
+                          (set! kit (update-kit kit source key-code))
                           (update-gui)])]
         ['text-entry (match key-code
                        [#\space (toggle-mode!)      

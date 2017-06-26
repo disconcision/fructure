@@ -7,7 +7,8 @@
 (provide selector
          simple-select
          simple-deselect
-         update)
+         update
+         update-kit)
 
 (provide forms
          insert-form)
@@ -88,6 +89,21 @@
                      [#\j new-sibling-l]
                      [#\k wrap])])
     (transform source)))
+
+(define (update-kit kit source key-code)
+  (when (equal? (get-selection source) '())
+    (println "errrrrrr"))
+  ((update-section 'env (destruct-selection (get-selection source))) kit)
+  )
+
+(define (update-section section contents)
+  [(,(== section) ,a ...) ↦ (,section ,@contents)])
+
+(define/match (destruct-selection source)
+  [(`(define ,a ,b)) `((1 ,(if (list? a)(first a) a) ..) (2 ,(if (list? b)(first b) b) ..))]
+  [(`(,ls ...)) (map (λ (x y) `(,y ,(if (list? x)(first x) x) ..)) ls (range 1 (add1 (length ls))))]
+  [((atom a)) `(1 ,a)]
+  [(_) '("empty")])
 
 (define (loop source stream)
   (unless (empty? stream)
@@ -423,6 +439,11 @@
   [(_ `()) (first obj-tree) #;(third obj-tree)] ; use third if you don't want the selector itself
   [(_ `(,a . ,as)) (obj-at-pos (list-ref (rest obj-tree) a) as)])
 
+(define/match (get-selection source)
+  [(`(▹ ,a)) a]
+  [((atom a)) #f]
+  [(_) (let ([result (filter identity (map get-selection source))])
+         (if (empty? result) #f result))])
 
 ; do proper tests!!
 #; (sel-to-pos '((▹ "sdf") 0 1 3))
