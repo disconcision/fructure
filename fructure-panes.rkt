@@ -15,37 +15,37 @@
 ; source structure data ---------------------------------
 
 (define original-source '(define (build-gui-block code arg2 [parent-ed my-board] [position '()])
-                               (let ([ed (new fruct-ed% [parent-editor parent-ed] [position position])]
-                                     [sn (new fruct-sn% [editor ed] [parent-editor parent-ed] [position position])]
-                                     [style (make-style position code)])
-                                 (send ed set-snip! sn)
-                                 (send parent-ed insert sn)
-                                 (define albatross (lazy dog (eating dirt)))
-                                 (if (list? code)
-                                     (let ([builder (λ (sub pos) (build-gui-block sub ed (append position `(,pos))))]
-                                           [kids (map builder code (range 0 (length code)))])
-                                       (set-style! style sn ed)
-                                       `(,(block-data position 'list style ed sn) ,@kids))
-                                     (begin (set-style! style sn ed)
-                                            (send ed insert (~v code))
-                                            `(,(block-data position 'atom style ed sn)))))))
+                           (let ([ed (new fruct-ed% [parent-editor parent-ed] [position position])]
+                                 [sn (new fruct-sn% [editor ed] [parent-editor parent-ed] [position position])]
+                                 [style (make-style position code)])
+                             (send ed set-snip! sn)
+                             (send parent-ed insert sn)
+                             (define albatross (lazy dog (eating dirt)))
+                             (if (list? code)
+                                 (let ([builder (λ (sub pos) (build-gui-block sub ed (append position `(,pos))))]
+                                       [kids (map builder code (range 0 (length code)))])
+                                   (set-style! style sn ed)
+                                   `(,(block-data position 'list style ed sn) ,@kids))
+                                 (begin (set-style! style sn ed)
+                                        (send ed insert (~v code))
+                                        `(,(block-data position 'atom style ed sn)))))))
 
 #;(define original-source '(define (update-gui)
-                           (let ([new-main-board (new fruct-board%)]
-                                 [new-kit-board (new fruct-ed%)]
-                                 [new-stage-board (new fruct-ed%)]
-                                 [stage-board-snip (new fruct-sn% [editor new-stage-board] [parent-editor new-main-board])]
-                                 [kit-snip (new fruct-sn% [editor new-kit-board] [parent-editor new-main-board])])
+                             (let ([new-main-board (new fruct-board%)]
+                                   [new-kit-board (new fruct-ed%)]
+                                   [new-stage-board (new fruct-ed%)]
+                                   [stage-board-snip (new fruct-sn% [editor new-stage-board] [parent-editor new-main-board])]
+                                   [kit-snip (new fruct-sn% [editor new-kit-board] [parent-editor new-main-board])])
 
-                             (set! stage-gui (new-gui source new-stage-board))
-                             (set! kit-gui (new-gui kit new-kit-board))
+                               (set! stage-gui (new-gui source new-stage-board))
+                               (set! kit-gui (new-gui kit new-kit-board))
     
-                             (send new-main-board insert stage-board-snip)
-                             (send new-main-board insert kit-snip)
+                               (send new-main-board insert stage-board-snip)
+                               (send new-main-board insert kit-snip)
     
-                             (send new-main-board move-to stage-board-snip 200 0)
-                             (send my-canvas set-editor new-main-board)
-                             (send new-main-board set-caret-owner #f 'global))))
+                               (send new-main-board move-to stage-board-snip 200 0)
+                               (send my-canvas set-editor new-main-board)
+                               (send new-main-board set-caret-owner #f 'global))))
 
 #; (define original-source '(let ([a b] [c d]) e f))
 
@@ -63,6 +63,10 @@
         (λ (source obj-src [form-context "none"])
           (match-let ([`(,(fruct _ _ text style mt) ,obj-kids (... ...)) obj-src])
             (match form-context
+              [_ #:when (and (proper-list? source) (equal? selector (first source)))
+                 ; hack: styles selector, passes on form-context
+                 ; note: hack currently does not support list-selections
+                 `(,(fruct 'wrapper "selector" text style mt) ,(fruct 'head "selector" text style mt) ,(recursor (second source) (second obj-kids) form-context))]
               ["none"
                (match source
                  [<pat>
@@ -70,7 +74,7 @@
                                [kids (if (empty? xs) xs (map recursor source obj-kids xs))])
                     `(,(fruct type name text style mt) ,@kids))] ...
                  [ls `(,(fruct 'unidentified "unidentified" text style mt) ,@(map recursor source obj-kids))])]
-              [`(,(atom name) ,type) 
+              [`(,(atom name) ,type)
                (if (list? source) ; bit of a hack to escape-hatch things unaccounted-for in the form grammar
                    `(,(fruct type name text style mt) ,@(map recursor source obj-kids))
                    `(,(fruct type name text 0 mt)))]
@@ -270,6 +274,8 @@
 (define (gui-pass:forms source obj-src)
   (style-match
    source obj-src
+   #;[`(,(== selector) ,a)
+      `(("selector" wrapper) ("selector" head) "none")]
    [(atom a)
     `(("atom" atom))]
    [`(,(♥ if) ,a ,b ,c)
@@ -280,13 +286,13 @@
     `(("send" wrapper) ("send" head) ("send" target) ("send" method) ,@(make-list (length args) "none"))]
    [`(,(♥ define) ,(atom id) ,expr ...)
     `(("define" wrapper) ("define" head) ("define" name) ,@(make-list (length expr) "none"))]
-   [`(,(♥ define) (,id ,vars ...) ,expr ...)
+   [`(,(♥ define) ,(♥ (,id ,vars ...)) ,expr ...)
     `(("define" wrapper) ("define" head) (("define" fn-wrapper) ("define" name) ,@(make-list (length vars) "none")) ,@(make-list (length expr) "none"))]
-   [`(,(♥ let) ((,id ,expr-for-let) ...) ,expr ...)
+   [`(,(♥ let) ,(♥ (,(♥ (,id ,expr-for-let)) ...)) ,expr ...)
     `(("let" wrapper) ("let" head) (("let" inits-wrapper) ,@(make-list (length id) '(("let" pair-wrapper) ("let" name) "none"))) ,@(make-list (length expr) "none"))]
    [`(,(♥ new) ,obj [,prop ,val] ...)
     `(("new" wrapper) ("new" head) ("new" obj-type) ,@(make-list (length prop) '(("new" pair-wrapper) "none" "none")))]
-   [`(,(atom function) ,args ...)
+   [`(,(♥ ,(atom function)) ,args ...)
     `(("function" wrapper) ("function" head) ,@(make-list (length args) "none"))]))
 
 
@@ -322,7 +328,7 @@
     #;(set! obj-source (gui-pass:cascade-style obj-source))
     
     ((gui-pass [(fruct _ _ text _ (meta sn _ parent-ed)) ; changes behavior is done after forms pass??
-                (unless (equal? text "▹")
+                (unless #f #;(equal? text "▹")
                   (send parent-ed insert sn))]) obj-source) 
     ((gui-pass [(fruct _ _ _ style (meta sn ed _))
                 (apply-style! style sn ed)]) obj-source)    

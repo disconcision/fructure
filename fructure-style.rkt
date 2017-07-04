@@ -21,6 +21,17 @@
                        (border-style none)
                        (border-color (color 255 255 255))))
                      
+                     ("selector"
+                      (wrapper
+                       (background-color (color 124 252 0))
+                       (border-style square-brackets)
+                       (border-color (color 255 255 255) #;parent-form))
+                      (head
+                       (background-color (color 124 252 0) #;wrapper-bkg)
+                       (text-color (color 0 0 0))
+                       (border-style square-brackets)
+                       (border-color (color 124 252 0) #;wrapper-bkg)))
+                                      
                      ("define"
                       (wrapper
                        (format indent)
