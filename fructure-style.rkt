@@ -21,6 +21,18 @@
                        (border-style none)
                        (border-color (color 255 255 255))))
                      
+                     ("env"
+                      (wrapper
+                       (background-color (color 0 0 0))
+                       (format vertical)
+                       (border-style square-brackets)
+                       (border-color (color 255 255 255) #;parent-form))
+                      (head
+                       (background-color (color 0 0 0) #;wrapper-bkg)
+                       (text-color (color 255 255 255))
+                       (border-style square-brackets)
+                       (border-color (color 0 0 0) #;wrapper-bkg)))
+
                      ("selector"
                       (wrapper
                        (background-color (color 124 252 0))

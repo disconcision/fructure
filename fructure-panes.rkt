@@ -292,8 +292,12 @@
     `(("let" wrapper) ("let" head) (("let" inits-wrapper) ,@(make-list (length id) '(("let" pair-wrapper) ("let" name) "none"))) ,@(make-list (length expr) "none"))]
    [`(,(♥ new) ,obj [,prop ,val] ...)
     `(("new" wrapper) ("new" head) ("new" obj-type) ,@(make-list (length prop) '(("new" pair-wrapper) "none" "none")))]
+   [`(,(♥ env) ,binds ...)
+    `(("env" wrapper) ("env" head) ,@(make-list (length binds) "none"))]
+   ; remember that the following pattern is a catch-all and should be last
    [`(,(♥ ,(atom function)) ,args ...)
-    `(("function" wrapper) ("function" head) ,@(make-list (length args) "none"))]))
+    `(("function" wrapper) ("function" head) ,@(make-list (length args) "none"))]
+   ))
 
 
 #; `(define ,(atom id) ,expr ...)
@@ -416,6 +420,7 @@
                        [_ (set! key-code (relativize-direction key-code sn parent-ed))
                           (set! source (update source key-code))
                           (set! kit (update-kit kit source key-code))
+                          (println kit)
                           (update-gui)])]
         ['text-entry (match key-code
                        [#\space (toggle-mode!)      
@@ -445,7 +450,7 @@
 (define source (simple-select original-source))
 
 ; setup kit
-(define kit (simple-select '(env)))
+(define kit '(env)#;(simple-select '(env)))
 
 ; init guis
 (define stage-gui '())

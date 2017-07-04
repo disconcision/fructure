@@ -101,7 +101,7 @@
 
 (define/match (destruct-selection source)
   [(`(define ,a ,b)) `((1 ,(if (list? a)(first a) a) ..) (2 ,(if (list? b)(first b) b) ..))]
-  [(`(,ls ...)) (map (λ (x y) `(,y ,(if (list? x)(first x) x) ..)) ls (range 1 (add1 (length ls))))]
+  [(`(,head ,ls ...)) (println source)(map (λ (x y) `(,y ,(if (list? x)(first x) x) ..)) ls (range 1 (add1 (length ls))))]
   [((atom a)) `(1 ,a)]
   [(_) '("empty")])
 
@@ -443,7 +443,7 @@
   [(`(▹ ,a)) a]
   [((atom a)) #f]
   [(_) (let ([result (filter identity (map get-selection source))])
-         (if (empty? result) #f result))])
+         (if (empty? result) #f (first result)))])
 
 ; do proper tests!!
 #; (sel-to-pos '((▹ "sdf") 0 1 3))
