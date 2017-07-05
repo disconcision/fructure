@@ -5,15 +5,15 @@
 
 ; stylesheet ------------------------------------------
 
-(define stylesheet '(("default"
-                      (default
-                        (format horizontal)
-                        (background-color (color 255 255 255))
-                        (text-color (color 128 128 128))
-                        (border-style none)
-                        (border-color (color 255 255 255))))
+(define stylesheet '((default
+                       (default
+                         (format horizontal)
+                         (background-color (color 255 255 255))
+                         (text-color (color 128 128 128))
+                         (border-style none)
+                         (border-color (color 255 255 255))))
                      
-                     ("unidentified"
+                     (unidentified
                       (unidentified
                        (background-color (color 237 177 77))
                        (text-color (color 128 128 128))
@@ -21,7 +21,7 @@
                        (border-style none)
                        (border-color (color 255 255 255))))
                      
-                     ("env"
+                     (env
                       (wrapper
                        (background-color (color 0 0 0))
                        (format vertical)
@@ -33,7 +33,7 @@
                        (border-style square-brackets)
                        (border-color (color 0 0 0) #;wrapper-bkg)))
 
-                     ("selector"
+                     (selector
                       (wrapper
                        (background-color (color 124 252 0))
                        (border-style square-brackets)
@@ -44,34 +44,34 @@
                        (border-style square-brackets)
                        (border-color (color 124 252 0) #;wrapper-bkg)))
                                       
-                     ("define"
-                      (wrapper
-                       (format indent)
-                       (background-color (color 71 60 99))
-                       (border-style square-brackets)
-                       (border-color (color 255 255 255) #;parent-form))
-                      (head
-                       (background-color (color 71 60 99) #;wrapper-bkg)
-                       (text-color (color 211 196 253))
-                       (border-style square-brackets)
-                       (border-color (color 71 60 99) #;wrapper-bkg))
-                      (name
-                       (background-color (color 132 255 251))
-                       (text-color (color 45 156 188))
-                       (border-style square-brackets)
-                       (border-color (color 71 60 99) #;wrapper-bkg))
-                      (fn-wrapper
-                       (background-color (color 71 60 99) #;wrapper-bkg)
-                       (border-style square-brackets)
-                       (border-color (color 71 60 99) #;wrapper-bkg))
-                      (var
-                       (background-color (color 119 57 99))
-                       (text-color (color 253 218 219))
-                       (border-style square-brackets)
-                       (border-color (color 71 60 99) #;wrapper-bkg)) 
-                      (child))
+                     (define
+                       (wrapper
+                        (format indent)
+                        (background-color (color 71 60 99))
+                        (border-style square-brackets)
+                        (border-color (color 255 255 255) #;parent-form))
+                       (head
+                        (background-color (color 71 60 99) #;wrapper-bkg)
+                        (text-color (color 211 196 253))
+                        (border-style square-brackets)
+                        (border-color (color 71 60 99) #;wrapper-bkg))
+                       (name
+                        (background-color (color 132 255 251))
+                        (text-color (color 45 156 188))
+                        (border-style square-brackets)
+                        (border-color (color 71 60 99) #;wrapper-bkg))
+                       (fn-wrapper
+                        (background-color (color 71 60 99) #;wrapper-bkg)
+                        (border-style square-brackets)
+                        (border-color (color 71 60 99) #;wrapper-bkg))
+                       (var
+                        (background-color (color 119 57 99))
+                        (text-color (color 253 218 219))
+                        (border-style square-brackets)
+                        (border-color (color 71 60 99) #;wrapper-bkg)) 
+                       (child))
                      
-                     ("send"
+                     (send
                       (wrapper
                        (format horizontal)
                        (background-color (color 119 57 99) #;parent-form)
@@ -93,40 +93,40 @@
                        (border-style square-brackets)
                        (border-color (color 255 255 255))))
                      
-                     ("let"
-                      (wrapper
-                       (background-color (color 98 59 99))
-                       (format indent)
-                       (border-style square-brackets)
-                       (border-color (color 255 255 255) #;parent))
-                      (head
-                       (background-color (color 98 59 99))
-                       (text-color (color 239 165 241))
-                       (border-style square-brackets)
-                       (border-color (color 98 59 99) #;wrapper-bkg))
-                      (inits-wrapper
-                       (background-color (color 98 59 99) #;wrapper-bkg)
-                       (format vertical)
-                       (border-style square-brackets)
-                       (border-color (color 132 255 251)))
-                      (pair-wrapper
-                       (background-color (color 98 59 99) #;wrapper-bkg)
-                       (format horizontal)
-                       (border-style square-brackets)
-                       (border-color (color 98 59 99)))                      
-                      (name
-                       (background-color (color 132 255 251))
-                       (text-color (color 45 156 188))
-                       (border-style square-brackets)
-                       (border-color (color 98 59 99) #;wrapper-bkg))
-                      #;(expr-for-let
-                         (background-color (color 132 255 251))
-                         (text-color (color 45 156 188))
-                         (border-style square-brackets)
-                         (border-color (color 71 60 99) #;parent))                    
-                      (child))
+                     (let
+                         (wrapper
+                          (background-color (color 98 59 99))
+                          (format indent)
+                          (border-style square-brackets)
+                          (border-color (color 255 255 255) #;parent))
+                       (head
+                        (background-color (color 98 59 99))
+                        (text-color (color 239 165 241))
+                        (border-style square-brackets)
+                        (border-color (color 98 59 99) #;wrapper-bkg))
+                       (inits-wrapper
+                        (background-color (color 98 59 99) #;wrapper-bkg)
+                        (format vertical)
+                        (border-style square-brackets)
+                        (border-color (color 132 255 251)))
+                       (pair-wrapper
+                        (background-color (color 98 59 99) #;wrapper-bkg)
+                        (format horizontal)
+                        (border-style square-brackets)
+                        (border-color (color 98 59 99)))                      
+                       (name
+                        (background-color (color 132 255 251))
+                        (text-color (color 45 156 188))
+                        (border-style square-brackets)
+                        (border-color (color 98 59 99) #;wrapper-bkg))
+                       #;(expr-for-let
+                          (background-color (color 132 255 251))
+                          (text-color (color 45 156 188))
+                          (border-style square-brackets)
+                          (border-color (color 71 60 99) #;parent))                    
+                       (child))
 
-                     ("if"
+                     (if
                       (wrapper
                        (background-color (color 65 160 130))
                        (format indent)
@@ -138,19 +138,19 @@
                        (border-style square-brackets)
                        (border-color (color 49 175 135))))
 
-                     ("begin"
-                      (wrapper
-                       (background-color (color 130 65 160 ))
-                       (format indent)
-                       (border-style square-brackets)
-                       (border-color (color 71 60 99) #;parent-form-bkg))
-                      (head
-                       (background-color (color 130 65 160 ))
-                       (text-color (color 132 243 223))
-                       (border-style square-brackets)
-                       (border-color (color 49 175 135))))
+                     (begin
+                       (wrapper
+                        (background-color (color 130 65 160 ))
+                        (format indent)
+                        (border-style square-brackets)
+                        (border-color (color 71 60 99) #;parent-form-bkg))
+                       (head
+                        (background-color (color 130 65 160 ))
+                        (text-color (color 132 243 223))
+                        (border-style square-brackets)
+                        (border-color (color 49 175 135))))
                      
-                     ("new"
+                     (new
                       (wrapper
                        (background-color (color 71 60 99) #;parent-form-bkg)
                        (format horizontal)
@@ -176,14 +176,14 @@
                        (border-style square-brackets)
                        (border-color (color 250 185 84) #;wrapper-bkg)))
                      
-                     ("atom"
+                     (atom
                       (atom
                        (background-color (color 119 57 99))
                        (text-color (color 211 196 253))
                        (border-style square-brackets)
                        (border-color (color 255 255 255))))
                      
-                     ("function"
+                     (function
                       (wrapper
                        (background-color (color 71 60 99) #;parent-form-bkg)
                        (border-style square-brackets)
@@ -216,7 +216,7 @@
   (let ([result (assoc property style)])
     (if result
         (second result)
-        (second (assoc property (lookup-style "default" 'default))))))
+        (second (assoc property (lookup-style 'default 'default))))))
 
 
 ; old style fns --------------------------------------

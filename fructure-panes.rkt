@@ -66,14 +66,14 @@
               [_ #:when (and (proper-list? source) (equal? selector (first source)))
                  ; hack: styles selector, passes on form-context
                  ; note: hack currently does not support list-selections
-                 `(,(fruct 'wrapper "selector" text style mt) ,(fruct 'head "selector" text style mt) ,(recursor (second source) (second obj-kids) form-context))]
+                 `(,(fruct 'wrapper 'selector text style mt) ,(fruct 'head 'selector text style mt) ,(recursor (second source) (second obj-kids) form-context))]
               ["none"
                (match source
                  [<pat>
                   (match-let* ([`((,name ,type) ,xs (... ...)) <style-pat>]
                                [kids (if (empty? xs) xs (map recursor source obj-kids xs))])
                     `(,(fruct type name text style mt) ,@kids))] ...
-                 [ls `(,(fruct 'unidentified "unidentified" text style mt) ,@(map recursor source obj-kids))])]
+                 [ls `(,(fruct 'unidentified 'unidentified text style mt) ,@(map recursor source obj-kids))])]
               [`(,(atom name) ,type)
                (if (list? source) ; bit of a hack to escape-hatch things unaccounted-for in the form grammar
                    `(,(fruct type name text style mt) ,@(map recursor source obj-kids))
@@ -275,28 +275,28 @@
   (style-match
    source obj-src
    #;[`(,(== selector) ,a)
-      `(("selector" wrapper) ("selector" head) "none")]
+      `((selector wrapper) (selector head) "none")]
    [(atom a)
-    `(("atom" atom))]
+    `((atom atom))]
    [`(,(♥ if) ,a ,b ,c)
-    `(("if" wrapper) ("if" head) "none" "none" "none")]
+    `((if wrapper) (if head) "none" "none" "none")]
    [`(,(♥ begin) ,expr ...)
-    `(("begin" wrapper) ("begin" head) ,@(make-list (length expr) "none"))]
+    `((begin wrapper) (begin head) ,@(make-list (length expr) "none"))]
    [`(,(♥ send) ,target ,method ,args ...)
-    `(("send" wrapper) ("send" head) ("send" target) ("send" method) ,@(make-list (length args) "none"))]
+    `((send wrapper) (send head) (send target) (send method) ,@(make-list (length args) "none"))]
    [`(,(♥ define) ,(atom id) ,expr ...)
-    `(("define" wrapper) ("define" head) ("define" name) ,@(make-list (length expr) "none"))]
+    `((define wrapper) (define head) (define name) ,@(make-list (length expr) "none"))]
    [`(,(♥ define) ,(♥ (,id ,vars ...)) ,expr ...)
-    `(("define" wrapper) ("define" head) (("define" fn-wrapper) ("define" name) ,@(make-list (length vars) "none")) ,@(make-list (length expr) "none"))]
+    `((define wrapper) (define head) ((define fn-wrapper) (define name) ,@(make-list (length vars) "none")) ,@(make-list (length expr) "none"))]
    [`(,(♥ let) ,(♥ (,(♥ (,id ,expr-for-let)) ...)) ,expr ...)
-    `(("let" wrapper) ("let" head) (("let" inits-wrapper) ,@(make-list (length id) '(("let" pair-wrapper) ("let" name) "none"))) ,@(make-list (length expr) "none"))]
+    `((let wrapper) (let head) ((let inits-wrapper) ,@(make-list (length id) '((let pair-wrapper) (let name) "none"))) ,@(make-list (length expr) "none"))]
    [`(,(♥ new) ,obj [,prop ,val] ...)
-    `(("new" wrapper) ("new" head) ("new" obj-type) ,@(make-list (length prop) '(("new" pair-wrapper) "none" "none")))]
+    `((new wrapper) (new head) (new obj-type) ,@(make-list (length prop) '((new pair-wrapper) "none" "none")))]
    [`(,(♥ env) ,binds ...)
-    `(("env" wrapper) ("env" head) ,@(make-list (length binds) "none"))]
+    `((env wrapper) (env head) ,@(make-list (length binds) "none"))]
    ; remember that the following pattern is a catch-all and should be last
    [`(,(♥ ,(atom function)) ,args ...)
-    `(("function" wrapper) ("function" head) ,@(make-list (length args) "none"))]
+    `((function wrapper) (function head) ,@(make-list (length args) "none"))]
    ))
 
 
