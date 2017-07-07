@@ -33,6 +33,30 @@
                        (border-style square-brackets)
                        (border-color (color 0 0 0) #;wrapper-bkg)))
 
+                     (meta
+                      (wrapper
+                       (background-color (color 0 0 0))
+                       (format vertical)
+                       (border-style square-brackets)
+                       (border-color (color 255 255 255) #;parent-form))
+                      (head
+                       (background-color (color 0 0 0) #;wrapper-bkg)
+                       (text-color (color 255 255 255))
+                       (border-style square-brackets)
+                       (border-color (color 0 0 0) #;wrapper-bkg)))
+
+                     (kit
+                      (wrapper
+                       (background-color (color 0 0 0))
+                       (format vertical)
+                       (border-style square-brackets)
+                       (border-color (color 255 255 255) #;parent-form))
+                      (head
+                       (background-color (color 0 0 0) #;wrapper-bkg)
+                       (text-color (color 255 255 255))
+                       (border-style square-brackets)
+                       (border-color (color 0 0 0) #;wrapper-bkg)))
+
                      (selector
                       (wrapper
                        (background-color (color 124 252 0))
