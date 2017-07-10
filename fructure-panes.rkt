@@ -457,6 +457,7 @@
                                 (send ed set-position 0)]                                     
                        [_ (set! key-code (relativize-direction key-code sn parent-ed))
                           (set! source (update source key-code))
+                          (set! stage-gui (new-gui source (new fruct-ed%))) ; temp hack so stage-gui is current for next line
                           (set! kit (update-kit kit kit-gui source stage-gui key-code))
                           (update-gui)])]
         ['text-entry (match key-code
@@ -560,7 +561,7 @@
 ; write <...> into tree, select it to create new child of relevant type (when parent form takes list args)
 ; affordances are contextual patterns; they depend on (their position in) their parent form
 
-
+#; (gui-pass:object '(atom atom) "noneparent-ed")
 ; transformers:
 ; as close to possible as exactly what meets the eye
 
