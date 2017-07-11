@@ -65,6 +65,28 @@
 
 (define atom? (compose not pair?))
 
+(define-match-expander atom
+  (syntax-rules ()
+    [(atom <name>)
+     (? (compose not pair?) <name>)]))
+
+(require (rename-in racket (#%app call)))
+(define-syntax #%app
+  (syntax-rules (⋱↦ ↓ ⇐ ∘ ≡)
+    [[#%app pattern ≡]
+     (match-lambda
+       [`pattern #true]
+       [_ #false])]
+    [[#%app pattern ⋱↦ result]
+     (#%app [pattern ⋱↦ result])]
+    [(#%app [pattern ⋱↦ result] ...)
+     (letrec ([transform (match-lambda
+                           [`pattern `result] ...
+                           [a #:when (not (pair? a)) a]
+                           [ls (map transform ls)])])
+       transform)]
+    [(#%app f-expr arg-expr ...) (call f-expr arg-expr ...)]))
+
 (define (hole-pat pat)
   (if (atom? pat)
       (if (member pat sort-names) 'hole pat)
@@ -83,7 +105,20 @@
     [`(let ([,as ,bs] ...) ,cs ...)
      `(let (,@(make-list (length as) `[name expr])) ,@(make-list (length cs) `expr))]))
 
-(define (parse source) 0)
+(define/match (parse source [context 'hole])
+  [(_ 'hole)
+   (let* ([pat (hole-pat (get-pat source))]
+          [contexts (map (λ (i) (apply-ith i sel◇ pat)) (range 0 (length source)))])
+     `(,#hash((self . pat)) ,@(map parse source contexts)))]
+  [((atom a) (atom s))
+   (let ([pat (hole-pat (get-pat source))])
+     #hash((self . pat)))]
+  [(`(,s ...) `(,c ...))
+   (let ([contexts (map (λ (i) [(◇ (,ls ...)) ⋱↦ ,(apply-ith i sel◇ c)]) (range 0 (length source)))])
+     (map parse source contexts))]
+  [(_ _) (println "error on") (println source) (println context)])
+
+(parse src)
 
 ; ----------------------------------------------------------------------------
 
