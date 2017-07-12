@@ -103,18 +103,20 @@
     [`(define (,a ,bs ...) ,cs ...)
      `(define (name ,@(make-list (length bs) `expr)) ,@(make-list (length cs) `expr))]
     [`(let ([,as ,bs] ...) ,cs ...)
-     `(let (,@(make-list (length as) `[name expr])) ,@(make-list (length cs) `expr))]))
+     `(let (,@(make-list (length as) `[name expr])) ,@(make-list (length cs) `expr))]
+    [(atom a)
+     a]))
 
 (define/match (parse source [context 'hole])
-  [(_ 'hole)
+  [(`(,s ...) 'hole)
    (let* ([pat (hole-pat (get-pat source))]
-          [contexts (map (λ (i) (apply-ith i sel◇ pat)) (range 0 (length source)))])
-     `(,#hash((self . pat)) ,@(map parse source contexts)))]
-  [((atom a) (atom s))
+          [contexts (map (λ (i src) (apply-ith i (λ (_) `(◇ ,src)) pat)) (range 0 (length source)) source)])
+     `(,(hash 'self `(◇ ,pat)) ,@(map parse source contexts)))]
+  [((atom a) _)
    (let ([pat (hole-pat (get-pat source))])
-     #hash((self . pat)))]
+     (hash 'self context))]
   [(`(,s ...) `(,c ...))
-   (let ([contexts (map (λ (i) [(◇ (,ls ...)) ⋱↦ ,(apply-ith i sel◇ c)]) (range 0 (length source)))])
+   (let ([contexts (map (λ (i src) ([(◇ (,ls ...)) ⋱↦ ,(apply-ith i sel◇ #;(λ (_) `(◇ ,src)) (get-pat ls))] c)) (range 0 (length source)) source)])
      (map parse source contexts))]
   [(_ _) (println "error on") (println source) (println context)])
 
