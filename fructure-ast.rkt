@@ -173,14 +173,14 @@
     (match source
       [(? list?) (map hole-if source)]
       ['if 'if]
-      ['expr ``,(gensym)]))
+      ['expr #',,(gensym)]))
 
 
 #;(syntax->datum #'(quasiquote (if (unquote a) (unquote b) (unquote c))))
 
 (hole-if '(if expr expr expr))
 
-#; (get-pat-macro source (if expr expr expr))
+#; (get-pat-macro source `(if expr expr expr))
 #; (match source
      [`(if ,a ,b ,c)
       `(if expr expr expr)])
@@ -194,7 +194,7 @@
      (let* ([<new-pat> (datum->syntax #f (make-holes (syntax->datum #'<form>)))])
        #'(match <source> [<new-pat> <form>]))]))
 
-(get-pat-macro '(if 1 2) '(if expr expr expr))
+(get-pat-macro '(if 1 2) `(if expr expr expr))
 
 (define (get-pat source)
   (match source
