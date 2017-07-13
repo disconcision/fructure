@@ -167,7 +167,34 @@
          (map hole-pat pat)))
 
 
+; start with (quote (if expr expr expr))
+; need (quote (quasiquote (if (unquote a) (unquote b) (unquote c)))
+(define (hole-if source)
+    (match source
+      [(? list?) (map hole-if source)]
+      ['if 'if]
+      ['expr ``,(gensym)]))
 
+
+#;(syntax->datum #'(quasiquote (if (unquote a) (unquote b) (unquote c))))
+
+(hole-if '(if expr expr expr))
+
+#; (get-pat-macro source (if expr expr expr))
+#; (match source
+     [`(if ,a ,b ,c)
+      `(if expr expr expr)])
+
+(begin-for-syntax
+  (define (make-holes data) 0))
+
+(define-syntax (get-pat-macro stx)
+  (syntax-case stx ()
+    [(_ <source> <form>)
+     (let* ([<new-pat> (datum->syntax #f (make-holes (syntax->datum #'<form>)))])
+       #'(match <source> [<new-pat> <form>]))]))
+
+(get-pat-macro '(if 1 2) '(if expr expr expr))
 
 (define (get-pat source)
   (match source
@@ -236,6 +263,20 @@ test-src
 
 #;(map-into test-src ['a 'b])
 
+
+
+#|
+(match '(if 1 2 3)
+     [`(if ,a ,b ,c)
+      `(begin ,b ,c)])
+
+(parse `(if 1 2 3))
+(parse `(begin 2 3))
+
+(match (parse `(if 1 2 3))
+     [`(,(hash-table ('context ctx)) ,(hash-table ('self s)) ,a ,b ,c)
+      `(,(hash 'self '(begin expr expr) 'context ctx) ,(hash 'self 'begin) ,b ,c)])
+|#
 ; ----------------------------------------------------------------------------
 
 (define-syntax-rule (style-match source obj-src
