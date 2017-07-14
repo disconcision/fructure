@@ -55,6 +55,14 @@
              (def ooo)
              (expr ooo)))
 
+
+; kinds of atoms
+; symbol-literal (quoted symbol)
+; form-name (symbol-literal)
+; name-new (symbol)
+; name-ref (symbol)
+; literal
+
 ; ----------------------------------------------------------------------------
 
 (define L0-sort-names '(hole))
@@ -174,11 +182,13 @@
                          atom))))
   
   (define L1-form-names '(if begin define let)) ; this is a copy!!!!
-  (define L1-sort-names '(expr name)) ; ditto
+  (define L1-sort-names '(expr name)) ; copy
 
-  (define atom? (compose not pair?)) ; ditto
+  (define atom? (compose not pair?)) ; copy
+
+  (define (transpose x) (apply map list x))
   
-  (define-syntax-rule (map-into source [<pattern> <payload> ...] ...) ; ditto
+  (define-syntax-rule (map-into source [<pattern> <payload> ...] ...) ; copy
     (letrec ([recursor (match-lambda
                          [<pattern> <payload> ...] ...
                          [(? list? x) (map recursor x)]
@@ -203,7 +213,7 @@
     
   (define (undotdotdot-into source)
     (match (undotdotdot source)
-      [`(... ,a) `(... ,(undotdotdot-into a))] ; is this necessary?
+      #; [`(... ,a) `(... ,(undotdotdot-into a))] ; is this necessary?
       [(? list? ls) (map undotdotdot-into ls)]
       [(? (compose not pair?) a) a]))
 
@@ -214,27 +224,21 @@
 
   (define (redotdotdot-into source)
     (match (redotdotdot source)
-      [`(... ,a) `(... ,(redotdotdot-into a))] ; is this (or something else) necessary?
+      #; [`(... ,a) `(... ,(redotdotdot-into a))] ; is this (or something else) necessary?
       [(? list? ls) (map redotdotdot-into ls)]
       [(? (compose not pair?) a) a]))
-
-  (println (undotdotdot-into '(define (name name ...) expr ...)))
-  
-  (define (transpose x) (apply map list x))
   
   (define (tandem-holes pattern)
     (match* (pattern)
       [((? (λ (x) (member x L1-form-names))))
        `(,pattern ,pattern)]
       [((? (λ (x) (member x L1-sort-names))))
-       (let ([new-var (gensym)])
-         `(,(list 'unquote new-var) ,pattern))]
-      [(`(... ,x))
-       (match-let ([`(,new-pat ,new-temp) (tandem-holes x)])
-         `((... ,new-pat) ,(list 'unquote-splicing `(make-list (length ,(list 'quasiquote new-pat)) ,(list 'quote new-temp)))))]
-      ; the above doesn't quite work for the let case. length is taking the list for a binding pair, ie 2. we need to
-      ; conditionally get the length of a single component of the list
-      #;[(`(... ,(? (λ (x) (member x L1-sort-names)) sort-name))) ; note this only goes one level deep, needs work to go deeper
+       `(,(list 'unquote (gensym)) ,pattern)]
+      [(`(... ,(app tandem-holes `(,new-pat ,new-temp))))
+       `((... ,new-pat) ,(list 'unquote-splicing `(make-list (length ,(list 'quasiquote (if (equal? 'unquote (first new-pat)) new-pat (first new-pat)))) ,(list 'quote new-temp))))]
+      ; the above is sort of a hack. the test for first not equalling unquote detects when new-pat is actually a list of pats
+      ; but maybe not robustly? to clarify, when the first is unquote we're assuming it's just a quoted, unquoted variable name
+      #;[(`(... ,(? (λ (x) (member x L1-sort-names)) sort-name)))
          (let ([new-var (gensym)])
            `((... ,(list 'unquote new-var)) ,(list 'unquote-splicing `(make-list (length ,new-var) ,(list 'quote sort-name)))))]
       [((? list?))
@@ -266,11 +270,11 @@
          #'(match <source>
              [`<new-pat> `<new-temp>] ...)))]))
 
-(get-pat-macro-list '(let ([f a][f a][f a]) 4 4 4) '((if expr expr expr)
-                                                     (begin expr ...)
-                                                     (define (name name ...) expr ...)
-                                                     (let ([name expr] ...) expr ...)
-                                                     ))
+(get-pat-macro-list '(let ([f a][f a][k a][g a]) 4 4 4) '((if expr expr expr)
+                                                          (begin expr ...)
+                                                          (define (name name ...) expr ...)
+                                                          (let ([name expr] ...) expr ...)
+                                                          ))
 
 ; ----------------------------------------------------------------------------
 
