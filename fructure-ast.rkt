@@ -163,10 +163,18 @@
 ; ----------------------------------------------------------------------------
 
 (require (for-syntax racket/match racket/list racket/syntax))
-(begin-for-syntax 
-
+(begin-for-syntax
+  
+  (define L1 '((atom (|| (name
+                          literal))) ; attach predicates
+               (expr (|| (if expr expr expr)
+                         (begin expr ...)
+                         (define (name name ...) expr ...)
+                         (let ([name expr] ...) expr ...)
+                         atom))))
+  
   (define L1-form-names '(if begin define let)) ; this is a copy!!!!
-  (define L1-sort-names '(expr)) ; ditto
+  (define L1-sort-names '(expr name)) ; ditto
 
   (define atom? (compose not pair?)) ; ditto
   
@@ -177,34 +185,67 @@
                          [(? (compose not pair?) x) x])])
       (recursor source)))
 
-  (define (undotdotdot-into source)
-    (map-into source
-              [(list a ... b '... c ...) `(,@(undotdotdot-into a) (... ,b) ,@c)]
-              [_ source]))
+  #;(define (undotdotdot-into source)
+      (map-into source
+                [(list a ... b '... c ...) `(,@(undotdotdot-into a) (... ,b) ,@c)]
+                [_ source]))
    
-  (define (redotdotdot-into source)
-    (map-into source
-              [`(,a ... (... ,b) ,c ...) `(,@(redotdotdot-into a) ,b ... ,@c)]
-              [_ source]))
+  #;(define (redotdotdot-into source)
+      (map-into source
+                [`(,a ... (... ,b) ,c ...) `(,@(redotdotdot-into a) ,b ... ,@c)]
+                [_ source]))
 
-  (define (tandem-holes pattern template)
-    (match* (pattern template)
-      [((? (λ (x) (member x L1-form-names))) _)
-       '(,pattern ,pattern)]
-      [((? (λ (x) (member x L1-sort-names))) _)
+  (define (undotdotdot source)
+    (match source
+      [(? (compose not pair?)) source]
+      [(list a ... b '... c ...) `(,@(undotdotdot a) (... ,b) ,@c)]
+      [_ source]))
+    
+  (define (undotdotdot-into source)
+    (match (undotdotdot source)
+      [`(... ,a) `(... ,(undotdotdot-into a))] ; is this necessary?
+      [(? list? ls) (map undotdotdot-into ls)]
+      [(? (compose not pair?) a) a]))
+
+  (define (redotdotdot source)
+    (match source
+      [`(,a ... (... ,b) ,c ...) `(,@(redotdotdot a) ,b ... ,@c)]
+      [_ source]))
+
+  (define (redotdotdot-into source)
+    (match (redotdotdot source)
+      [`(... ,a) `(... ,(redotdotdot-into a))] ; is this (or something else) necessary?
+      [(? list? ls) (map redotdotdot-into ls)]
+      [(? (compose not pair?) a) a]))
+
+  (println (undotdotdot-into '(define (name name ...) expr ...)))
+  
+  (define (transpose x) (apply map list x))
+  
+  (define (tandem-holes pattern)
+    (match* (pattern)
+      [((? (λ (x) (member x L1-form-names))))
+       `(,pattern ,pattern)]
+      [((? (λ (x) (member x L1-sort-names))))
        (let ([new-var (gensym)])
-         `(,(list 'unquote new-var) expr))]
-      [(`(... expr) _) ; note this only goes one level deep, needs work to go deeper
-       (let ([new-var (gensym)])
-         `((... ,(list 'unquote new-var)) ,(list 'unquote-splicing `(make-list (length ,new-var) `expr))))]
-      [((? list?) _)
-       (map tandem-holes pattern template)])))
+         `(,(list 'unquote new-var) ,pattern))]
+      [(`(... ,x))
+       (match-let ([`(,new-pat ,new-temp) (tandem-holes x)])
+         `((... ,new-pat) ,(list 'unquote-splicing `(make-list (length ,(list 'quasiquote new-pat)) ,(list 'quote new-temp)))))]
+      ; the above doesn't quite work for the let case. length is taking the list for a binding pair, ie 2. we need to
+      ; conditionally get the length of a single component of the list
+      #;[(`(... ,(? (λ (x) (member x L1-sort-names)) sort-name))) ; note this only goes one level deep, needs work to go deeper
+         (let ([new-var (gensym)])
+           `((... ,(list 'unquote new-var)) ,(list 'unquote-splicing `(make-list (length ,new-var) ,(list 'quote sort-name)))))]
+      [((? list?))
+       (transpose (map tandem-holes pattern))])))
 
 (define-syntax (get-pat-macro stx)
   (syntax-case stx ()
     [(_ <source> <form>)
-     (match-let* ([prepro (undotdotdot-into (eval (syntax->datum #'<form>)))]
-                  [`(,pat ,temp) (map redotdotdot-into (apply map list (tandem-holes prepro prepro)))])
+     (match-let* ([form-datum (undotdotdot-into (eval (syntax->datum #'<form>)))]
+                  [pat-temp (tandem-holes form-datum)]
+                  [`(,pat ,temp) (map redotdotdot-into pat-temp)])
        (with-syntax* ([<new-pat> (datum->syntax #'<source> pat)]
                       [<new-temp> (datum->syntax #'<source> temp)])
          #'(match <source>
@@ -212,9 +253,24 @@
 
 
 
-(get-pat-macro '(if 1 2 5 4 2 34) '(if expr expr ...))
+(get-pat-macro '(define (f a b c ) a 4 4) '(define (name name ...) expr ...))
 
+(define-syntax (get-pat-macro-list stx)
+  (syntax-case stx ()
+    [(_ <source> <forms>)
+     (match-let* ([form-list (map undotdotdot-into (eval (syntax->datum #'<forms>)))]
+                  [pat-temp (map tandem-holes form-list)]
+                  [`((,pat ,temp) ...) (map (λ (x) (map redotdotdot-into x)) pat-temp)])
+       (with-syntax* ([(<new-pat> ...) (datum->syntax #'<source> pat)]
+                      [(<new-temp> ...) (datum->syntax #'<source> temp)])
+         #'(match <source>
+             [`<new-pat> `<new-temp>] ...)))]))
 
+(get-pat-macro-list '(let ([f a][f a][f a]) 4 4 4) '((if expr expr expr)
+                                                     (begin expr ...)
+                                                     (define (name name ...) expr ...)
+                                                     (let ([name expr] ...) expr ...)
+                                                     ))
 
 ; ----------------------------------------------------------------------------
 
