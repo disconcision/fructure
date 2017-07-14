@@ -187,88 +187,49 @@
   (define atom? (compose not pair?)) ; copy
 
   (define (transpose x) (apply map list x))
-  
-  (define-syntax-rule (map-into source [<pattern> <payload> ...] ...) ; copy
-    (letrec ([recursor (match-lambda
-                         [<pattern> <payload> ...] ...
-                         [(? list? x) (map recursor x)]
-                         [(? (compose not pair?) x) x])])
-      (recursor source)))
 
-  #;(define (undotdotdot-into source)
-      (map-into source
-                [(list a ... b '... c ...) `(,@(undotdotdot-into a) (... ,b) ,@c)]
-                [_ source]))
-   
-  #;(define (redotdotdot-into source)
-      (map-into source
-                [`(,a ... (... ,b) ,c ...) `(,@(redotdotdot-into a) ,b ... ,@c)]
-                [_ source]))
+  (define (map-rec fn source)
+    (match (fn source)
+      [(? list? ls) (map (λ (x) (map-rec fn x)) ls)]
+      [(? atom? a) a]))
 
   (define (undotdotdot source)
     (match source
-      [(? (compose not pair?)) source]
-      [(list a ... b '... c ...) `(,@(undotdotdot a) (... ,b) ,@c)]
+      [(list a ... b '... c ...) `(,@(undotdotdot a) (ooo ,b) ,@c)]
       [_ source]))
     
-  (define (undotdotdot-into source)
-    (match (undotdotdot source)
-      #; [`(... ,a) `(... ,(undotdotdot-into a))] ; is this necessary?
-      [(? list? ls) (map undotdotdot-into ls)]
-      [(? (compose not pair?) a) a]))
-
   (define (redotdotdot source)
     (match source
-      [`(,a ... (... ,b) ,c ...) `(,@(redotdotdot a) ,b ... ,@c)]
+      [`(,a ... (ooo ,b) ,c ...) `(,@(redotdotdot a) ,b ... ,@c)]
       [_ source]))
-
-  (define (redotdotdot-into source)
-    (match (redotdotdot source)
-      #; [`(... ,a) `(... ,(redotdotdot-into a))] ; is this (or something else) necessary?
-      [(? list? ls) (map redotdotdot-into ls)]
-      [(? (compose not pair?) a) a]))
   
-  (define (tandem-holes pattern)
+  (define (make-parse-pair pattern)
     (match* (pattern)
       [((? (λ (x) (member x L1-form-names))))
        `(,pattern ,pattern)]
       [((? (λ (x) (member x L1-sort-names))))
        `(,(list 'unquote (gensym)) ,pattern)]
-      [(`(... ,(app tandem-holes `(,new-pat ,new-temp))))
-       `((... ,new-pat) ,(list 'unquote-splicing `(make-list (length ,(list 'quasiquote (if (equal? 'unquote (first new-pat)) new-pat (first new-pat)))) ,(list 'quote new-temp))))]
+      [(`(ooo ,(app make-parse-pair `(,new-pat ,new-temp))))
+       `((ooo ,new-pat) ,(list 'unquote-splicing `(make-list (length ,(list 'quasiquote (if (equal? 'unquote (first new-pat)) new-pat (first new-pat)))) ,(list 'quote new-temp))))]
       ; the above is sort of a hack. the test for first not equalling unquote detects when new-pat is actually a list of pats
       ; but maybe not robustly? to clarify, when the first is unquote we're assuming it's just a quoted, unquoted variable name
-      #; [(`(... ,(? (λ (x) (member x L1-sort-names)) sort-name)))
-          (let ([new-var (gensym)])
-            `((... ,(list 'unquote new-var)) ,(list 'unquote-splicing `(make-list (length ,new-var) ,(list 'quote sort-name)))))]
       [((? list?))
-       (transpose (map tandem-holes pattern))])))
+       (transpose (map make-parse-pair pattern))])))
 
-#; (define-syntax (get-pat-macro stx)
-     (syntax-case stx ()
-       [(_ <source> <form>)
-        (match-let* ([form-datum (undotdotdot-into (eval (syntax->datum #'<form>)))]
-                     [pat-temp (tandem-holes form-datum)]
-                     [`(,pat ,temp) (map redotdotdot-into pat-temp)])
-          (with-syntax* ([<new-pat> (datum->syntax #'<source> pat)]
-                         [<new-temp> (datum->syntax #'<source> temp)])
-            #'(match <source>
-                [`<new-pat> `<new-temp>])))]))
-
-
-
-#; (get-pat-macro '(define (f a b c ) a 4 4) '(define (name name ...) expr ...))
 
 (define-syntax (get-pat-macro-list stx)
   (syntax-case stx ()
     [(_ <source> <forms>)
-     (match-let* ([form-list (map undotdotdot-into (eval (syntax->datum #'<forms>)))]
-                  [pat-temp (map tandem-holes form-list)]
-                  [`((,pat ,temp) ...) (map (λ (x) (map redotdotdot-into x)) pat-temp)])
+     (match-let* ([form-list (map-rec undotdotdot (eval (syntax->datum #'<forms>)))]
+                  [parse-pairs (map make-parse-pair form-list)]
+                  [`((,pat ,temp) ...) (map (λ (x) (map-rec redotdotdot x)) parse-pairs)])
        (with-syntax* ([(<new-pat> ...) (datum->syntax #'<source> pat)]
                       [(<new-temp> ...) (datum->syntax #'<source> temp)])
          #'(match <source>
-             [`<new-pat> `<new-temp>] ...)))]))
+             [`<new-pat> `<new-temp>] ...
+             [(? atom? a) a])))]))
+
+
 
 (get-pat-macro-list '(let ([f a][f a][k a][g a]) 4 4 4) '((if expr expr expr)
                                                           (begin expr ...)
@@ -276,39 +237,12 @@
                                                           (let ([name expr] ...) expr ...)
                                                           ))
 
-; ----------------------------------------------------------------------------
+(define (get-form source)
+  (get-pat-macro-list source '((if expr expr expr)
+                               (begin expr ...)
+                               (define (name name ...) expr ...)
+                               (let ([name expr] ...) expr ...))))
 
-#; (define (hole-pat pat)
-     (if (atom? pat)
-         (if (member pat L1-sort-names) 'hole pat)
-         (map hole-pat pat)))
-
-
-; start with (quote (if expr expr expr))
-; need (quote (quasiquote (if (unquote a) (unquote b) (unquote c)))
-#; (define (hole-if source)
-     (match source
-       [(? list?) (map hole-if source)]
-       ['if 'if]
-       ['expr (list 'unquote (gensym))]))
-
-#;(hole-if '(if expr expr expr))
-
-
-(define (get-pat source)
-  (match source
-    [`(if ,a ,b ,c)
-     `(if expr expr expr)]
-    [`(begin ,as ...)
-     `(begin ,@(make-list (length as) `expr))]
-    [`(define (,a ,bs ...) ,cs ...)
-     `(define (name ,@(make-list (length bs) `name)) ,@(make-list (length cs) `expr))]
-    [`(let ([,as ,bs] ...) ,cs ...)
-     `(let (,@(make-list (length as) `[name expr])) ,@(make-list (length cs) `expr))]
-    [(? atom? a) 
-     (if (symbol? a) a a #;#;
-         `(name-ref ,a)
-         `(literal ,a))]))
 
 ; ----------------------------------------------------------------------------
 
@@ -338,10 +272,11 @@
     [(? (λ (x) (member x L1-form-names)))
      (hash 'self source 'context ctx)]
     ['expr
-     (let ([pat (get-pat source)])
-       (if (list? pat)
-           `(,(hash 'self pat 'context ctx) ,@(map parse source (get-child-contexts `(◇ ,pat) source)))
-           (hash 'self pat 'context ctx)))]
+     (let* ([form (get-form source)]
+            [hash (hash 'self form 'context ctx)])
+       (if (list? form)
+           `(,hash ,@(map parse source (get-child-contexts `(◇ ,form) source)))
+           hash))]
     [(? list?)
      `(,(hash 'self '() 'context ctx) ,@(map parse source (get-child-contexts ctx source)))]))
 
@@ -364,18 +299,7 @@ test-src
 
 
 
-#|
-(match '(if 1 2 3)
-     [`(if ,a ,b ,c)
-      `(begin ,b ,c)])
 
-(parse `(if 1 2 3))
-(parse `(begin 2 3))
-
-(match (parse `(if 1 2 3))
-     [`(,(hash-table ('context ctx)) ,(hash-table ('self s)) ,a ,b ,c)
-      `(,(hash 'self '(begin expr expr) 'context ctx) ,(hash 'self 'begin) ,b ,c)])
-|#
 ; ----------------------------------------------------------------------------
 
 (define-syntax-rule (style-match source obj-src
@@ -406,4 +330,44 @@ test-src
             ))])
     (recursor source obj-src)))
 
+
+(define-match-expander ♥
+  (syntax-rules ()
+    [(♥ <thing>)
+     (app (λ (source) (match source
+                        [`(,(== selector) ,a) a]
+                        [_ source])) `<thing>)]))
+
+
+#; (define (gui-pass:forms source obj-src)
+     (style-match
+      source obj-src
+      #;[`(,(== selector) ,a)
+         `((selector wrapper) (selector head) "none")]
+      [(atom a)
+       `((id atom atom))] ; need to make literal case
+      [`(,(♥ if) ,a ,b ,c)
+       `((expr if wrapper) (comp if head) "none" "none" "none")]
+      [`(,(♥ begin) ,expr ...)
+       `((expr begin wrapper) (comp begin head) ,@(make-list (length expr) "none"))]
+      [`(,(♥ send) ,target ,method ,args ...)
+       `((expr send wrapper) (comp send head) (comp send target) (comp send method) ,@(make-list (length args) "none"))]
+      [`(,(♥ define) ,(atom id) ,expr ...)
+       `((expr define wrapper) (comp define head) (new-id define name) ,@(make-list (length expr) "none"))]
+      [`(,(♥ define) ,(♥ (,id ,vars ...)) ,expr ...)
+       `((expr define wrapper) (comp define head) ((comp define fn-wrapper) (new-id define name) ,@(make-list (length vars) "none")) ,@(make-list (length expr) "none"))]
+      [`(,(♥ let) ,(♥ (,(♥ (,id ,expr-for-let)) ...)) ,expr ...)
+       `((expr let wrapper) (comp let head) ((comp let inits-wrapper) ,@(make-list (length id) '((comp let pair-wrapper) (new-id let name) "none"))) ,@(make-list (length expr) "none"))]
+      [`(,(♥ new) ,obj [,prop ,val] ...)
+       `((expr new wrapper) (comp new head) (comp new obj-type) ,@(make-list (length prop) '((comp new pair-wrapper) "none" "none")))]
+      [`(,(♥ env) ,binds ...)
+       `((expr env wrapper) (comp env head) ,@(make-list (length binds) "none"))]
+      [`(,(♥ kit) ,sections ...)
+       `((expr kit wrapper) (comp kit head) ,@(make-list (length sections) "none"))]
+      [`(,(♥ meta) ,props ...)
+       `((expr meta wrapper) (comp meta head) ,@(make-list (length props) "none"))]
+      ; remember that the following pattern is a catch-all and should be last
+      [`(,(♥ ,(atom function)) ,args ...)
+       `((expr function wrapper) (id function head) ,@(make-list (length args) "none"))]
+      ))
 
