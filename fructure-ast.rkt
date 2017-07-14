@@ -159,6 +159,63 @@
                        [(? atom? x) x])])
     (recursor source)))
 
+
+; ----------------------------------------------------------------------------
+
+(require (for-syntax racket/match racket/list racket/syntax))
+(begin-for-syntax 
+
+  (define L1-form-names '(if begin define let)) ; this is a copy!!!!
+  (define L1-sort-names '(expr)) ; ditto
+
+  (define atom? (compose not pair?)) ; ditto
+  
+  (define-syntax-rule (map-into source [<pattern> <payload> ...] ...) ; ditto
+    (letrec ([recursor (match-lambda
+                         [<pattern> <payload> ...] ...
+                         [(? list? x) (map recursor x)]
+                         [(? (compose not pair?) x) x])])
+      (recursor source)))
+
+  (define (undotdotdot-into source)
+    (map-into source
+              [(list a ... b '... c ...) `(,@(undotdotdot-into a) (... ,b) ,@c)]
+              [_ source]))
+   
+  (define (redotdotdot-into source)
+    (map-into source
+              [`(,a ... (... ,b) ,c ...) `(,@(redotdotdot-into a) ,b ... ,@c)]
+              [_ source]))
+
+  (define (tandem-holes pattern template)
+    (match* (pattern template)
+      [((? (λ (x) (member x L1-form-names))) _)
+       '(,pattern ,pattern)]
+      [((? (λ (x) (member x L1-sort-names))) _)
+       (let ([new-var (gensym)])
+         `(,(list 'unquote new-var) expr))]
+      [(`(... expr) _) ; note this only goes one level deep, needs work to go deeper
+       (let ([new-var (gensym)])
+         `((... ,(list 'unquote new-var)) ,(list 'unquote-splicing `(make-list (length ,new-var) `expr))))]
+      [((? list?) _)
+       (map tandem-holes pattern template)])))
+
+(define-syntax (get-pat-macro stx)
+  (syntax-case stx ()
+    [(_ <source> <form>)
+     (match-let* ([prepro (undotdotdot-into (eval (syntax->datum #'<form>)))]
+                  [`(,pat ,temp) (map redotdotdot-into (apply map list (tandem-holes prepro prepro)))])
+       (with-syntax* ([<new-pat> (datum->syntax #'<source> pat)]
+                      [<new-temp> (datum->syntax #'<source> temp)])
+         #'(match <source>
+             [`<new-pat> `<new-temp>])))]))
+
+
+
+(get-pat-macro '(if 1 2 5 4 2 34) '(if expr expr ...))
+
+
+
 ; ----------------------------------------------------------------------------
 
 #; (define (hole-pat pat)
@@ -170,31 +227,13 @@
 ; start with (quote (if expr expr expr))
 ; need (quote (quasiquote (if (unquote a) (unquote b) (unquote c)))
 (define (hole-if source)
-    (match source
-      [(? list?) (map hole-if source)]
-      ['if 'if]
-      ['expr #',,(gensym)]))
-
-
-#;(syntax->datum #'(quasiquote (if (unquote a) (unquote b) (unquote c))))
+  (match source
+    [(? list?) (map hole-if source)]
+    ['if 'if]
+    ['expr (list 'unquote (gensym))]))
 
 (hole-if '(if expr expr expr))
 
-#; (get-pat-macro source `(if expr expr expr))
-#; (match source
-     [`(if ,a ,b ,c)
-      `(if expr expr expr)])
-
-(begin-for-syntax
-  (define (make-holes data) 0))
-
-(define-syntax (get-pat-macro stx)
-  (syntax-case stx ()
-    [(_ <source> <form>)
-     (let* ([<new-pat> (datum->syntax #f (make-holes (syntax->datum #'<form>)))])
-       #'(match <source> [<new-pat> <form>]))]))
-
-(get-pat-macro '(if 1 2) `(if expr expr expr))
 
 (define (get-pat source)
   (match source
