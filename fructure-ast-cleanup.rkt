@@ -2,6 +2,7 @@
 
 (require lens/common)
 (require lens/data/list)
+(require fancy-app)
 (require "transform-engine.rkt")
 (require "fructure-style.rkt")
 
@@ -46,16 +47,8 @@
 
 ; ----------------------------------------------------------------------------
 
-(require (for-syntax racket/match racket/list racket/syntax))
+(require (for-syntax racket/match racket/list racket/syntax fancy-app))
 (begin-for-syntax
-  
-  (define L1 '((atom (|| (name
-                          literal))) ; attach predicates
-               (expr (|| (if expr expr expr)
-                         (begin expr ...)
-                         (define (name name ...) expr ...)
-                         (let ([name expr] ...) expr ...)
-                         atom))))
   
   (define L1-form-names '(if begin define let send new env kit meta)) ; copy with stuff added
   (define L1-sort-names '(expr name)) ; copy
@@ -70,16 +63,22 @@
       [(? list? ls) (map (λ (x) (map-rec fn x)) ls)]
       [(? atom? a) a]))
 
+  
+  ; desugars _ ... into (ooo _)
   (define (undotdotdot source)
     (match source
       [(list a ... b '... c ...) `(,@(undotdotdot a) (ooo ,b) ,@c)]
       [_ source]))
-    
+
+  
+   ; resugars (ooo _) into _ ...
   (define (redotdotdot source)
     (match source
       [`(,a ... (ooo ,b) ,c ...) `(,@(redotdotdot a) ,b ... ,@c)]
       [_ source]))
+
   
+  ; rewrites a form signature into a pattern-template pair for the parser
   (define (make-parse-pair pattern)
     (match pattern
       [(? (λ (x) (member x L1-form-names)))
@@ -93,15 +92,26 @@
       [(? list? ls)
        (transpose (map make-parse-pair ls))]))
 
+  
+  ; maps in the ignore-affo pattern to stop in-line afforfances from interferring with parsing
   (define (add-ignores source)
     (match source
       ['... '...]
       [(list 'unquote x) source]
       [(? symbol? x) (list 'unquote `(ignore-affo ,source))]
-      [(? list?) (list 'unquote `(ignore-affo ,(map add-ignores source)))])))
+      [(? list?) (list 'unquote `(ignore-affo ,(map add-ignores source)))]))
+
+  
+  ; rewrites a list of form signatures into pattern-template pairs for the parser
+  (define form-list->parse-pairs
+    (compose (λ (x) (map (match-lambda [`(,(app add-ignores pat) ,temp) `(,pat ,temp)]) x))
+             (λ (x) (map (map-rec redotdotdot _) x))
+             (λ (x) (map make-parse-pair x))
+             (λ (x) (map (map-rec undotdotdot _) x)))))
 
 
 
+; changes a pattern into one that ignores over-wrapped affordances
 (define-match-expander ignore-affo
   (syntax-rules ()
     [(ignore-affo <pat>)
@@ -110,43 +120,47 @@
                         [_ source])) `<pat>)]))
 
 
-
-(define-syntax (get-pat-macro-list stx)
+; matches source to a form from the provided list 
+(define-syntax (source+grammar->form stx)
   (syntax-case stx ()
     [(_ <source> <forms>)
-     (match-let* ([form-list (map-rec undotdotdot (eval (syntax->datum #'<forms>)))]
-                  [parse-pairs (map make-parse-pair form-list)]
-                  ; note that below app adds ignore-affo around whole pat as well as sub-components
-                  [`((,(app add-ignores pat) ,temp) ...) (map (λ (x) (map-rec redotdotdot x)) parse-pairs)])
+     (match-let* ([`((,pat ,tem) ...) (form-list->parse-pairs (eval (syntax->datum #'<forms>)))])
        (with-syntax* ([(<new-pat> ...) (datum->syntax #'<source> pat)]
-                      [(<new-temp> ...) (datum->syntax #'<source> temp)])
+                      [(<new-tem> ...) (datum->syntax #'<source> tem)])
          #'(match <source>
-             #; [`(,(? (λ (x) (member x L1-affo-names)) affo-name) ,x) `(,affo-name expr)] ; no
-             [`<new-pat> `<new-temp>] ...
-             [(? atom? a) a])))])) ; atom case (hack)
+             [`<new-pat> `<new-tem>] ...
+             [(? atom? a) a])))])) ; atom case (temporary hack)
 
 
 
 
 ; parsing --------------------------------------------------------------------
 
+(define L1 '((atom (|| (name
+                        literal))) ; attach predicates
+             (expr (|| (if expr expr expr)
+                       (begin expr ...)
+                       (define (name name ...) expr ...)
+                       (let ([name expr] ...) expr ...)
+                       atom))))
+
 (define L1-sort-names '(atom hole expr))
 (define L1-form-names '(if begin define let))
 (define L1-terminal-names '(name name-ref literal))
 (define L1-affo-names '(▹ selector)) ;copy
 
-(define (get-form source)
-  (get-pat-macro-list source '((if expr expr expr)
-                               (begin expr ...)
-                               (define (name name ...) expr ...)
-                               (define name expr)
-                               (let ([name expr] ...) expr ...)
-                               (send expr expr expr ...)
-                               (new expr [name expr] ...)
-                               (env expr ...)
-                               (kit expr ...)
-                               (meta expr ...)
-                               (expr expr ...))))
+(define (source->form source)
+  (source+grammar->form source '((if expr expr expr)
+                                 (begin expr ...)
+                                 (define (name name ...) expr ...)
+                                 (define name expr)
+                                 (let ([name expr] ...) expr ...)
+                                 (send expr expr expr ...)
+                                 (new expr [name expr] ...)
+                                 (env expr ...)
+                                 (kit expr ...)
+                                 (meta expr ...)
+                                 (expr expr ...))))
 
 
 (define (sel◇ source) `(◇ ,source))
@@ -179,7 +193,7 @@
        [(? (λ (x) (member x L1-form-names)))
         (hash 'self source 'context ctx)]
        ['expr
-        (let* ([form (get-form source)]
+        (let* ([form (source->form source)]
                [hash (hash 'self form 'context ctx)])
           (if (list? form)
               `(,hash ,@(map parse source (get-child-contexts `(◇ ,form) source)))
@@ -203,10 +217,10 @@
 (define test-src2 '(define (fn a) a (define (g q r) 2)))
 (define test-src '(define (selector (fn a)) 7))
 
-(get-pat-macro-list  '((selector let) (▹ ([f a][f a][k a][g a])) 4 4 4) '((if expr expr expr)
-                                                                          (begin expr ...)
-                                                                          (define (name name ...) expr ...)
-                                                                          (let ([name expr] ...) expr ...)))
+(source+grammar->form  '((selector let) (▹ ([f a][f a][k a][g a])) 4 4 4) '((if expr expr expr)
+                                                                            (begin expr ...)
+                                                                            (define (name name ...) expr ...)
+                                                                            (let ([name expr] ...) expr ...)))
 
 
 (pretty-print (parse test-src))
@@ -230,35 +244,35 @@ test-src
 ; char-input: just a restructuring
 
 #; (define (atom->string source)
-  (cond [(symbol? source) (symbol->string source)]
-        [else (~a source)]))
+     (cond [(symbol? source) (symbol->string source)]
+           [else (~a source)]))
 
 #; (define (gui-pass:object source [parent-ed "no default"])
-  (let* ([ed (new fruct-ed%)]
-         [sn (new fruct-sn% [editor ed] [parent-editor parent-ed])]
-         [mt (meta sn ed parent-ed)])
-    (if (list? source)
-        `(,(fruct 0 0 0 "?" 0 mt) ,@(map (λ (sub) (gui-pass:object sub ed)) source))
-        `(,(fruct 0 0 0 (atom->string source) 0 mt)))))
+     (let* ([ed (new fruct-ed%)]
+            [sn (new fruct-sn% [editor ed] [parent-editor parent-ed])]
+            [mt (meta sn ed parent-ed)])
+       (if (list? source)
+           `(,(fruct 0 0 0 "?" 0 mt) ,@(map (λ (sub) (gui-pass:object sub ed)) source))
+           `(,(fruct 0 0 0 (atom->string source) 0 mt)))))
 
 
 #; (define (new-gui source parent-ed)
-  (let ([obj-source (gui-pass:object source parent-ed)])
+     (let ([obj-source (gui-pass:object source parent-ed)])
         
-    (set! obj-source (gui-pass:forms source obj-source))    
-    (set! obj-source ((gui-pass [(fruct sort type name text style mt)
-                                 (fruct sort type name text (lookup-style name type) mt)]) obj-source))
+       (set! obj-source (gui-pass:forms source obj-source))    
+       (set! obj-source ((gui-pass [(fruct sort type name text style mt)
+                                    (fruct sort type name text (lookup-style name type) mt)]) obj-source))
     
-    #;(set! obj-source (gui-pass:cascade-style obj-source))
+       #;(set! obj-source (gui-pass:cascade-style obj-source))
     
-    ((gui-pass [(fruct _ _ _ text _ (meta sn _ parent-ed)) ; changes behavior is done after forms pass??
-                (unless #f #;(equal? text "▹")
-                  (send parent-ed insert sn))]) obj-source) 
-    ((gui-pass [(fruct _ _ _ _ style (meta sn ed _))
-                (apply-style! style sn ed)]) obj-source)    
-    ((gui-pass [(fruct _ type _ text _ (meta sn ed _)) ; must be after style cause style deletes text
-                (when (not (equal? text "?"))
-                  (send ed insert text))]) obj-source) 
+       ((gui-pass [(fruct _ _ _ text _ (meta sn _ parent-ed)) ; changes behavior is done after forms pass??
+                   (unless #f #;(equal? text "▹")
+                     (send parent-ed insert sn))]) obj-source) 
+       ((gui-pass [(fruct _ _ _ _ style (meta sn ed _))
+                   (apply-style! style sn ed)]) obj-source)    
+       ((gui-pass [(fruct _ type _ text _ (meta sn ed _)) ; must be after style cause style deletes text
+                   (when (not (equal? text "?"))
+                     (send ed insert text))]) obj-source) 
     
-    obj-source))
+       obj-source))
 
