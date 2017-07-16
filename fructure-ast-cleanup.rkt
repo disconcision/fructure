@@ -60,27 +60,26 @@
 
   (define atom? (compose not pair?)) ; copy
 
-  (define (transpose x) (apply map list x))
+  (define transpose (curry apply map list))
 
   (define (map-rec fn source)
     (match (fn source)
-      [(? list? ls) (map (λ (x) (map-rec fn x)) ls)]
+      [(? list? ls) (map (curry map-rec fn) ls)]
       [(? atom? a) a]))
 
   
   ; desugars _ ... into (ooo _)
-  (define (undotdotdot source)
-    (match source
-      [(list a ... b '... c ...) `(,@(undotdotdot a) (ooo ,b) ,@c)]
-      [_ source]))
+  (define/match (undotdotdot source)
+    [((list a ... b '... c ...)) `(,@(undotdotdot a) (ooo ,b) ,@c)]
+    [(_) source])
 
   
   ; resugars (ooo _) into _ ...
-  (define (redotdotdot source)
-    (match source
-      [`(,a ... (ooo ,b) ,c ...) `(,@(redotdotdot a) ,b ... ,@c)]
-      [_ source]))
+  (define/match (redotdotdot source)
+    [(`(,a ... (ooo ,b) ,c ...)) `(,@(redotdotdot a) ,b ... ,@c)]
+    [(_) source])
 
+  
   (define-values  (†quote
                    †quasiquote
                    †unquote
@@ -115,7 +114,7 @@
   
   ; rewrites a list of form signatures into pattern-template pairs for the parser
   (define form-list->parse-pairs
-    (compose (λ (x) (map (match-lambda [`(,(app add-ignores pat) ,temp) `(,pat ,temp)]) x))
+    (compose (λ (x) (map (match-lambda [`(,(app add-ignores pat) ,tem) `(,pat ,tem)]) x))
              (λ (x) (map (map-rec redotdotdot _) x))
              (λ (x) (map make-parse-pair x))
              (λ (x) (map (map-rec undotdotdot _) x)))))
@@ -135,9 +134,8 @@
 (define-syntax (source+grammar->form stx)
   (syntax-case stx ()
     [(_ <source> <forms>)
-     (match-let* ([`((,pat ,tem) ...) (form-list->parse-pairs (eval (syntax->datum #'<forms>)))])
-       (with-syntax* ([(<new-pat> ...) (datum->syntax #'<source> pat)]
-                      [(<new-tem> ...) (datum->syntax #'<source> tem)])
+     (let ([parse-pairs (form-list->parse-pairs (eval (syntax->datum #'<forms>)))])
+       (with-syntax* ([((<new-pat> <new-tem>) ...) (datum->syntax #'<source> parse-pairs)])
          #'(match <source>
              [`<new-pat> `<new-tem>] ...
              [(? atom? a) a])))])) ; atom case (temporary hack)
