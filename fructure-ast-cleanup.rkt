@@ -54,7 +54,7 @@
 (require (for-syntax racket/match racket/list racket/syntax racket/function fancy-app))
 (begin-for-syntax
   
-  (define L1-form-names '(if begin define let send new env kit meta)) ; copy with stuff added
+  (define L1-form-names '(if begin define let lambda send new env kit meta)) ; copy with stuff added
   (define L1-sort-names '(expr name)) ; copy
   (define L1-affo-names '(▹ selector)) ;copy
 
@@ -112,12 +112,26 @@
       [(? list?) (†unquote `(ignore-affo ,(map add-ignores source)))]))
 
   
+  ; rewrites form signatures into pattern-template pair for the parser
+  (define form-list->parse-pair
+    (compose (match-lambda [`(,(app add-ignores pat) ,tem) `(,pat ,tem)])
+             (curry map-rec redotdotdot)
+             make-parse-pair
+             (curry map-rec undotdotdot)))
+
+  
+  ; rewrites the forms of a language specification into parse-pairs 
+  (define lang->parse-lang
+    (match-lambda
+      [`((,sort-name (|| ,form ...)) ...)
+       (transpose `(,sort-name ,(map (curry map form-list->parse-pair) form)))]))
+  
   ; rewrites a list of form signatures into pattern-template pairs for the parser
-  (define form-list->parse-pairs
-    (compose (λ (x) (map (match-lambda [`(,(app add-ignores pat) ,tem) `(,pat ,tem)]) x))
-             (λ (x) (map (map-rec redotdotdot _) x))
-             (λ (x) (map make-parse-pair x))
-             (λ (x) (map (map-rec undotdotdot _) x)))))
+  #; (define form-list->parse-pairs
+       (compose (λ (x) (map (match-lambda [`(,(app add-ignores pat) ,tem) `(,pat ,tem)]) x))
+                (λ (x) (map (map-rec redotdotdot _) x))
+                (λ (x) (map make-parse-pair x))
+                (λ (x) (map (map-rec undotdotdot _) x)))))
 
 
 
@@ -133,12 +147,15 @@
 ; matches source to a form from the provided list 
 (define-syntax (source+grammar->form stx)
   (syntax-case stx ()
-    [(_ <source> <forms>)
-     (let ([parse-pairs (form-list->parse-pairs (eval (syntax->datum #'<forms>)))])
-       (with-syntax* ([((<new-pat> <new-tem>) ...) (datum->syntax #'<source> parse-pairs)])
-         #'(match <source>
-             [`<new-pat> `<new-tem>] ...
-             [(? atom? a) a])))])) ; atom case (temporary hack)
+    [(_ <sort> <source> <language>)  
+     (let ([proc-lang (lang->parse-lang (eval (syntax->datum #'<language>)))])
+       (with-syntax* ([((<sort-name> ((<new-pat> <new-tem>) ...)) ...) (datum->syntax #'<source> proc-lang)])
+         #'(match <sort>
+             [<sort-name>
+              (match <source>
+                [`<new-pat> `<new-tem>] ...
+                [(? atom? a) a])]
+             ...)))]))
 
 
 
@@ -158,18 +175,24 @@
 (define L1-terminal-names '(name name-ref literal))
 (define L1-affo-names '(▹ selector)) ;copy
 
-(define (source->form source)
-  (source+grammar->form source '((if expr expr expr)
-                                 (begin expr ...)
-                                 (define (name name ...) expr ...)
-                                 (define name expr)
-                                 (let ([name expr] ...) expr ...)
-                                 (send expr expr expr ...)
-                                 (new expr [name expr] ...)
-                                 (env expr ...)
-                                 (kit expr ...)
-                                 (meta expr ...)
-                                 (expr expr ...))))
+(define (source->form sort source)
+  (source+grammar->form
+   sort
+   source
+   '((def (|| (define (name name ...) expr ...)
+              (define name expr)))
+     (expr (|| (if expr expr expr)
+               (begin expr ...)
+               (define (name name ...) expr ...)
+               (define name expr)
+               (let ([name expr] ...) expr ...)
+               (lambda (name ...) expr ...)
+               (send expr expr expr ...)
+               (new expr [name expr] ...)
+               (env expr ...)
+               (kit expr ...)
+               (meta expr ...)
+               (expr expr ...))))))
 
 
 (define (sel◇ source) `(◇ ,source))
@@ -189,9 +212,11 @@
 (define (->child-contexts parent-context src)
   (map (λ (i) ((◇-ith-child i) parent-context)) (range (length src))))
 
-(define-values (terminal-name?
+(define-values (sort-name?
+                terminal-name?
                 form-name?
-                affo-name?) (values (λ (x) (member x L1-terminal-names))
+                affo-name?) (values (λ (x) (member x L1-sort-names))
+                                    (λ (x) (member x L1-terminal-names))
                                     (λ (x) (member x L1-form-names))
                                     (λ (x) (member x L1-affo-names))))
 
@@ -199,9 +224,9 @@
 (define (sexp->fruct source [ctx `(top (◇ expr))])
   (match source
     [`(,(? affo-name? name) ,selectee) 
-     `(,(hash 'self `(name hole)
+     `(,(hash 'self `(,name hole)
               'context ctx) ,(hash 'self name
-                                   'context `((◇ name) hole)) ,(sexp->fruct selectee ctx))]
+                                   'context `((◇ ,name) hole)) ,(sexp->fruct selectee ctx))]
     ; the above is a hack. it skips (single) selections
     ; and just passes the context along to the selectee
     [_
@@ -209,8 +234,8 @@
        [(? (disjoin terminal-name? form-name?))
         (hash 'self source
               'context ctx)]
-       ['expr
-        (let* ([form (source->form source)]
+       [(? sort-name? sort)
+        (let* ([form (source->form sort source)]
                [hash (hash 'self form
                            'context ctx)])
           (if (list? form)
@@ -222,7 +247,7 @@
 
 
 (define/match (get-symbol fruct)
-  [(`(,(hash-table ('self s)) ,ls ...)) s])
+  [(`(,(hash-table ('self s)) ,xs ...)) s])
 
 
 (define/match (project-symbol fruct)
@@ -231,11 +256,14 @@
 
 
 (define (fruct->fruct+gui source [parent-ed "fuck"])
-  ((let* ([ed (new fruct-ed%)]
-          [sn (new fruct-sn% [editor ed] [parent-editor parent-ed])])
-     (if (list? source)
-         (map (λ (x) (fruct->fruct+gui x ed)) source)
-         (hash-set source 'gui (gui sn ed parent-ed))))))
+  (let* ([ed (new fruct-ed%)]
+         [sn (new fruct-sn% [editor ed] [parent-editor parent-ed])])
+    (match source
+      [(? list?) (map (curryr fruct->fruct+gui ed) source)]
+      [(hash-table) (hash-set source 'gui (gui sn ed parent-ed))])
+    #; (if (list? source)
+           (map (λ (x) (fruct->fruct+gui x ed)) source)
+           (hash-set source 'gui (gui sn ed parent-ed)))))
 
 
 
@@ -406,7 +434,7 @@
       (super draw dc x y left top right bottom dx dy draw-caret))))
 
 
-(define (update-gui)
+(define (update-gui stage kit)
   (let* ([new-main-board (new fruct-board%)]
          [new-kit-board (new fruct-ed%)]
          [new-stage-board (new fruct-ed%)]
@@ -548,6 +576,19 @@
 (define (toggle-mode!)
   (if (equal? mode 'navigation) (set! mode 'text-entry) (set! mode 'navigation)))
 
+
+; how to fix relativize-direction:
+; note: should ideally depend only on style, no looking into gui-data like it does now
+; find most immediate (grand)parent contained within a parent with non-horizontal formatting type
+; the prev/next siblings are candidates for moving (in)to when we press up/down
+; complications:
+; 1. if there is no prev/next sibling, then we try the parent, and so-on recursively
+; 2. if the formatting type is indent, or some other format with mixed horizontal and vertical formatting
+; hack for now: assume only other type is indent-after. compare position to 'after' to decide
+; whether up/down should apply to parent, or if we have to recurse upwards 
+
+
+
 ; changes direction of nav keystrokes depending on visual layout
 (define (relativize-direction key-code sn parent-ed)
   key-code
@@ -610,28 +651,30 @@
 
 
 (define (char-input event)
-  (match-let* ([key-code (send event get-key-code)]
+  (match-let* ([stage stage-actual]
+               [kit kit-actual]
+               [key-code (send event get-key-code)]
                [pos (sel-to-pos stage)]
                [obj (obj-at-pos stage-gui pos)]
-               [`(fruct,sort type name text style (meta ,sn ,ed ,parent-ed)) obj])
+               [`(fruct sort type name text style (meta ,sn ,ed ,parent-ed)) obj])
     (when (not (equal? key-code 'release))
       (case mode
         ['navigation (match key-code
                        [#\space (toggle-mode!)
                                 (send parent-ed set-caret-owner sn 'global)
                                 (send ed set-position 0)]                                     
-                       [_ (set! key-code (relativize-direction key-code sn parent-ed))
+                       [_ #; (set! key-code (relativize-direction key-code sn parent-ed))
                           (set! stage (update stage key-code))
                           (set! stage-gui (new-gui stage (new fruct-ed%)))
                           ; above is hack so stage-gui is current for next line
                           #; (set! kit (update-kit kit kit-gui stage stage-gui key-code))
-                          (update-gui)])]
+                          (update-gui stage kit)])]
         ['text-entry (match key-code
                        [#\space (toggle-mode!)      
                                 (let ([input-chars (send ed get-text 0 num-chars)])
                                   (set! stage ((insert-form input-chars) stage))
                                   (set! num-chars 0))
-                                (update-gui)]
+                                (update-gui stage kit)]
                        [(app string (regexp #rx"[A-Za-z0-9_]")) (set! num-chars (add1 num-chars))
                                                                 (send ed insert key-code)])]))))
 
@@ -651,7 +694,7 @@
        [parent my-frame]))
 
 #; (send my-frame show #t) ; MUST UNCOMMENT TO DISPLAY!!!
-#; (update-gui)
+#; (update-gui stage-actual kit-actual)
 
 
 
@@ -659,8 +702,8 @@
 ; testing ------------------------------------------------
 
 ; init stage and kit
-(define stage '(▹ (define (fn a) a (define (g q r) 2))))
-(define kit '(kit (env) (meta)))
+(define stage-actual '(▹ (define (fn a) a (define (g q r) 2))))
+(define kit-actual '(kit (env) (meta)))
 
 ; init gui refs
 (define stage-gui '())
@@ -675,10 +718,10 @@
 
 
 
-(source+grammar->form  '((selector let) (▹ ([f a][f a][k a][g a])) 4 4 4) '((if expr expr expr)
-                                                                            (begin expr ...)
-                                                                            (define (name name ...) expr ...)
-                                                                            (let ([name expr] ...) expr ...)))
+#; (source+grammar->form  '((selector let) (▹ ([f a][f a][k a][g a])) 4 4 4) '((if expr expr expr)
+                                                                               (begin expr ...)
+                                                                               (define (name name ...) expr ...)
+                                                                               (let ([name expr] ...) expr ...)))
 
 (pretty-print (sexp->fruct test-src))
 test-src
