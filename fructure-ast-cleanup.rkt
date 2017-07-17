@@ -4,7 +4,7 @@
 (require lens/data/list)
 (require racket/gui/base)
 (require fancy-app)
-(require "fructure-style.rkt")
+(require "fructure-style-ast.rkt")
 
 ; ----------------------------------------------------------------------------
 
@@ -34,12 +34,12 @@
   ([pattern ⋱↦ result] ...)) ; explicit fallthrough annotation
 
 
-(define-syntax-rule (map-into source [<pattern> <payload> ...] ...)
-  (letrec ([recursor (match-lambda
-                       [<pattern> <payload> ...] ...
-                       [(? list? x) (map recursor x)]
-                       [(? atom? x) x])])
-    (recursor source)))
+#; (define-syntax-rule (map-into source [<pattern> <payload> ...] ...)
+     (letrec ([recursor (match-lambda
+                          [<pattern> <payload> ...] ...
+                          [(? list? x) (map recursor x)]
+                          [(? atom? x) x])])
+       (recursor source)))
 
 (define-syntax-rule (map-into-fruct source [<pattern> <payload> ...] ...)
   (letrec ([recursor (match-lambda
@@ -224,25 +224,30 @@
 (define (sexp->fruct source [ctx `(top (◇ expr))])
   (match source
     [`(,(? affo-name? name) ,selectee) 
-     `(,(hash 'self `(,name hole)
-              'context ctx) ,(hash 'self name
+     `(,(hash 'symbol name
+              'self `(,name hole)
+              'context ctx) ,(hash 'symbol name
+                                   'self name
                                    'context `((◇ ,name) hole)) ,(sexp->fruct selectee ctx))]
     ; the above is a hack. it skips (single) selections
     ; and just passes the context along to the selectee
     [_
      (match (◇-project ctx)
        [(? (disjoin terminal-name? form-name?))
-        (hash 'self source
+        (hash 'symbol source
+              'self source
               'context ctx)]
        [(? sort-name? sort)
         (let* ([form (source->form sort source)]
-               [hash (hash 'self form
+               [hash (hash 'symbol void
+                           'self form
                            'context ctx)])
           (if (list? form)
               `(,hash ,@(map sexp->fruct source (->child-contexts `(◇ ,form) source)))
               hash))]
        [(? list?)
-        `(,(hash 'self '()
+        `(,(hash 'symbol void
+                 'self '()
                  'context ctx) ,@(map sexp->fruct source (->child-contexts ctx source)))])]))
 
 
@@ -259,7 +264,8 @@
   (let* ([ed (new fruct-ed%)]
          [sn (new fruct-sn% [editor ed] [parent-editor parent-ed])])
     (match source
-      [(? list?) (map (curryr fruct->fruct+gui ed) source)]
+      [`(,hs ,rest ...) `(,(hash-set hs 'gui (gui sn ed parent-ed))
+                   ,@(map (curryr fruct->fruct+gui ed) rest))]
       [(hash-table) (hash-set source 'gui (gui sn ed parent-ed))])
     #; (if (list? source)
            (map (λ (x) (fruct->fruct+gui x ed)) source)
@@ -271,8 +277,47 @@
 
 ; YOU ARE HERE!
 
+(define/match (fmap-fruct fn source)
+  [(_ (? atom?)) (fn source)]
+  [(_ (? list?)) (map (curry fmap-fruct fn) source)])
 
-
+(define (make-gui source parent-ed)
+  ((compose (curry fmap-fruct (λ (source) (match source
+                                            [(hash-table ('symbol s) ('gui (gui _ ed _)))
+                                             (when (not (equal? s void))
+                                               (send ed insert (cond [(symbol? s) (symbol->string s)]
+                                                                     [else (~a s)])))
+                                             source])))
+            (curry fmap-fruct (λ (source) (match source
+                                            [(hash-table ('style st) ('gui (gui sn ed _)))
+                                             (apply-style! st sn ed)
+                                             source])))
+            (curry fmap-fruct (λ (source) (match source
+                                            [(hash-table ('symbol s) ('gui (gui sn _ parent-ed)))
+                                             (unless #f #;(equal? s '▹)
+                                               (send parent-ed insert sn))
+                                             source])))
+            (curry fmap-fruct (λ (source) (match source
+                                            [(hash-table ('self s))
+                                             (hash-set source 'style (lookup-style s s))])))
+            (curryr fruct->fruct+gui parent-ed)
+            sexp->fruct
+            ) source)
+  
+  #; (let ([obj-source 0 #;(gui-pass:object source parent-ed)])   
+       #; (set! obj-source (gui-pass:forms source obj-source))    
+       #; (set! obj-source ((gui-pass [(fruct sort type name text style mt)
+                                       (fruct sort type name text (lookup-style name type) mt)]) obj-source))
+       #; (set! obj-source (gui-pass:cascade-style obj-source)) 
+       #; ((gui-pass [(fruct _ _ _ text _ (meta sn _ parent-ed)) ; changes behavior is done after forms pass??
+                      (unless #f #;(equal? text "▹")
+                        (send parent-ed insert sn))]) obj-source) 
+       #; ((gui-pass [(fruct _ _ _ _ style (meta sn ed _))
+                      (apply-style! style sn ed)]) obj-source)    
+       #; ((gui-pass [(fruct _ type _ text _ (meta sn ed _)) ; must be after style cause style deletes text
+                      (when (not (equal? text "?"))
+                        (send ed insert text))]) obj-source) 
+       obj-source))
 
 
 
@@ -436,38 +481,27 @@
 
 (define (update-gui stage kit)
   (let* ([new-main-board (new fruct-board%)]
-         [new-kit-board (new fruct-ed%)]
+         #;[new-kit-board (new fruct-ed%)]
          [new-stage-board (new fruct-ed%)]
          [stage-board-snip (new fruct-sn% [editor new-stage-board] [parent-editor new-main-board])]
-         [kit-snip (new fruct-sn% [editor new-kit-board] [parent-editor new-main-board])])
+         #;[kit-snip (new fruct-sn% [editor new-kit-board] [parent-editor new-main-board])])
 
-    (set! stage-gui (new-gui stage new-stage-board))
+    (set! stage-gui (make-gui stage new-stage-board))
+
+    (pretty-print stage-gui)
+    
     (send new-main-board insert stage-board-snip)
     
-    (set! kit-gui (new-gui kit new-kit-board))
-    (send new-main-board insert kit-snip)
+    #;(set! kit-gui (make-gui kit new-kit-board))
+    #;(send new-main-board insert kit-snip)
     
-    (send new-main-board move-to stage-board-snip 200 0)
+    #;(send new-main-board move-to stage-board-snip 200 0)
     
     (send my-canvas set-editor new-main-board)
     (send new-main-board set-caret-owner #f 'global)))
 
 
-(define (new-gui source parent-ed)
-  (let ([obj-source 0 #;(gui-pass:object source parent-ed)])   
-    #; (set! obj-source (gui-pass:forms source obj-source))    
-    #; (set! obj-source ((gui-pass [(fruct sort type name text style mt)
-                                    (fruct sort type name text (lookup-style name type) mt)]) obj-source))
-    #; (set! obj-source (gui-pass:cascade-style obj-source)) 
-    #; ((gui-pass [(fruct _ _ _ text _ (meta sn _ parent-ed)) ; changes behavior is done after forms pass??
-                   (unless #f #;(equal? text "▹")
-                     (send parent-ed insert sn))]) obj-source) 
-    #; ((gui-pass [(fruct _ _ _ _ style (meta sn ed _))
-                   (apply-style! style sn ed)]) obj-source)    
-    #; ((gui-pass [(fruct _ type _ text _ (meta sn ed _)) ; must be after style cause style deletes text
-                   (when (not (equal? text "?"))
-                     (send ed insert text))]) obj-source) 
-    obj-source))
+
 
 
 ; transformation ---------------------------------------
@@ -665,7 +699,7 @@
                                 (send ed set-position 0)]                                     
                        [_ #; (set! key-code (relativize-direction key-code sn parent-ed))
                           (set! stage (update stage key-code))
-                          (set! stage-gui (new-gui stage (new fruct-ed%)))
+                          (set! stage-gui (make-gui stage (new fruct-ed%)))
                           ; above is hack so stage-gui is current for next line
                           #; (set! kit (update-kit kit kit-gui stage stage-gui key-code))
                           (update-gui stage kit)])]
@@ -693,11 +727,6 @@
   (new editor-canvas%
        [parent my-frame]))
 
-#; (send my-frame show #t) ; MUST UNCOMMENT TO DISPLAY!!!
-#; (update-gui stage-actual kit-actual)
-
-
-
 
 ; testing ------------------------------------------------
 
@@ -713,20 +742,26 @@
 (define mode 'navigation)
 (define num-chars 0)
 
+; init display
+(send my-frame show #t)
+(update-gui stage-actual kit-actual)
+
+
+
 (define test-src2 '(define (fn a) a (define (g q r) 2)))
 (define test-src '(define (selector (fn a)) 7))
 
-
+#; (make-gui test-src (new fruct-ed%))
 
 #; (source+grammar->form  '((selector let) (▹ ([f a][f a][k a][g a])) 4 4 4) '((if expr expr expr)
                                                                                (begin expr ...)
                                                                                (define (name name ...) expr ...)
                                                                                (let ([name expr] ...) expr ...)))
 
-(pretty-print (sexp->fruct test-src))
-test-src
-(project-symbol (sexp->fruct test-src))
-(map-into-fruct (sexp->fruct test-src) [(hash-table ('self s)) s])
+#; (pretty-print (sexp->fruct test-src))
+#; test-src
+#; (project-symbol (sexp->fruct test-src))
+#; (map-into-fruct (sexp->fruct test-src) [(hash-table ('self s)) s])
 
 #;(map-into test-src ['a 'b])
 
