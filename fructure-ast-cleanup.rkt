@@ -247,13 +247,13 @@
                  'context ctx) ,@(map sexp->fruct source (->child-contexts ctx source)))])]))
 
 
-(define/match (get-symbol fruct)
-  [(`(,(hash-table ('self s)) ,xs ...)) s])
+#; (define/match (get-symbol fruct)
+     [(`(,(hash-table ('self s)) ,xs ...)) s])
 
 
-(define/match (project-symbol fruct)
-  [(`(,x ,xs ...)) (map project-symbol xs)]
-  [((hash-table ('self s))) s])
+#; (define/match (project-symbol fruct)
+     [(`(,x ,xs ...)) (map project-symbol xs)]
+     [((hash-table ('self s))) s])
 
 
 (define (fruct->fruct+gui source [parent-ed "fuck"])
@@ -277,25 +277,24 @@
                          (hash-set source <out-pair> ...)])) ; need to splice outpairs
 
 
-(define (make-gui source parent-ed)
-  ((compose (fmap-fruct (match-lambda
-                          [(and hs (hash-table ('symbol s) ('gui (gui _ ed _))))
-                           (when (not (equal? s void))
-                             (send ed insert (cond [(symbol? s) (symbol->string s)]
-                                                   [else (~a s)])))
-                           hs]))
-            (fmap-fruct (match-lambda
-                          [(and hs (hash-table ('style st) ('gui (gui sn ed _))))
-                           (apply-style! st sn ed) hs]))
-            (fmap-fruct (match-lambda
-                          [(and hs (hash-table ('symbol s) ('gui (gui sn _ parent-ed))))
-                           (send parent-ed insert sn) hs]))
-            (fmap-fruct (match-lambda
-                          [(and hs (hash-table ('self s)))
-                           (hash-set hs 'style (lookup-style s))]))
-            (curryr fruct->fruct+gui parent-ed)
-            sexp->fruct
-            ) source) )
+(define (make-gui parent-ed)
+  (compose (fmap-fruct (match-lambda
+                         [(and hs (hash-table ('symbol s) ('gui (gui _ ed _))))
+                          (when (not (equal? s void))
+                            (send ed insert (cond [(symbol? s) (symbol->string s)]
+                                                  [else (~a s)])))
+                          hs]))
+           (fmap-fruct (match-lambda
+                         [(and hs (hash-table ('style st) ('gui (gui sn ed _))))
+                          (apply-style! st sn ed) hs]))
+           (fmap-fruct (match-lambda
+                         [(and hs (hash-table ('symbol s) ('gui (gui sn _ parent-ed))))
+                          (send parent-ed insert sn) hs]))
+           (fmap-fruct (match-lambda
+                         [(and hs (hash-table ('self s)))
+                          (hash-set hs 'style (lookup-style s))]))
+           (curryr fruct->fruct+gui parent-ed)
+           sexp->fruct))
 
 
 
@@ -464,13 +463,13 @@
          [stage-board-snip (new fruct-sn% [editor new-stage-board] [parent-editor new-main-board])]
          #;[kit-snip (new fruct-sn% [editor new-kit-board] [parent-editor new-main-board])])
 
-    (set! stage-gui (make-gui stage new-stage-board))
+    (set! stage-gui ((make-gui new-stage-board) stage ))
 
     (pretty-print stage-gui)
     
     (send new-main-board insert stage-board-snip)
     
-    #;(set! kit-gui (make-gui kit new-kit-board))
+    #;(set! kit-gui ((make-gui new-kit-board) kit ))
     #;(send new-main-board insert kit-snip)
     
     #;(send new-main-board move-to stage-board-snip 200 0)
@@ -624,21 +623,21 @@
       [else key-code]))
 
 
-(define/match (sel-to-pos sel-tree [pos '()])
-  [(_ _) #:when (not (list? sel-tree)) #f]
+(define/match (sel-to-pos fruct [pos '()])
+  [(_ _) #:when (not (list? fruct)) #f]
   [(`(▹ ,a) _) '()]
   [(_ _) (let ([result (filter identity
                                (map (λ (sub num)
                                       (let ([a (sel-to-pos sub pos)])
                                         (if a `(,num ,@a) #f)))
-                                    sel-tree
-                                    (range 0 (length sel-tree))))])
+                                    fruct
+                                    (range 0 (length fruct))))])
            (if (empty? result) #f (first result)))])
 
 
-(define/match (obj-at-pos obj-tree pos)
-  [(_ `()) (first obj-tree) #;(third obj-tree)] ; use third if you don't want the selector itself
-  [(_ `(,a . ,as)) (obj-at-pos (list-ref (rest obj-tree) a) as)])
+(define/match (obj-at-pos fruct pos)
+  [(_ `()) (first fruct)]
+  [(_ `(,a . ,as)) (obj-at-pos (list-ref (rest fruct) a) as)])
 
 
 
@@ -663,12 +662,12 @@
 
 
 (define (char-input event)
-  (match-let* ([stage stage-actual]
+  (match-let* (#; [stage stage-actual]
                [kit kit-actual]
                [key-code (send event get-key-code)]
                [pos (sel-to-pos stage)]
                [obj (obj-at-pos stage-gui pos)]
-               [`(fruct sort type name text style (meta ,sn ,ed ,parent-ed)) obj])
+               [(hash-table ('gui (gui sn ed parent-ed))) obj])
     (when (not (equal? key-code 'release))
       (case mode
         ['navigation (match key-code
@@ -677,7 +676,7 @@
                                 (send ed set-position 0)]                                     
                        [_ #; (set! key-code (relativize-direction key-code sn parent-ed))
                           (set! stage (update stage key-code))
-                          (set! stage-gui (make-gui stage (new fruct-ed%)))
+                          (set! stage-gui ((make-gui (new fruct-ed%)) stage ))
                           ; above is hack so stage-gui is current for next line
                           #; (set! kit (update-kit kit kit-gui stage stage-gui key-code))
                           (update-gui stage kit)])]
@@ -709,7 +708,7 @@
 ; testing ------------------------------------------------
 
 ; init stage and kit
-(define stage-actual #; '(▹ (if a b c)) '(▹ (define (fn a) a (define (g q r) (let ([a 5] [b 6]) (if 1 2 2))))))
+(define stage #; '(▹ (if a b c)) '(▹ (define (fn a) a (define (g q r) (let ([a 5] [b 6]) (if 1 2 2))))))
 (define kit-actual '(kit (env) (meta)))
 
 ; init gui refs
@@ -722,14 +721,14 @@
 
 ; init display
 (send my-frame show #t)
-(update-gui stage-actual kit-actual)
+(update-gui stage kit-actual)
 
 
 
 (define test-src2 '(define (fn a) a (define (g q r) 2)))
 (define test-src '(define (selector (fn a)) 7))
 
-#; (make-gui test-src (new fruct-ed%))
+#; ((make-gui (new fruct-ed%)) test-src )
 
 #; (source+grammar->form  '((selector let) (▹ ([f a][f a][k a][g a])) 4 4 4) '((if expr expr expr)
                                                                                (begin expr ...)
