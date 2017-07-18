@@ -51,7 +51,7 @@
 
 ; ----------------------------------------------------------------------------
 
-(require (for-syntax racket/match racket/list racket/syntax racket/function fancy-app))
+(require (for-syntax racket/match racket/list racket/syntax racket/function))
 (begin-for-syntax
  
   (define L1-form-names '(if begin define let lambda send new env kit meta))
@@ -144,7 +144,7 @@
      (let ([proc-lang (lang->parse-lang (eval (syntax->datum #'<language>)))])
        (with-syntax* ([((<sort-name> ((<new-pat> <new-tem>) ...)) ...) (datum->syntax #'<source> proc-lang)])
          #'(match <sort>
-             [<sort-name>
+             ['<sort-name>
               (match <source>
                 [`<new-pat> `<new-tem>] ...
                 [(? atom? a) a])]
@@ -211,7 +211,7 @@
 (define (sexp->fruct source [ctx `(top (◇ expr))])
   (match source
     [`(,(? affo-name? name) ,selectee) 
-     `(,(hash 'symbol name
+     `(,(hash 'symbol void
               'self `(,name hole)
               'sort 'affo
               'context ctx) ,(hash 'symbol name
@@ -223,18 +223,18 @@
      (match (◇-project ctx)
        [(? terminal-name?)
         (hash 'symbol source
-              'self source
+              'self ctx ; hack for style
               'sort source ; seriously what are the cases here
               'context ctx)]
        [(? form-name?)
         (hash 'symbol source
-              'self source
+              'self ctx
               'sort 'literal-symbol
               'context ctx)]
        [(? sort-name? sort)
         (let* ([form (source->form sort source)]
-               [hash (hash 'symbol void
-                           'self form
+               [hash (hash 'symbol (if (list? form) void source)
+                           'self `(◇ ,form) ;hack for style
                            'sort sort
                            'context ctx)])
           (if (list? form)
@@ -242,7 +242,7 @@
               hash))]
        [(? list?)
         `(,(hash 'symbol void
-                 'self '()
+                 'self ctx ; hack for style
                  'sort 'literal-list
                  'context ctx) ,@(map sexp->fruct source (->child-contexts ctx source)))])]))
 
@@ -292,7 +292,7 @@
                            (send parent-ed insert sn) hs]))
             (fmap-fruct (match-lambda
                           [(and hs (hash-table ('self s)))
-                           (hash-set hs 'style (lookup-style s s))]))
+                           (hash-set hs 'style (lookup-style s))]))
             (curryr fruct->fruct+gui parent-ed)
             sexp->fruct
             ) source) )
@@ -709,7 +709,7 @@
 ; testing ------------------------------------------------
 
 ; init stage and kit
-(define stage-actual '(▹ (define (fn a) a (define (g q r) 2))))
+(define stage-actual #; '(▹ (if a b c)) '(▹ (define (fn a) a (define (g q r) (let ([a 5] [b 6]) (if 1 2 2))))))
 (define kit-actual '(kit (env) (meta)))
 
 ; init gui refs
