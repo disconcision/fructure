@@ -53,13 +53,13 @@
 
 (require (for-syntax racket/match racket/list racket/syntax racket/function fancy-app))
 (begin-for-syntax
-  
-  (define L1-form-names '(if begin define let lambda send new env kit meta)) ; copy with stuff added
-  (define L1-sort-names '(expr name)) ; copy
-  (define L1-affo-names '(▹ selector)) ;copy
+ 
+  (define L1-form-names '(if begin define let lambda send new env kit meta))
+  (define L1-terminal-names '(name name-new name-ref literal))
+  (define L1-sort-names '(expr name))
+  (define L1-affo-names '(▹ selector))
 
-  (define atom? (compose not pair?)) ; copy
-
+  (define atom? (compose not pair?))
   (define transpose (curry apply map list))
 
   (define (map-rec fn source)
@@ -124,14 +124,7 @@
   (define lang->parse-lang
     (match-lambda
       [`((,sort-name (|| ,form ...)) ...)
-       (transpose `(,sort-name ,(map (curry map form-list->parse-pair) form)))]))
-  
-  ; rewrites a list of form signatures into pattern-template pairs for the parser
-  #; (define form-list->parse-pairs
-       (compose (λ (x) (map (match-lambda [`(,(app add-ignores pat) ,tem) `(,pat ,tem)]) x))
-                (λ (x) (map (map-rec redotdotdot _) x))
-                (λ (x) (map make-parse-pair x))
-                (λ (x) (map (map-rec undotdotdot _) x)))))
+       (transpose `(,sort-name ,(map (curry map form-list->parse-pair) form)))])))
 
 
 
@@ -162,18 +155,11 @@
 
 ; parsing --------------------------------------------------------------------
 
-(define L1 '((atom (|| (name
-                        literal))) ; attach predicates
-             (expr (|| (if expr expr expr)
-                       (begin expr ...)
-                       (define (name name ...) expr ...)
-                       (let ([name expr] ...) expr ...)
-                       atom))))
-
+; duplicates from before-syntax
 (define L1-sort-names '(atom hole expr))
 (define L1-form-names '(if begin define let))
 (define L1-terminal-names '(name name-ref literal))
-(define L1-affo-names '(▹ selector)) ;copy
+(define L1-affo-names '(▹ selector))
 
 (define (source->form sort source)
   (source+grammar->form
@@ -221,11 +207,13 @@
                                     (λ (x) (member x L1-affo-names))))
 
 
+; map an s-expression to a fructure ast.
 (define (sexp->fruct source [ctx `(top (◇ expr))])
   (match source
     [`(,(? affo-name? name) ,selectee) 
      `(,(hash 'symbol name
               'self `(,name hole)
+              'sort 'affo
               'context ctx) ,(hash 'symbol name
                                    'self name
                                    'context `((◇ ,name) hole)) ,(sexp->fruct selectee ctx))]
@@ -233,14 +221,21 @@
     ; and just passes the context along to the selectee
     [_
      (match (◇-project ctx)
-       [(? (disjoin terminal-name? form-name?))
+       [(? terminal-name?)
         (hash 'symbol source
               'self source
+              'sort source ; seriously what are the cases here
+              'context ctx)]
+       [(? form-name?)
+        (hash 'symbol source
+              'self source
+              'sort 'literal-symbol
               'context ctx)]
        [(? sort-name? sort)
         (let* ([form (source->form sort source)]
                [hash (hash 'symbol void
                            'self form
+                           'sort sort
                            'context ctx)])
           (if (list? form)
               `(,hash ,@(map sexp->fruct source (->child-contexts `(◇ ,form) source)))
@@ -248,6 +243,7 @@
        [(? list?)
         `(,(hash 'symbol void
                  'self '()
+                 'sort 'literal-list
                  'context ctx) ,@(map sexp->fruct source (->child-contexts ctx source)))])]))
 
 
@@ -262,62 +258,44 @@
 
 (define (fruct->fruct+gui source [parent-ed "fuck"])
   (let* ([ed (new fruct-ed%)]
-         [sn (new fruct-sn% [editor ed] [parent-editor parent-ed])])
+         [sn (new fruct-sn% [editor ed] [parent-editor parent-ed])]
+         [gui (gui sn ed parent-ed)])
     (match source
-      [`(,hs ,rest ...) `(,(hash-set hs 'gui (gui sn ed parent-ed))
-                   ,@(map (curryr fruct->fruct+gui ed) rest))]
-      [(hash-table) (hash-set source 'gui (gui sn ed parent-ed))])
-    #; (if (list? source)
-           (map (λ (x) (fruct->fruct+gui x ed)) source)
-           (hash-set source 'gui (gui sn ed parent-ed)))))
+      [`(,hs ,xs ...) `(,(hash-set hs 'gui gui) ,@(map (curryr fruct->fruct+gui ed) xs))]
+      [(hash-table) (hash-set source 'gui gui)])))
 
 
-
-
-
-; YOU ARE HERE!
-
-(define/match (fmap-fruct fn source)
+(define/match ((fmap-fruct fn) source)
   [(_ (? atom?)) (fn source)]
   [(_ (? list?)) (map (curry fmap-fruct fn) source)])
 
+
+#; '(fmap:fruct->fruct [(:in <in-pair> ...)
+                        (:out <out-pair> ...)] ...)
+#; '(curry fmap-fruct (match-lambda
+                        [(hash-table <in-pair> ...)
+                         (hash-set source <out-pair> ...)])) ; need to splice outpairs
+
+
 (define (make-gui source parent-ed)
-  ((compose (curry fmap-fruct (λ (source) (match source
-                                            [(hash-table ('symbol s) ('gui (gui _ ed _)))
-                                             (when (not (equal? s void))
-                                               (send ed insert (cond [(symbol? s) (symbol->string s)]
-                                                                     [else (~a s)])))
-                                             source])))
-            (curry fmap-fruct (λ (source) (match source
-                                            [(hash-table ('style st) ('gui (gui sn ed _)))
-                                             (apply-style! st sn ed)
-                                             source])))
-            (curry fmap-fruct (λ (source) (match source
-                                            [(hash-table ('symbol s) ('gui (gui sn _ parent-ed)))
-                                             (unless #f #;(equal? s '▹)
-                                               (send parent-ed insert sn))
-                                             source])))
-            (curry fmap-fruct (λ (source) (match source
-                                            [(hash-table ('self s))
-                                             (hash-set source 'style (lookup-style s s))])))
+  ((compose (fmap-fruct (match-lambda
+                          [(and hs (hash-table ('symbol s) ('gui (gui _ ed _))))
+                           (when (not (equal? s void))
+                             (send ed insert (cond [(symbol? s) (symbol->string s)]
+                                                   [else (~a s)])))
+                           hs]))
+            (fmap-fruct (match-lambda
+                          [(and hs (hash-table ('style st) ('gui (gui sn ed _))))
+                           (apply-style! st sn ed) hs]))
+            (fmap-fruct (match-lambda
+                          [(and hs (hash-table ('symbol s) ('gui (gui sn _ parent-ed))))
+                           (send parent-ed insert sn) hs]))
+            (fmap-fruct (match-lambda
+                          [(and hs (hash-table ('self s)))
+                           (hash-set hs 'style (lookup-style s s))]))
             (curryr fruct->fruct+gui parent-ed)
             sexp->fruct
-            ) source)
-  
-  #; (let ([obj-source 0 #;(gui-pass:object source parent-ed)])   
-       #; (set! obj-source (gui-pass:forms source obj-source))    
-       #; (set! obj-source ((gui-pass [(fruct sort type name text style mt)
-                                       (fruct sort type name text (lookup-style name type) mt)]) obj-source))
-       #; (set! obj-source (gui-pass:cascade-style obj-source)) 
-       #; ((gui-pass [(fruct _ _ _ text _ (meta sn _ parent-ed)) ; changes behavior is done after forms pass??
-                      (unless #f #;(equal? text "▹")
-                        (send parent-ed insert sn))]) obj-source) 
-       #; ((gui-pass [(fruct _ _ _ _ style (meta sn ed _))
-                      (apply-style! style sn ed)]) obj-source)    
-       #; ((gui-pass [(fruct _ type _ text _ (meta sn ed _)) ; must be after style cause style deletes text
-                      (when (not (equal? text "?"))
-                        (send ed insert text))]) obj-source) 
-       obj-source))
+            ) source) )
 
 
 
