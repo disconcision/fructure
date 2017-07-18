@@ -530,6 +530,16 @@
   [((? atom? a)) `(▹ ,a)]
   [(`(,a ,b ...)) `(,(first-contained-atom-inner a) ,@b)])
 
+(define/match (selector-at-end? source)
+  [((? atom? a)) #false]
+  [(`(▹ ,a)) #true]
+  [(`(,a ... ,b)) (selector-at-end? b)])
+
+(define next-atom
+  (↓ [(▹ ,a) ⋱↦ (▹ ,a)]
+     [(,a ... ,(? selector-at-end? b) ,c ,d ...) ⋱↦ (,@a ,(simple-deselect b) ,(first-contained-atom `(▹ ,c)) ,@d)]))
+
+
 (define/match (last-contained-atom source)
   [(`(▹ ,(? atom? a))) `(▹ ,a)]
   [(`(▹ ,ls)) (last-contained-atom-inner ls)]
@@ -544,15 +554,6 @@
   [((? atom? a)) #false]
   [(`(▹ ,a)) #true]
   [(`(,a ,b ...)) (selector-at-start? a)])
-
-(define/match (selector-at-end? source)
-  [((? atom? a)) #false]
-  [(`(▹ ,a)) #true]
-  [(`(,a ... ,b)) (selector-at-end? b)])
-
-(define next-atom
-  (↓ [(▹ ,a) ⋱↦ (▹ ,a)]
-     [(,a ... ,(? selector-at-end? b) ,c ,d ...) ⋱↦ (,@a ,(simple-deselect b) ,(first-contained-atom `(▹ ,c)) ,@d)]))
 
 (define prev-atom
   (↓ [(▹ ,a) ⋱↦ (▹ ,a)]
