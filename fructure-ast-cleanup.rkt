@@ -12,6 +12,11 @@
 
 (define proper-list? (conjoin list? (compose not empty?)))
 
+(define (map-rec fn source) ; copy 
+  (match (fn source)
+    [(? list? ls) (map (curry map-rec fn) ls)]
+    [(? atom? a) a]))
+
 (require (rename-in racket (#%app call)))
 (define-syntax #%app
   (syntax-rules (⋱↦ ↓ ⇐ ∘ ≡)
@@ -465,7 +470,7 @@
 
     (set! stage-gui ((make-gui new-stage-board) stage ))
 
-    (pretty-print stage-gui)
+    #;(pretty-print stage-gui)
     
     (send new-main-board insert stage-board-snip)
     
@@ -661,6 +666,41 @@
                      [#\k wrap])])
     (transform source)))
 
+(define (update! fn)
+  (set! stage (fn stage))
+  (set! stage-gui ((make-gui (new fruct-ed%)) stage))
+  (update-gui stage kit-actual))
+
+
+(define/match (get-symbol-as-string fruct)
+  [((hash-table ('symbol (? symbol? s)))) (symbol->string s)]
+  [(_) ""])
+
+(define-namespace-anchor a)
+(define ns (namespace-anchor->namespace a))
+(define (eval-match-λ pat tem)
+  (eval `(match-lambda [,pat ,tem] [xxx xxx]) ns))
+#; ((eval-match-λ '`(,a ,b) 'a) '(1 5))
+
+(define (buf->pat buf)
+  `(app get-symbol-as-string (regexp (regexp ,(string-append buf ".*")))))
+(match "define"
+  [(regexp (regexp "def.")) 777])
+(match (hash 'symbol 'a)
+  [(app get-symbol-as-string (regexp (regexp (string-append "a" ".*")))) "blop"])
+#;(buf->pat "def")
+((eval-match-λ (buf->pat "def") 1) "deffine")
+((eval-match-λ (buf->pat "a") '111) 'a)
+((curry map-rec (eval-match-λ (buf->pat "a") '111)) '("a"))
+
+
+
+(get-symbol-as-string (sexp->fruct '(begin a b c)))
+
+#;(define (search-select fn source)
+    (match source
+      [(? atom?) (fn source)]
+      ((? list?) (map (curry search-select fn) source))))
 
 (define (char-input event)
   (match-let* (#; [stage stage-actual]
@@ -671,13 +711,36 @@
                [(hash-table ('gui (gui sn ed parent-ed))) obj])
     (when (not (equal? key-code 'release))
       (case mode
+        ['select     (match key-code
+                       ['right (update! next-atom)]
+                       ['left  (update! prev-atom)]
+                       ['up    (update! parent)]
+                       ['down  (update! first-child)]
+                       [(app string (regexp (regexp "[A-Za-z_]")))
+                        (set! buffer (string-append buffer (string key-code)))
+                        (println buffer)
+                        (update! (curry map-rec (eval-match-λ (buf->pat buffer) '111)))
+                        ; string append key-code to buffer
+                        ; compose quoted search pattern
+                        ; map pattern into the tree
+                        (set! mode 'search)])]
+        ['search     (match key-code
+                       ['escape (set! buffer "")
+                                (set! mode 'select)]
+                       [(app string (regexp #rx"[A-Za-z0-9_]"))
+                        ; remember to deal with case of single (non-numeric!) character
+                        (set! buffer (string-append buffer (string key-code)))
+                        (println buffer)
+                        (update! (curry map-rec (eval-match-λ (buf->pat buffer) '111)))
+                        ]
+                       )]
         ['navigation (match key-code
                        [#\space (toggle-mode!)
                                 (send parent-ed set-caret-owner sn 'global)
                                 (send ed set-position 0)]                                     
                        [_ #; (set! key-code (relativize-direction key-code sn parent-ed))
                           (set! stage (update stage key-code))
-                          (set! stage-gui ((make-gui (new fruct-ed%)) stage ))
+                          (set! stage-gui ((make-gui (new fruct-ed%)) stage))
                           ; above is hack so stage-gui is current for next line
                           #; (set! kit (update-kit kit kit-gui stage stage-gui key-code))
                           (update-gui stage kit)])]
@@ -709,7 +772,7 @@
 ; testing ------------------------------------------------
 
 ; init stage and kit
-(define stage #; '(▹ (if a b c)) '(▹ (define (fn a) a (define (g q r) (let ([a 5] [b 6]) (if 1 2 2))))))
+(define stage #; '(▹ (if a b c)) (first-child '(▹ (define (fn a) a (define (g q r) (let ([a 5] [b 6]) (if 1 2 2)))))))
 (define kit-actual '(kit (env) (meta)))
 
 ; init gui refs
@@ -717,8 +780,10 @@
 (define kit-gui '())
 
 ; init globals
-(define mode 'navigation)
+(define mode 'select)
 (define num-chars 0)
+(define buffer "")
+(define buf-pat "")
 
 ; init display
 (send my-frame show #t)
