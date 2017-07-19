@@ -678,24 +678,48 @@
 
 (define-namespace-anchor a)
 (define ns (namespace-anchor->namespace a))
-(define (eval-match-λ pat tem)
-  (eval `(match-lambda [,pat ,tem] [xxx xxx]) ns))
+(define (eval-match-λ pat-tem)
+  (match-let ([`(,pat ,tem) pat-tem])
+    (eval `(match-lambda [,pat ,tem] [xxx xxx]) ns)))
+
 #; ((eval-match-λ '`(,a ,b) 'a) '(1 5))
 
-(define (buf->pat buf)
-  `(app get-symbol-as-string (regexp (regexp ,(string-append buf ".*")))))
+#; (define (buf->pat buf)
+     `(app get-symbol-as-string (regexp (regexp ,(string-append buf ".*")))))
+
+(define (buf->pat+tem buf)
+  (let ([new-var (gensym)])
+    `[(and ,new-var (? symbol? (app symbol->string (regexp (regexp ,(string-append buf ".*"))))))
+      `(▹▹ ,,new-var #;11111)]))
+
+(buf->pat+tem "def")
+
+(define (search-map-rec fn source) ; copy 
+  (match (fn source)
+    [`(▹▹ ,x) `(▹▹ ,x)]
+    [(? list? ls) (map (curry search-map-rec fn) ls)]
+    [(? atom? a) a]))
+
+; single largest source of trivial bugs for me this project: copying a recursive function without changing the name of the rec call
+
+(search-map-rec (eval-match-λ (buf->pat+tem "a")) '(a b a))
+
 (match "define"
   [(regexp (regexp "def.")) 777])
 (match (hash 'symbol 'a)
   [(app get-symbol-as-string (regexp (regexp (string-append "a" ".*")))) "blop"])
+#; ((curry map-rec (eval-match-λ (buf->pat "a") '111)) (hash 'symbol 'a))
+
+
+
 #;(buf->pat "def")
-((eval-match-λ (buf->pat "def") 1) "deffine")
-((eval-match-λ (buf->pat "a") '111) 'a)
-((curry map-rec (eval-match-λ (buf->pat "a") '111)) '("a"))
+#; ((eval-match-λ (buf->pat "def") 1) "deffine")
+#; ((eval-match-λ (buf->pat "a") '111) 'a)
 
 
 
-(get-symbol-as-string (sexp->fruct '(begin a b c)))
+
+#; (get-symbol-as-string (sexp->fruct '(begin a b c)))
 
 #;(define (search-select fn source)
     (match source
@@ -719,7 +743,7 @@
                        [(app string (regexp (regexp "[A-Za-z_]")))
                         (set! buffer (string-append buffer (string key-code)))
                         (println buffer)
-                        (update! (curry map-rec (eval-match-λ (buf->pat buffer) '111)))
+                        (update! (curry search-map-rec (eval-match-λ (buf->pat+tem buffer))))
                         ; string append key-code to buffer
                         ; compose quoted search pattern
                         ; map pattern into the tree
@@ -731,7 +755,7 @@
                         ; remember to deal with case of single (non-numeric!) character
                         (set! buffer (string-append buffer (string key-code)))
                         (println buffer)
-                        (update! (curry map-rec (eval-match-λ (buf->pat buffer) '111)))
+                        (update! (curry search-map-rec (eval-match-λ (buf->pat+tem buffer))))
                         ]
                        )]
         ['navigation (match key-code
