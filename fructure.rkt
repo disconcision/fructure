@@ -19,7 +19,7 @@
 
 (require (rename-in racket (#%app call)))
 (define-syntax #%app
-  (syntax-rules (⋱↦ ↓ ⇐ ∘ ≡)
+  (syntax-rules (⋱↦ ↓ ≡)
     [[#%app pattern ≡]
      (match-lambda
        [`pattern #true]
@@ -61,8 +61,8 @@
  
   (define L1-form-names '(if begin define let lambda send new env kit meta))
   (define L1-terminal-names '(name name-new name-ref literal))
-  (define L1-sort-names '(expr name))
-  (define L1-affo-names '(▹ selector ▹▹ search-selector))
+  (define L1-sort-names '(expr name free))
+  (define L1-affo-names '(▹ selector ▹▹ search-selector c▹ command-selector c▹▹ command-sub-selector :))
 
   (define atom? (compose not pair?))
   (define transpose (curry apply map list))
@@ -136,6 +136,9 @@
   (syntax-rules ()
     [(ignore-affo <pat>)
      (app (λ (source) (match source
+                        #; [`((,(? (λ (x) (member x L1-affo-names))) ,x) ,a) a (match a
+                                                                                 [`(,(? (λ (x) (member x L1-affo-names))) ,b) b]
+                                                                                 [_ a])]
                         [`(,(? (λ (x) (member x L1-affo-names))) ,a) a (match a
                                                                          [`(,(? (λ (x) (member x L1-affo-names))) ,b) b]
                                                                          [_ a])]
@@ -162,17 +165,28 @@
 ; parsing --------------------------------------------------------------------
 
 ; duplicates from before-syntax
-(define L1-sort-names '(atom hole expr))
+(define L1-sort-names '(atom hole expr free))
 (define L1-form-names '(if begin define let))
 (define L1-terminal-names '(name name-ref literal))
-(define L1-affo-names '(▹ selector ▹▹ search-selector))
+(define L1-affo-names '(▹ selector ▹▹ search-selector c▹ command-selector c▹▹ command-sub-selector :))
+
+
+(define-values (sort-name?
+                terminal-name?
+                form-name?
+                affo-name?) (values (λ (x) (member x L1-sort-names))
+                                    (λ (x) (member x L1-terminal-names))
+                                    (λ (x) (member x L1-form-names))
+                                    (λ (x) (member x L1-affo-names))))
+
 
 (define (source->form sort source)
   (source+grammar->form
    sort
    source
-   '((def (|| (define (name name ...) expr ...)
-              (define name expr)))
+   '((free (|| (free ...)))
+     (def  (|| (define (name name ...) expr ...)
+               (define name expr)))
      (expr (|| (if expr expr expr)
                (begin expr ...)
                (define (name name ...) expr ...)
@@ -204,14 +218,6 @@
 (define (->child-contexts parent-context src)
   (map (λ (i) ((◇-ith-child i) parent-context)) (range (length src))))
 
-(define-values (sort-name?
-                terminal-name?
-                form-name?
-                affo-name?) (values (λ (x) (member x L1-sort-names))
-                                    (λ (x) (member x L1-terminal-names))
-                                    (λ (x) (member x L1-form-names))
-                                    (λ (x) (member x L1-affo-names))))
-
 
 ; map an s-expression to a fructure ast.
 (define (sexp->fruct source [ctx `(top (◇ expr))])
@@ -225,6 +231,19 @@
                                    'context `((◇ ,name) hole)) ,(sexp->fruct selectee ctx))]
     ; the above is a hack. it skips (single) selections
     ; and just passes the context along to the selectee
+    #; [`((c▹ ,thingy) ,selectee)
+        `(,(hash 'symbol void
+                 'self `((c▹ hole) hole)
+                 'sort 'affo
+                 'context ctx) (,(hash 'symbol void
+                                       'self `(c▹ hole)
+                                       'sort 'affo
+                                       'context ctx)
+                                ,(hash 'symbol 'c▹
+                                       'self 'c▹
+                                       'context `((◇ c▹) hole))
+                                ,(sexp->fruct thingy ctx))
+                               ,(sexp->fruct selectee ctx))]
     [_
      (match (◇-project ctx)
        [(? terminal-name?)
@@ -261,12 +280,12 @@
      [((hash-table ('self s))) s])
 
 
-(define (fruct->fruct+gui source [parent-ed "fuck"])
+(define ((fruct->fruct+gui parent-ed) source)
   (let* ([ed (new fruct-ed%)]
          [sn (new fruct-sn% [editor ed] [parent-editor parent-ed])]
          [gui (gui sn ed parent-ed)])
     (match source
-      [`(,hs ,xs ...) `(,(hash-set hs 'gui gui) ,@(map (curryr fruct->fruct+gui ed) xs))]
+      [`(,hs ,xs ...) `(,(hash-set hs 'gui gui) ,@(map (fruct->fruct+gui ed) xs))]
       [(hash-table) (hash-set source 'gui gui)])))
 
 
@@ -297,7 +316,7 @@
            (fmap-fruct (match-lambda
                          [(and hs (hash-table ('self s)))
                           (hash-set hs 'style (lookup-style s))]))
-           (curryr fruct->fruct+gui parent-ed)
+           (fruct->fruct+gui parent-ed)
            sexp->fruct))
 
 
@@ -563,6 +582,35 @@
      [(,a ... ,b ,(? selector-at-start? c) ,d ...) ⋱↦ (,@a ,(last-contained-atom `(▹ ,b)) ,(simple-deselect c) ,@d)]))
 
 
+
+
+; predicate nav
+
+(define (▹first-contained- p?)
+  (match-lambda
+    [`(▹ ,(? p? a)) `(▹ ,a)]
+    [`(▹ ,ls) ((▹first-contained-inner- p?) ls)]
+    [(? atom? a) a] 
+    [(? list? ls) (map (▹first-contained- p?) ls)]))
+
+(define (▹first-contained-inner- p?)
+  (match-lambda
+    [(? p? a) `(▹ ,a)]
+    [`(,x ,xs ...) `(,((▹first-contained-inner- p?) x) ,@xs)]))
+
+(define (▹next- p?)
+  (↓ [(▹ ,a) ⋱↦ (▹ ,a)]
+     [(,a ... ,(? selector-at-end? b) ,c ,d ...) ⋱↦ (,@a ,(simple-deselect b) ,((▹first-contained- p?) `(▹ ,c)) ,@d)]))
+
+#; (define next-atom (▹next- atom?))
+
+(define ▹first-search-result
+  [(▹ ,a) ⋱↦ ,((▹first-contained- (curry equal? 3)#;[(▹▹ ,b) ≡]) a)])
+
+#; ((▹first-contained- (curry equal? 3)#;[(▹▹ ,b) ≡]) '(▹ (2 3 (▹▹ 1))))
+#; (▹first-search-result '(▹ (2 3 (▹▹ 1))))
+
+
 ; simple transforms
 
 (define delete
@@ -679,47 +727,52 @@
 
 
 (define (char-input event)
-  (match-let* (#; [stage stage-actual]
-               [kit kit-actual]
-               [key-code (send event get-key-code)]
-               [pos (sel-to-pos stage)]
-               [obj (obj-at-pos stage-gui pos)]
-               [(hash-table ('gui (gui sn ed parent-ed))) obj])
+  (match-let* ([key-code (send event get-key-code)]
+               #; [obj (obj-at-pos stage-gui (sel-to-pos stage))]
+               #; [(hash-table ('gui (gui sn ed parent-ed))) obj])
     (when (not (equal? key-code 'release))
       (case mode
-        ['select     (match key-code
-                       ['escape (update! (compose simple-select simple-deselect)) ]
-                       ['right (update! next-atom)]
-                       ['left  (update! prev-atom)]
-                       ['up    (update! parent)]
-                       ['down  (update! first-child)]
-                       [(app string (regexp (regexp "[A-Za-z_]")))
-                        (set! buffer (string-append buffer (string key-code)))
-                        (update! [(▹ ,a) ⋱↦ (▹ ,((▹▹tag-hits buffer) a))])
-                        (set! mode 'search)])]
-        ['search     (match key-code
-                       ; precond: search results inside selector
-                       ['right (update! #; (if (subselector on result)
-                                               (subselect next result)
-                                               (subselect first result)))
-                               ] ; lol where are you searching, pay attention!!!
-                       ['left  0]
-                       ['up    0]
-                       ['down  0]                       
-                       ['escape     (set! buffer "")
-                                    (update! [(▹▹ ,a) ⋱↦ ,a])
-                                    (set! mode 'select)]
-                       [#\backspace (set! buffer (substring buffer 0 (sub1 (string-length buffer))))
-                                    (update! [(▹ ,a) ⋱↦ (▹ ,((▹▹tag-hits buffer) a))])]
-                       [(app string (regexp #rx"[A-Za-z0-9_]"))
-                        ; remember to deal with case of single (non-numeric!) character
-                        (set! buffer (string-append buffer (string key-code)))
-                        (update! [(▹ ,a) ⋱↦ (▹ ,((▹▹tag-hits buffer) a))])])]
-        ['project    (match key-code)]
-        ['transform  (match key-code)]))))
+        ['select    (match key-code
+                      ['escape (update! (compose simple-select simple-deselect)) ]
+                      ['right (update! next-atom)]
+                      ['left  (update! prev-atom)]
+                      ['up    (update! parent)]
+                      ['down  (update! first-child)]
+                      [(app string (regexp (regexp "[A-Za-z_]")))
+                       (set! buffer (string-append buffer (string key-code)))
+                       (update! [(▹ ,a) ⋱↦ (▹ ,((▹▹tag-hits buffer) a))])
+                       (set! mode 'search)]
+                      [#\return
+                       (update! [(▹ ,a) ⋱↦ ((c▹ (: "")) ,a)]) 
+                       (set! mode 'transform)])]
+        ['search    (match key-code
+                      ; precond: search results inside selector
+                      ['right 0 #; (update! ▹first-search-result)
+                              ] ; lol where are you searching, pay attention!!!
+                      ['left  0]
+                      ['up    0]
+                      ['down  0]                       
+                      ['escape     (set! buffer "")
+                                   (update! [(▹▹ ,a) ⋱↦ ,a])
+                                   (set! mode 'select)]
+                      [#\backspace (set! buffer (substring buffer 0 (sub1 (string-length buffer))))
+                                   (update! [(▹ ,a) ⋱↦ (▹ ,((▹▹tag-hits buffer) a))])]
+                      [(app string (regexp #rx"[A-Za-z0-9_]"))
+                       ; remember to deal with case of single (non-numeric!) character
+                       (set! buffer (string-append buffer (string key-code)))
+                       (update! [(▹ ,a) ⋱↦ (▹ ,((▹▹tag-hits buffer) a))])])]
+        ['project   (match key-code)]
+        ['transform (match key-code
+                      ['escape     (set! mode 'select)]
+                      [#\space
+                       (update! [(,x ... (: ,str)) ⋱↦ (,@x ,str (: ""))])]
+                      ['control
+                       (update! [(: ,str) ⋱↦ ((: ,str))]) (pretty-print stage-gui)]
+                      [(app string (regexp #rx"[A-Za-z0-9_]"))
+                       (update! [(: ,str) ⋱↦ (: ,(string-append str (string key-code)))])])]))))
 
 
-
+; ◇-project src
 
 ; gui setup ---------------------------------------------
 
