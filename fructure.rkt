@@ -647,25 +647,35 @@
 ; hack for now: assume only other type is indent-after. compare position to 'after' to decide
 ; whether up/down should apply to parent, or if we have to recurse upwards 
 
-(define/match (sel-to-pos fruct [pos '()])
-  [(_ _) #:when (not (list? fruct)) #f]
-  [(`(▹ ,a) _) '()]
-  [(_ _) (let ([result (filter-map
+(define/match (sel-to-pos fruct)
+  [(`(▹ ,a)) '()]
+  [((? atom?)) #f]
+  [((? list?)) (let ([result (filter-map
                         (λ (sub num)
-                          (let ([a (sel-to-pos sub pos)])
-                            (if a `(,num ,@a) #f))
-                          fruct
-                          (range 0 (length fruct))))])
+                          (let ([a (sel-to-pos sub)])
+                            (if a `(,num ,@a) #f)))
+                        fruct
+                        (range 0 (length fruct)))])
            (if (empty? result) #f (first result)))])
 
-(define/match (▹->lens source)
-  [(`(▹ ,a)) identity-lens]
-  [((? atom?)) #f]
-  [((? list?)) (let* ([sublenses (filter-map ▹->lens source)]
-                      [lensmods (map list-ref-lens (range (length source)))])
-                 (map lens-compose lensmods sublenses))])
+(sel-to-pos `(1 2 (4 (5 5 5 5 (▹ 77))) 4))
 
-(lens-view (first (▹->lens `(1 2 (▹ 3) 4))) `(1 2 (▹ 3) 4))
+#; (define/match (▹->lens source)
+     [(`(▹ ,a)) identity-lens]
+     [((? atom?)) #f]
+     [((? list?))
+      (let ([result (filter-map
+                     (λ (sub lens)
+                       (let ([a (▹->lens sub)])
+                         (if a (apply lens-compose a) #f))
+                       source
+                       (range 0 (length source))))])
+        result)
+      #;(let* ([sublenses (map ▹->lens source)]
+               [lensmods (filter-map (λ (x y) (if x (lens-compose (list-ref-lens y) x) #f)) source (range (length source)))])
+          lensmods)])
+
+#; (lens-view (first (▹->lens `(1 2 (4 (▹ 77)) 4))) `(1 2 (4 (▹ 77)) 4))
 
 
 (define/match (obj-at-pos fruct pos)
