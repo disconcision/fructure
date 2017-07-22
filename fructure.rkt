@@ -650,13 +650,23 @@
 (define/match (sel-to-pos fruct [pos '()])
   [(_ _) #:when (not (list? fruct)) #f]
   [(`(▹ ,a) _) '()]
-  [(_ _) (let ([result (filter identity
-                               (map (λ (sub num)
-                                      (let ([a (sel-to-pos sub pos)])
-                                        (if a `(,num ,@a) #f)))
-                                    fruct
-                                    (range 0 (length fruct))))])
+  [(_ _) (let ([result (filter-map
+                        (λ (sub num)
+                          (let ([a (sel-to-pos sub pos)])
+                            (if a `(,num ,@a) #f))
+                          fruct
+                          (range 0 (length fruct))))])
            (if (empty? result) #f (first result)))])
+
+(define/match (▹->lens source)
+  [(`(▹ ,a)) identity-lens]
+  [((? atom?)) #f]
+  [((? list?)) (let* ([sublenses (filter-map ▹->lens source)]
+                      [lensmods (map list-ref-lens (range (length source)))])
+                 (map lens-compose lensmods sublenses))])
+
+(lens-view (first (▹->lens `(1 2 (▹ 3) 4))) `(1 2 (▹ 3) 4))
+
 
 (define/match (obj-at-pos fruct pos)
   [(_ `()) (first fruct)]
