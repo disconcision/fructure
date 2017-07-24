@@ -706,15 +706,22 @@
 #; (▹-first-▹▹-in-▹ `(▹ (1 2 (8 9 (7 6 (▹▹ 3) 5)) (▹▹ 4))))
 
 (define (▹-next-▹▹ source)
-  (let ([lenses (▹▹->lenses source)])
-    (match lenses
-      [`(,x ... ,(and a (app (curryr lens-view source) `(▹▹ (▹ ,w)))) ,b ,y ...)
-       (lens-transform a source [(▹▹ (▹ ,a)) ↦ (▹▹ ,a)])
-       (lens-transform b source [(▹▹ ,a) ↦ (▹▹ (▹ ,a))])])))
+  (match (▹▹->lenses source)
+    [`(,x ... ,(and a (app (curryr lens-view source) `(▹▹ (▹ ,w)))) ,b ,y ...)
+     (lens-transform/list source
+                          a [(▹▹ (▹ ,x)) ↦ (▹▹ ,x)]
+                          b [(▹▹ ,x) ↦ (▹▹ (▹ ,x))])]
+    [`(,b ,x ... ,(and a (app (curryr lens-view source) `(▹▹ (▹ ,w)))))
+     (lens-transform/list source
+                          a [(▹▹ (▹ ,x)) ↦ (▹▹ ,x)]
+                          b [(▹▹ ,x) ↦ (▹▹ (▹ ,x))])]
+    [_ source]))
 
-(▹-next-▹▹ `(1 2 (8 9 (7 6 (▹▹ (▹ 3)) 5)) (▹▹ 4)))
+#; (▹-next-▹▹ `(1 2 (8 9 (7 6 (▹▹ (▹ 3)) 5)) (▹▹ 4)))
+#; (▹-next-▹▹ (▹-next-▹▹ `(1 2 (8 9 (7 6 (▹▹ (▹ 3)) 5)) (▹▹ 4))))
+#; (▹-next-▹▹ (▹-next-▹▹ (▹-next-▹▹ `(1 2 (8 9 (7 6 (▹▹ (▹ 3)) 5)) (▹▹ 4)))))
 
-#;(▹->lens `(1 2 (8 9 (7 6(▹ 3) 5)) (▹ 4)))
+#;(▹->lens `(1 2 (8 9 (7 6 (▹ 3) 5)) (▹ 4)))
 #;(lens-view (second (▹->lenses `(1 2 (8 9 (7 6 (▹ 3) 5)) (▹ 4)))) `(1 2 (8 9 (7 6 (▹ 3) 5)) (▹ 4)))
 
 #;((?->lens [`(▹ ,a) ≡]) `(1 2 (8 9 (7 6 (▹ 3) 5)) (▹ 4)))
