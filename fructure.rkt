@@ -19,11 +19,15 @@
 
 (require (rename-in racket (#%app call)))
 (define-syntax #%app
-  (syntax-rules (⋱↦ ↓ ≡)
+  (syntax-rules (⋱↦ ↦ ↓ ≡)
     [[#%app pattern ≡]
      (match-lambda
-       [`pattern #true]
+       [pattern #true]
        [_ #false])]
+    [[#%app pattern ↦ result]
+     (match-lambda
+       [`pattern `result]
+       [x x])]
     [[#%app pattern ⋱↦ result]
      (#%app [pattern ⋱↦ result])]
     [(#%app [pattern ⋱↦ result] ...)
@@ -658,14 +662,65 @@
                           (range 0 (length fruct))))])
            (if (empty? result) #f (first result)))])
 
-(define/match (▹->lens source)
-  [(`(▹ ,a)) identity-lens]
-  [((? atom?)) #f]
-  [((? list?)) (let* ([sublenses (filter-map ▹->lens source)]
-                      [lensmods (map list-ref-lens (range (length source)))])
-                 (map lens-compose lensmods sublenses))])
+#; (define/match (▹->lens source)
+     [(`(▹ ,a)) `(,identity-lens)]
+     [((? atom?)) #f]
+     [((? list?)) (flatten (map (λ (x i) (let ([res (▹->lens x)])
+                                           (if res
+                                               (map (λ (y) (if y
+                                                               (lens-compose (list-ref-lens i) y)
+                                                               #f))
+                                                    res)
+                                               #f)))
+                                source
+                                (range (length source))))])
 
-(lens-view (first (▹->lens `(1 2 (▹ 3) 4))) `(1 2 (▹ 3) 4))
+(define/match ((?->lens pred?) source)
+  [(_ (? pred?)) `(,identity-lens)]
+  [(_ (? atom?)) #f]
+  [(_ (? list?)) (flatten (map (λ (x i) (let ([res ((?->lens pred?) x)])
+                                          (if res
+                                              (map (λ (y) (if y
+                                                              (lens-compose (list-ref-lens i) y)
+                                                              #f))
+                                                   res)
+                                              #f)))
+                               source
+                               (range (length source))))])
+
+(define ((?->lenses pred?) source)
+  (filter identity ((?->lens pred?) source)))
+
+(define ▹->lenses
+  (?->lenses [`(▹ ,a) ≡]))
+
+(define ▹▹->lenses
+  (?->lenses [`(▹▹ ,a) ≡]))
+
+(define ▹-first-▹▹-in-▹
+  [(▹ ,a) ⋱↦ ,(▹-first-▹▹-in a)])
+
+(define (▹-first-▹▹-in source)
+  (lens-transform (first (▹▹->lenses source)) source [(▹▹ ,a) ↦ (▹▹ (▹ ,a))]))
+
+#; (▹-first-▹▹-in-▹ `(▹ (1 2 (8 9 (7 6 (▹▹ 3) 5)) (▹▹ 4))))
+
+(define (▹-next-▹▹ source)
+  (let ([lenses (▹▹->lenses source)])
+    (match lenses
+      [`(,x ... ,(and a (app (curryr lens-view source) `(▹▹ (▹ ,w)))) ,b ,y ...)
+       (lens-transform a source [(▹▹ (▹ ,a)) ↦ (▹▹ ,a)])
+       (lens-transform b source [(▹▹ ,a) ↦ (▹▹ (▹ ,a))])])))
+
+(▹-next-▹▹ `(1 2 (8 9 (7 6 (▹▹ (▹ 3)) 5)) (▹▹ 4)))
+
+#;(▹->lens `(1 2 (8 9 (7 6(▹ 3) 5)) (▹ 4)))
+#;(lens-view (second (▹->lenses `(1 2 (8 9 (7 6 (▹ 3) 5)) (▹ 4)))) `(1 2 (8 9 (7 6 (▹ 3) 5)) (▹ 4)))
+
+#;((?->lens [`(▹ ,a) ≡]) `(1 2 (8 9 (7 6 (▹ 3) 5)) (▹ 4)))
+#;(lens-view (second ((?->lenses [`(▹ ,a) ≡]) `(1 2 (8 9 (7 6 (▹ 3) 5)) (▹ 4)))) `(1 2 (8 9 (7 6 (▹ 3) 5)) (▹ 4)))
+
+#;(lens-view (second (▹▹->lenses `(1 2 (8 9 (7 6 (▹▹ 3) 5)) (▹▹ 4)))) `(1 2 (8 9 (7 6 (▹▹ 3) 5)) (▹▹ 4)))
 
 
 (define/match (obj-at-pos fruct pos)
