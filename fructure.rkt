@@ -681,7 +681,7 @@
   [(_ (? list?)) (flatten (map (λ (x i) (let ([res ((?->lens pred?) x)])
                                           (if res
                                               (map (λ (y) (if y
-                                                              (lens-compose (list-ref-lens i) y)
+                                                              (lens-compose y (list-ref-lens i))
                                                               #f))
                                                    res)
                                               #f)))
@@ -712,9 +712,9 @@
                           a [(▹▹ (▹ ,x)) ↦ (▹▹ ,x)]
                           b [(▹▹ ,x) ↦ (▹▹ (▹ ,x))])]
     [`(,b ,x ... ,(and a (app (curryr lens-view source) `(▹▹ (▹ ,w)))))
-     (lens-transform/list source
-                          a [(▹▹ (▹ ,x)) ↦ (▹▹ ,x)]
-                          b [(▹▹ ,x) ↦ (▹▹ (▹ ,x))])]
+        (lens-transform/list source
+                             a [(▹▹ (▹ ,x)) ↦ (▹▹ ,x)]
+                             b [(▹▹ ,x) ↦ (▹▹ (▹ ,x))])]
     [_ source]))
 
 #; (▹-next-▹▹ `(1 2 (8 9 (7 6 (▹▹ (▹ 3)) 5)) (▹▹ 4)))
@@ -729,6 +729,10 @@
 
 #;(lens-view (second (▹▹->lenses `(1 2 (8 9 (7 6 (▹▹ 3) 5)) (▹▹ 4)))) `(1 2 (8 9 (7 6 (▹▹ 3) 5)) (▹▹ 4)))
 
+(lens-view (second (▹▹->lenses '((▹▹ (▹ define)) a ((▹▹ defne))))) '((▹▹ (▹ define)) a ((▹▹ defne))))
+
+(lens-view (second (▹▹->lenses '((▹▹ (▹ define)) (fn a) a ((▹▹ define) (g q r) (let ([a 5] [b 6]) (if 1 2 2)))))) '((▹▹ (▹ define)) (fn a) a ((▹▹ define) (g q r) (let ([a 5] [b 6]) (if 1 2 2)))))
+(▹-next-▹▹ '((▹▹ (▹ define)) (fn a) a ((▹▹ define) (g q r) (let ([a 5] [b 6]) (if 1 2 2)))))
 
 (define/match (obj-at-pos fruct pos)
   [(_ `()) (first fruct)]
@@ -819,11 +823,8 @@
                        (set! mode 'transform)])]
         ['search    (match key-code
                       ; precond: search results inside selector
-                      ['right 0 #; (update! ▹first-search-result)
-                              ] ; lol where are you searching, pay attention!!!
-                      ['left  0]
-                      ['up    0]
-                      ['down  0]                       
+                      ['right (update! ▹-next-▹▹)]
+                      ['down  (update! ▹-first-▹▹-in-▹)]                       
                       ['escape     (set! buffer "")
                                    (update! [(▹▹ ,a) ⋱↦ ,a])
                                    (set! mode 'select)]
