@@ -19,18 +19,22 @@
 
 (require (rename-in racket (#%app call)))
 (define-syntax #%app
-  (syntax-rules (⋱↦ ↓ ≡)
+  (syntax-rules (⋱↦ ↦ ↓ ≡)
     [[#%app pattern ≡]
      (match-lambda
-       [`pattern #true]
+       [pattern #true]
        [_ #false])]
+    [[#%app pattern ↦ result]
+     (match-lambda
+       [`pattern `result]
+       [x x])]
     [[#%app pattern ⋱↦ result]
      (#%app [pattern ⋱↦ result])]
     [(#%app [pattern ⋱↦ result] ...)
      (letrec ([transform (match-lambda
                            [`pattern `result] ...
-                           [a #:when (not (pair? a)) a]
-                           [ls (map transform ls)])])
+                           [(? atom? a) a]
+                           [(? list? ls) (map transform ls)])])
        transform)]
     [(#%app f-expr arg-expr ...) (call f-expr arg-expr ...)]))
 
@@ -46,12 +50,12 @@
                           [(? atom? x) x])])
        (recursor source)))
 
-(define-syntax-rule (map-into-fruct source [<pattern> <payload> ...] ...)
-  (letrec ([recursor (match-lambda
-                       [<pattern> <payload> ...] ...
-                       [`(,x . ,xs) (map recursor xs)]
-                       [(? atom? x) x])])
-    (recursor source)))
+#; (define-syntax-rule (map-into-fruct source [<pattern> <payload> ...] ...)
+     (letrec ([recursor (match-lambda
+                          [<pattern> <payload> ...] ...
+                          [`(,x . ,xs) (map recursor xs)]
+                          [(? atom? x) x])])
+       (recursor source)))
 
 
 ; ----------------------------------------------------------------------------
@@ -136,10 +140,10 @@
   (syntax-rules ()
     [(ignore-affo <pat>)
      (app (λ (source) (match source
-                        #; [`((,(? (λ (x) (member x L1-affo-names))) ,x) ,a) a (match a
+                        #; [`((,(? (λ (x) (member x L1-affo-names))) ,x) ,a) (match a
                                                                                  [`(,(? (λ (x) (member x L1-affo-names))) ,b) b]
                                                                                  [_ a])]
-                        [`(,(? (λ (x) (member x L1-affo-names))) ,a) a (match a
+                        [`(,(? (λ (x) (member x L1-affo-names))) ,a) (match a
                                                                          [`(,(? (λ (x) (member x L1-affo-names))) ,b) b]
                                                                          [_ a])]
                         ; the above is a hack. how do i recurse right in macros?
@@ -249,7 +253,7 @@
        [(? terminal-name?)
         (hash 'symbol source
               'self ctx ; hack for style
-              'sort source ; seriously what are the cases here
+              'sort source 
               'context ctx)]
        [(? form-name?)
         (hash 'symbol source
@@ -651,31 +655,69 @@
   [(`(▹ ,a)) '()]
   [((? atom?)) #f]
   [((? list?)) (let ([result (filter-map
-                        (λ (sub num)
-                          (let ([a (sel-to-pos sub)])
-                            (if a `(,num ,@a) #f)))
-                        fruct
-                        (range 0 (length fruct)))])
-           (if (empty? result) #f (first result)))])
+                              (λ (sub num)
+                                (let ([a (sel-to-pos sub)])
+                                  (if a `(,num ,@a) #f)))
+                              fruct
+                              (range 0 (length fruct)))])
+                 (if (empty? result) #f (first result)))])
 
-(sel-to-pos `(1 2 (4 (5 5 5 5 (▹ 77))) 4))
 
-#; (define/match (▹->lens source)
-     [(`(▹ ,a)) identity-lens]
-     [((? atom?)) #f]
-     [((? list?))
-      (let ([result (filter-map
-                     (λ (sub lens)
-                       (let ([a (▹->lens sub)])
-                         (if a (apply lens-compose a) #f))
-                       source
-                       (range 0 (length source))))])
-        result)
-      #;(let* ([sublenses (map ▹->lens source)]
-               [lensmods (filter-map (λ (x y) (if x (lens-compose (list-ref-lens y) x) #f)) source (range (length source)))])
-          lensmods)])
+(define/match ((?->lenses pred?) source)
+  [(_ (? pred?)) `(,identity-lens)]
+  [(_ (? atom?)) #f]
+  [(_ (? list?)) (flatten (filter-map (λ (x i) (let ([res ((?->lenses pred?) x)])
+                                                 (if res
+                                                     (map (λ (y) (if y
+                                                                     (lens-compose y (list-ref-lens i))
+                                                                     #f))
+                                                          res)
+                                                     #f)))
+                                      source
+                                      (range (length source))))])
 
-#; (lens-view (first (▹->lens `(1 2 (4 (▹ 77)) 4))) `(1 2 (4 (▹ 77)) 4))
+#;(define ((?->lenses pred?) source)
+    (filter identity ((?->lens pred?) source)))
+
+(define ▹->lenses
+  (?->lenses [`(▹ ,a) ≡]))
+
+(define ▹▹->lenses
+  (?->lenses [`(▹▹ ,a) ≡]))
+
+(define ▹-first-▹▹-in-▹
+  [(▹ ,a) ⋱↦ ,(▹-first-▹▹-in a)])
+
+(define (▹-first-▹▹-in source)
+  (lens-transform (first (▹▹->lenses source)) source [(▹▹ ,a) ↦ (▹▹ (▹ ,a))]))
+
+#; (▹-first-▹▹-in-▹ `(▹ (1 2 (8 9 (7 6 (▹▹ 3) 5)) (▹▹ 4))))
+
+(define (▹-next-▹▹ source)
+  (match (▹▹->lenses source)
+    [`(,x ... ,(and a (app (curryr lens-view source) `(▹▹ (▹ ,w)))) ,b ,y ...)
+     (lens-transform/list source
+                          a [(▹▹ (▹ ,x)) ↦ (▹▹ ,x)]
+                          b [(▹▹ ,x) ↦ (▹▹ (▹ ,x))])]
+    [`(,b ,x ... ,(and a (app (curryr lens-view source) `(▹▹ (▹ ,w)))))
+     (lens-transform/list source
+                          a [(▹▹ (▹ ,x)) ↦ (▹▹ ,x)]
+                          b [(▹▹ ,x) ↦ (▹▹ (▹ ,x))])]
+    [_ source]))
+
+#; (▹-next-▹▹ `(1 2 (8 9 (7 6 (▹▹ (▹ 3)) 5)) (▹▹ 4)))
+#; (▹-next-▹▹ (▹-next-▹▹ `(1 2 (8 9 (7 6 (▹▹ (▹ 3)) 5)) (▹▹ 4))))
+#; (▹-next-▹▹ (▹-next-▹▹ (▹-next-▹▹ `(1 2 (8 9 (7 6 (▹▹ (▹ 3)) 5)) (▹▹ 4)))))
+
+#;(▹->lens `(1 2 (8 9 (7 6 (▹ 3) 5)) (▹ 4)))
+#;(lens-view (second (▹->lenses `(1 2 (8 9 (7 6 (▹ 3) 5)) (▹ 4)))) `(1 2 (8 9 (7 6 (▹ 3) 5)) (▹ 4)))
+
+#;((?->lens [`(▹ ,a) ≡]) `(1 2 (8 9 (7 6 (▹ 3) 5)) (▹ 4)))
+#;(lens-view (second ((?->lenses [`(▹ ,a) ≡]) `(1 2 (8 9 (7 6 (▹ 3) 5)) (▹ 4)))) `(1 2 (8 9 (7 6 (▹ 3) 5)) (▹ 4)))
+
+#;(lens-view (second (▹▹->lenses `(1 2 (8 9 (7 6 (▹▹ 3) 5)) (▹▹ 4)))) `(1 2 (8 9 (7 6 (▹▹ 3) 5)) (▹▹ 4)))
+#;(lens-view (second (▹▹->lenses '((▹▹ (▹ define)) a ((▹▹ defne))))) '((▹▹ (▹ define)) a ((▹▹ defne))))
+#; (▹-next-▹▹ '((▹▹ (▹ define)) (fn a) a ((▹▹ define) (g q r) (let ([a 5] [b 6]) (if 1 2 2)))))
 
 
 (define/match (obj-at-pos fruct pos)
@@ -747,9 +789,7 @@
 
 
 (define (char-input event)
-  (match-let* ([key-code (send event get-key-code)]
-               #; [obj (obj-at-pos stage-gui (sel-to-pos stage))]
-               #; [(hash-table ('gui (gui sn ed parent-ed))) obj])
+  (match-let* ([key-code (send event get-key-code)])
     (when (not (equal? key-code 'release))
       (case mode
         ['select    (match key-code
@@ -767,11 +807,8 @@
                        (set! mode 'transform)])]
         ['search    (match key-code
                       ; precond: search results inside selector
-                      ['right 0 #; (update! ▹first-search-result)
-                              ] ; lol where are you searching, pay attention!!!
-                      ['left  0]
-                      ['up    0]
-                      ['down  0]                       
+                      ['right (update! ▹-next-▹▹)]
+                      ['down  (update! ▹-first-▹▹-in-▹)]                       
                       ['escape     (set! buffer "")
                                    (update! [(▹▹ ,a) ⋱↦ ,a])
                                    (set! mode 'select)]
@@ -847,5 +884,5 @@
 #; test-src
 #; (project-symbol (sexp->fruct test-src))
 #; (map-into-fruct (sexp->fruct test-src) [(hash-table ('self s)) s])
-#;(map-into test-src ['a 'b])
+#; (map-into test-src ['a 'b])
 
