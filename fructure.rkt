@@ -140,12 +140,12 @@
   (syntax-rules ()
     [(ignore-affo <pat>)
      (app (λ (source) (match source
-                        #; [`((,(? (λ (x) (member x L1-affo-names))) ,x) ,a) (match a
-                                                                                 [`(,(? (λ (x) (member x L1-affo-names))) ,b) b]
-                                                                                 [_ a])]
+                        [`(,(? (λ (x) (member x L1-affo-names))) ,q ,a) (match a
+                                                                          [`(,(? (λ (x) (member x L1-affo-names))) ,b) b]
+                                                                          [_ a])]
                         [`(,(? (λ (x) (member x L1-affo-names))) ,a) (match a
-                                                                         [`(,(? (λ (x) (member x L1-affo-names))) ,b) b]
-                                                                         [_ a])]
+                                                                       [`(,(? (λ (x) (member x L1-affo-names))) ,b) b]
+                                                                       [_ a])]
                         ; the above is a hack. how do i recurse right in macros?
                         [_ source])) `<pat>)]))
 
@@ -230,24 +230,23 @@
      `(,(hash 'symbol void
               'self `(,name hole)
               'sort 'affo
-              'context ctx) ,(hash 'symbol name
-                                   'self name
-                                   'context `((◇ ,name) hole)) ,(sexp->fruct selectee ctx))]
+              'context ctx)
+       ,(hash 'symbol name
+              'self name
+              'context `((◇ ,name) hole))
+       ,(sexp->fruct selectee ctx))]
     ; the above is a hack. it skips (single) selections
     ; and just passes the context along to the selectee
-    #; [`((c▹ ,thingy) ,selectee)
-        `(,(hash 'symbol void
-                 'self `((c▹ hole) hole)
-                 'sort 'affo
-                 'context ctx) (,(hash 'symbol void
-                                       'self `(c▹ hole)
-                                       'sort 'affo
-                                       'context ctx)
-                                ,(hash 'symbol 'c▹
-                                       'self 'c▹
-                                       'context `((◇ c▹) hole))
-                                ,(sexp->fruct thingy ctx))
-                               ,(sexp->fruct selectee ctx))]
+    [`(c▹ ,thingy ,selectee)
+     `(,(hash 'symbol void
+              'self `(c▹ hole hole)
+              'sort 'affo
+              'context ctx) 
+       ,(hash 'symbol 'c▹
+              'self 'c▹
+              'context `((◇ c▹) hole))
+       ,(sexp->fruct thingy ctx)
+       ,(sexp->fruct selectee ctx))]
     [_
      (match (◇-project ctx)
        [(? terminal-name?)
@@ -803,7 +802,7 @@
                        (update! [(▹ ,a) ⋱↦ (▹ ,((▹▹tag-hits buffer) a))])
                        (set! mode 'search)]
                       [#\return
-                       (update! [(▹ ,a) ⋱↦ ((c▹ (: "")) ,a)]) 
+                       (update! [(▹ ,a) ⋱↦ (c▹ (: "") ,a)]) 
                        (set! mode 'transform)])]
         ['search    (match key-code
                       ; precond: search results inside selector
@@ -820,11 +819,12 @@
                        (update! [(▹ ,a) ⋱↦ (▹ ,((▹▹tag-hits buffer) a))])])]
         ['project   (match key-code)]
         ['transform (match key-code
-                      ['escape     (set! mode 'select)]
-                      [#\space
-                       (update! [(,x ... (: ,str)) ⋱↦ (,@x ,str (: ""))])]
-                      ['control
-                       (update! [(: ,str) ⋱↦ ((: ,str))]) (pretty-print stage-gui)]
+                      ['escape     (update! [(c▹ (: ,w) ,a) ⋱↦ (▹ ,a)])
+                                   (set! mode 'select)]
+                      [#\return    (update! [(c▹ ,w ,a) ⋱↦ (▹ ,([(: ,x) ⋱↦ ,x] w))])
+                                   (set! mode 'select)]                
+                      [#\space     (update! [(,x ... (: ,str)) ⋱↦ (,@x ,str (: ""))])]
+                      ['control    (update! [(: ,str) ⋱↦ (if (: ,str) 3 4)])]
                       [(app string (regexp #rx"[A-Za-z0-9_]"))
                        (update! [(: ,str) ⋱↦ (: ,(string-append str (string key-code)))])])]))))
 
