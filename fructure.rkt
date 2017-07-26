@@ -1,10 +1,19 @@
 #lang racket
 
-(require lens/common)
-(require lens/data/list)
-(require racket/gui/base)
-(require fancy-app)
-(require "fructure-style-ast.rkt")
+(require
+  lens/common
+  lens/data/list
+  racket/gui/base
+  fancy-app
+  "fructure-style-ast.rkt"
+  "fructure-language.rkt")
+
+(require
+  (for-syntax racket/match
+              racket/list
+              racket/syntax
+              racket/function
+              "fructure-language.rkt"))
 
 ; ----------------------------------------------------------------------------
 
@@ -42,6 +51,11 @@
 (define-syntax-rule (↓ [pattern ⋱↦ result] ...)
   ([pattern ⋱↦ result] ...)) ; explicit fallthrough annotation
 
+(define-match-expander alphanum
+  (λ (stx)
+    (syntax-case stx ()
+      [(_) #'(app string (regexp "[A-Za-z0-9_]"))])))
+
 
 #; (define-syntax-rule (map-into source [<pattern> <payload> ...] ...)
      (letrec ([recursor (match-lambda
@@ -60,14 +74,10 @@
 
 ; ----------------------------------------------------------------------------
 
-(require (for-syntax racket/match racket/list racket/syntax racket/function))
+
+
 (begin-for-syntax
  
-  (define L1-form-names '(if begin define let lambda send new env kit meta))
-  (define L1-terminal-names '(name name-new name-ref literal))
-  (define L1-sort-names '(expr name free))
-  (define L1-affo-names '(▹ selector ▹▹ search-selector c▹ command-selector c▹▹ command-sub-selector :))
-
   (define atom? (compose not pair?))
   (define transpose (curry apply map list))
 
@@ -88,19 +98,21 @@
     [(`(,a ... (ooo ,b) ,c ...)) `(,@(redotdotdot a) ,b ... ,@c)]
     [(_) source])
 
-  
+
+  ; meta-quotation
   (define-values (\\
                   //
                   /@) (values ((curry list) 'quasiquote)
                               ((curry list) 'unquote)
                               ((curry list) 'unquote-splicing)))
+  
 
   ; rewrites a form signature into a pattern-template pair for the parser
   (define (make-parse-pair pattern)
     (match pattern
-      [(? (λ (x) (member x L1-form-names)))
+      [(? form-name?)
        `(,pattern ,pattern)]
-      [(? (λ (x) (member x L1-sort-names)))
+      [(? sort-name?)
        `(,(// (gensym)) ,pattern)]
       [`(ooo ,(app make-parse-pair `(,new-pat ,new-temp)))
        `((ooo ,new-pat) ,(/@ `(make-list (length ,(\\ (if (equal? 'unquote (first new-pat)) new-pat (first new-pat)))) ,(\\ new-temp))))]
@@ -140,12 +152,12 @@
   (syntax-rules ()
     [(ignore-affo <pat>)
      (app (λ (source) (match source
-                        [`(,(? (λ (x) (member x L1-affo-names))) ,q ,a) (match a
-                                                                          [`(,(? (λ (x) (member x L1-affo-names))) ,b) b]
-                                                                          [_ a])]
-                        [`(,(? (λ (x) (member x L1-affo-names))) ,a) (match a
-                                                                       [`(,(? (λ (x) (member x L1-affo-names))) ,b) b]
-                                                                       [_ a])]
+                        [`(,(? affo-name?) ,q ,a) (match a
+                                                    [`(,(? affo-name?) ,b) b]
+                                                    [_ a])]
+                        [`(,(? affo-name?) ,a) (match a
+                                                 [`(,(? affo-name?) ,b) b]
+                                                 [_ a])]
                         ; the above is a hack. how do i recurse right in macros?
                         [_ source])) `<pat>)]))
 
@@ -164,45 +176,14 @@
              ...)))]))
 
 
-
-
-; parsing --------------------------------------------------------------------
-
-; duplicates from before-syntax
-(define L1-sort-names '(atom hole expr free))
-(define L1-form-names '(if begin define let))
-(define L1-terminal-names '(name name-ref literal))
-(define L1-affo-names '(▹ selector ▹▹ s▹ search-selector c▹ command-selector c▹▹ command-sub-selector :))
-
-
-(define-values (sort-name?
-                terminal-name?
-                form-name?
-                affo-name?) (values (λ (x) (member x L1-sort-names))
-                                    (λ (x) (member x L1-terminal-names))
-                                    (λ (x) (member x L1-form-names))
-                                    (λ (x) (member x L1-affo-names))))
-
-
+; actually plug in language (L1)
 (define (source->form sort source)
   (source+grammar->form
    sort
    source
-   '((free (|| (free ...)))
-     (def  (|| (define (name name ...) expr ...)
-               (define name expr)))
-     (expr (|| (if expr expr expr)
-               (begin expr ...)
-               (define (name name ...) expr ...)
-               (define name expr)
-               (let ([name expr] ...) expr ...)
-               (lambda (name ...) expr ...)
-               (send expr expr expr ...)
-               (new expr [name expr] ...)
-               (env expr ...)
-               (kit expr ...)
-               (meta expr ...)
-               (expr expr ...))))))
+   L1))
+
+; parsing --------------------------------------------------------------------
 
 
 (define (sel◇ source) `(◇ ,source))
@@ -310,13 +291,8 @@
   [(,property (parent ,parent-prop)) ⋱↦ (,property ,(lookup-style-in parent-styles parent-prop))])
 
 
-(define default-styles '((format horizontal)
-                         (background-color (color 150 255 150))
-                         (text-color (color 128 128 128))
-                         (border-style none)
-                         (border-color (color 150 255 150))))
 
-(define (cascade-styles [parent-styles default-styles])
+(define (cascade-styles parent-styles)
   (match-lambda
     [(and hs (hash-table ('style styles)))
      (hash-set hs 'style ((fill-in-parent-refs parent-styles) styles))]
@@ -349,7 +325,11 @@
            (fmap-fruct (match-lambda
                          [(and hs (hash-table ('symbol s) ('gui (gui sn _ parent-ed))))
                           (send parent-ed insert sn) hs]))
-           (cascade-styles)
+           (cascade-styles '((format horizontal)
+                             (background-color (color 150 255 150))
+                             (text-color (color 128 128 128))
+                             (border-style none)
+                             (border-color (color 150 255 150))))
            (fmap-fruct (match-lambda
                          [(and hs (hash-table ('self s)))
                           (hash-set hs 'style (lookup-style s))]))
@@ -757,7 +737,7 @@
   [(_ `()) (first fruct)]
   [(_ `(,a . ,as)) (obj-at-pos (list-ref (rest fruct) a) as)])
 
-(define (update! fn)
+(define (!do fn)
   (set! stage (fn stage))
   (set! stage-gui ((make-gui (new fruct-ed%)) stage))
   (update-gui stage kit-actual))
@@ -808,7 +788,11 @@
        [(? atom?) (fn source)]
        ((? list?) (map (curry search-select fn) source))))
 
+(define (remove-last-char str)
+  (string->symbol (substring (symbol->string str) 0 (sub1 (string-length (symbol->string str))))))
 
+(define (append-char-to key-code str)
+  (string->symbol (string-append (symbol->string str) (string key-code))))
 
 
 
@@ -827,46 +811,54 @@
       (case mode
         ['select    (match key-code
                       [#\- (pretty-print stage-gui)]
-                      ['escape (update! (compose simple-select simple-deselect))]
-                      ['right (update! next-atom)]
-                      ['left  (update! prev-atom)]
-                      ['up    (update! parent)]
-                      ['down  (update! first-child)]
+                      ['escape (!do (compose simple-select simple-deselect))]
+                      ['right (!do next-atom)]
+                      ['left  (!do prev-atom)]
+                      ['up    (!do parent)]
+                      ['down  (!do first-child)]
                       [(app string (regexp (regexp "[A-Za-z_]")))
                        (set! buffer (string-append buffer (string key-code)))
-                       (update! [(▹ ,a) ⋱↦ (▹ ,((▹▹tag-hits buffer) a))])
+                       (!do [(▹ ,a) ⋱↦ (▹ ,((▹▹tag-hits buffer) a))])
                        (set! mode 'search)]
                       [#\return
-                       (update! [(▹ ,a) ⋱↦ (c▹ (: "") ,a)]) 
+                       (!do [(▹ ,a) ⋱↦ (c▹ (: ) ,a)]) 
                        (set! mode 'transform)])]
         ['search    (match key-code
                       [#\- (pretty-print stage-gui)]
                       ; precond: search results inside selector
-                      ['right (update! ▹-next-▹▹)]
-                      ['down  (update! ▹-first-▹▹-in-▹)]                       
+                      ['right      (!do ▹-next-▹▹)]
+                      ['down       (!do ▹-first-▹▹-in-▹)]                       
                       ['escape     (set! buffer "")
-                                   (update! [(▹▹ ,a) ⋱↦ ,a])
+                                   (!do [(▹▹ ,a) ⋱↦ ,a])
                                    (set! mode 'select)]
                       [#\backspace (set! buffer (substring buffer 0 (sub1 (string-length buffer))))
-                                   (update! [(▹ ,a) ⋱↦ (▹ ,((▹▹tag-hits buffer) a))])]
-                      [(app string (regexp #rx"[A-Za-z0-9_]"))
+                                   (!do [(▹ ,a) ⋱↦ (▹ ,((▹▹tag-hits buffer) a))])]
+                      [(alphanum)
                        ; remember to deal with case of single (non-numeric!) character
                        (set! buffer (string-append buffer (string key-code)))
-                       (update! [(▹ ,a) ⋱↦ (▹ ,((▹▹tag-hits buffer) a))])])]
+                       (!do [(▹ ,a) ⋱↦ (▹ ,((▹▹tag-hits buffer) a))])])]
         ['project   (match key-code)]
         ['transform (match key-code
-                      [#\- (pretty-print stage-gui)]
-                      ['escape     (update! [(c▹ (: ,w) ,a) ⋱↦ (▹ ,a)])
+                      [#\-         (pretty-print stage-gui)]
+                      ['escape     (!do [(c▹ (: ,w) ,a) ⋱↦ (▹ ,a)])
                                    (set! mode 'select)]
-                      [#\return    (update! [(c▹ ,w ,a) ⋱↦ (▹ ,([(: ,x) ⋱↦ ,x] w))])
+                      [#\return    (!do [(c▹ ,w ,a) ⋱↦ (▹ ,([(: ,x) ⋱↦ ,x] w))])
                                    (set! mode 'select)]                
-                      [#\space     (update! [(,x ... (: ,str)) ⋱↦ (,@x ,str (: ""))])]
-                      ['control    (update! [(: ,str) ⋱↦ (if (: ,str) 3 4)])]
-                      [(app string (regexp #rx"[A-Za-z0-9_]"))
-                       (update! [(: ,str) ⋱↦ (: ,(string-append str (string key-code)))])])]))))
+                      [#\space     (!do ([(,as ... (: ,b)) ⋱↦ (,@as ,b (: ))]
+                                         [(: ,a) ⋱↦ (,a (: ))]))]
+                      [#\backspace (!do ([(: ,(? symbol? s)) ⋱↦ (: ,(remove-last-char s))]
+                                         [(,as ... ,b (: ) ,cs ...) ⋱↦ (,@as (: ) ,@cs)]
+                                         [(,as ... ,b (: ,c) ,ds ...) ⋱↦ (,@as (: ,c) ,@ds)]))]
+                      ['control    (!do ([(: ) ⋱↦ ((: ))]
+                                         [(: ,a) ⋱↦ ((: ,a))]))]
+                      ['right      (!do ([(,as ... (,bs ... (: ))) ⋱↦ (,@as (,@bs) (: ))]
+                                         [(,as ... (,bs ... (: ,c))) ⋱↦ (,@as (,@bs ,c) (: ))]))]
+                      [(alphanum)  (!do ([(: ) ⋱↦ (: ,(string->symbol (string key-code)))]
+                                         [(: ,(? symbol? s)) ⋱↦ (: ,(append-char-to key-code s))]))])]))))
 
 
-; ◇-project src
+
+
 
 ; gui setup ---------------------------------------------
 

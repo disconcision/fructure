@@ -5,14 +5,11 @@
 
 ; stylesheet ------------------------------------------
 
-(require (for-syntax racket/match racket/list racket/syntax racket/function))
+(require (for-syntax racket/match racket/list racket/syntax racket/function
+                     "fructure-language.rkt"))
+
 (begin-for-syntax
  
-  (define L1-form-names '(if begin define let lambda send new env kit meta))
-  (define L1-terminal-names '(name name-new name-ref literal))
-  (define L1-sort-names '(expr name hole free))
-  (define L1-affo-names '(▹ ▹▹ c▹ s▹ :))
-
   (define atom? (compose not pair?))
   (define transpose (curry apply map list))
 
@@ -45,9 +42,9 @@
 
   (define (make-pattern pattern)
     (match pattern
-      [(? (λ (x) (or (member x L1-form-names) (member x L1-affo-names))))
+      [(? (disjoin form-name? affo-name?))
        pattern]
-      [(? (λ (x) (member x L1-sort-names)))
+      [(? sort-name?)
        (†unquote (gensym))]
       ['◇ '◇]
       [`(ooo ,(app make-pattern new-pat))
@@ -63,7 +60,6 @@
              make-pattern
              (curry map-rec undotdotdot)))
 
-  #;(println (form-list->pattern '(if expr ... (◇ expr) expr ...)))
   
   (define stylesheet->parse-stylesheet
     (match-lambda
@@ -107,7 +103,7 @@
                                    (border-style square-brackets)
                                    (border-color (parent background-color))))
 
-
+                                 
                                  ((◇ (if expr expr expr))
                                   ((background-color (color 65 160 130))
                                    (format indent)
@@ -180,6 +176,14 @@
                                    (text-color (color 45 156 188))
                                    (border-style square-brackets)
                                    (border-color (parent background-color))))
+
+                                 
+                                 ; danger! since we're not checking sorts, this is a fallthrough!!
+                                 ((◇ (free ...))
+                                  ((background-color (color 128 128 128))
+                                   (text-color (color 0 0 0))
+                                   (border-style square-brackets)
+                                   (border-color (color 255 0 0))))
 
                                  
                                  (expr
