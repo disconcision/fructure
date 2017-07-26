@@ -53,9 +53,13 @@
 
 (define-match-expander alphanum
   (λ (stx)
-    (syntax-case stx ()
+    (syntax-case stx (alpha)
       [(_) #'(app string (regexp "[A-Za-z0-9_]"))])))
 
+(define-match-expander alpha
+  (λ (stx)
+    (syntax-case stx (alpha)
+      [(_) #'(app string (regexp "[A-Za-z_]"))])))
 
 #; (define-syntax-rule (map-into source [<pattern> <payload> ...] ...)
      (letrec ([recursor (match-lambda
@@ -788,11 +792,21 @@
        [(? atom?) (fn source)]
        ((? list?) (map (curry search-select fn) source))))
 
-(define (remove-last-char str)
-  (string->symbol (substring (symbol->string str) 0 (sub1 (string-length (symbol->string str))))))
+(define (remove-last-char-str str)
+  (substring str 0 (sub1 (string-length str))))
 
-(define (append-char-to key-code str)
-  (string->symbol (string-append (symbol->string str) (string key-code))))
+(define ((append-char-to-str key-code) str)
+  (string-append str (string key-code)))
+
+(define remove-last-char
+  (compose string->symbol
+           remove-last-char-str
+           symbol->string))
+
+(define (append-char-to key-code)
+  (compose string->symbol
+           (append-char-to-str key-code)
+           symbol->string))
 
 
 
@@ -811,32 +825,26 @@
       (case mode
         ['select    (match key-code
                       [#\- (pretty-print stage-gui)]
-                      ['escape (!do (compose simple-select simple-deselect))]
-                      ['right (!do next-atom)]
-                      ['left  (!do prev-atom)]
-                      ['up    (!do parent)]
-                      ['down  (!do first-child)]
-                      [(app string (regexp (regexp "[A-Za-z_]")))
-                       (set! buffer (string-append buffer (string key-code)))
-                       (!do [(▹ ,a) ⋱↦ (▹ ,((▹▹tag-hits buffer) a))])
-                       (set! mode 'search)]
-                      [#\return
-                       (!do [(▹ ,a) ⋱↦ (c▹ (: ) ,a)]) 
-                       (set! mode 'transform)])]
+                      [#\return    (!do [(▹ ,a) ⋱↦ (c▹ (: ) ,a)]) 
+                                   (set! mode 'transform)]
+                      ['escape     (!do (compose simple-select simple-deselect))]
+                      ['right      (!do next-atom)]
+                      ['left       (!do prev-atom)]
+                      ['up         (!do parent)]
+                      ['down       (!do first-child)]
+                      [(alpha)     (!do [(▹ ,a) ⋱↦ (s▹ ,(string key-code) ,((▹▹tag-hits (string key-code)) a))])
+                                   (set! mode 'search)])]
         ['search    (match key-code
                       [#\- (pretty-print stage-gui)]
                       ; precond: search results inside selector
-                      ['right      (!do ▹-next-▹▹)]
-                      ['down       (!do ▹-first-▹▹-in-▹)]                       
-                      ['escape     (set! buffer "")
-                                   (!do [(▹▹ ,a) ⋱↦ ,a])
+                      ['right      (!do ▹-next-▹▹)] ; fix this!
+                      ['down       (!do ▹-first-▹▹-in-▹)] ; and this!                
+                      ['escape     (!do (compose [(▹▹ ,a) ⋱↦ ,a]
+                                                 [(s▹ ,buf ,sel) ⋱↦  (▹ ,sel)]))
                                    (set! mode 'select)]
-                      [#\backspace (set! buffer (substring buffer 0 (sub1 (string-length buffer))))
-                                   (!do [(▹ ,a) ⋱↦ (▹ ,((▹▹tag-hits buffer) a))])]
-                      [(alphanum)
-                       ; remember to deal with case of single (non-numeric!) character
-                       (set! buffer (string-append buffer (string key-code)))
-                       (!do [(▹ ,a) ⋱↦ (▹ ,((▹▹tag-hits buffer) a))])])]
+                      [#\backspace (!do [(s▹ ,buf ,sel) ⋱↦ (s▹ ,(remove-last-char-str buf) ,((▹▹tag-hits (remove-last-char-str buf)) sel))])]
+                      ; below: remember to deal with case of single (non-numeric!) character
+                      [(alphanum)  (!do [(s▹ ,buf ,sel) ⋱↦ (s▹ ,((append-char-to-str key-code) buf) ,((▹▹tag-hits ((append-char-to-str key-code) buf)) sel))])])]
         ['project   (match key-code)]
         ['transform (match key-code
                       [#\-         (pretty-print stage-gui)]
@@ -847,14 +855,14 @@
                       [#\space     (!do ([(,as ... (: ,b)) ⋱↦ (,@as ,b (: ))]
                                          [(: ,a) ⋱↦ (,a (: ))]))]
                       [#\backspace (!do ([(: ,(? symbol? s)) ⋱↦ (: ,(remove-last-char s))]
-                                         [(,as ... ,b (: ) ,cs ...) ⋱↦ (,@as (: ) ,@cs)]
-                                         [(,as ... ,b (: ,c) ,ds ...) ⋱↦ (,@as (: ,c) ,@ds)]))]
+                                         #;[(,as ... ,b (: ) ,cs ...) ⋱↦ (,@as (: ) ,@cs)]
+                                         #;[(,as ... ,b (: ,c) ,ds ...) ⋱↦ (,@as (: ,c) ,@ds)]))]
                       ['control    (!do ([(: ) ⋱↦ ((: ))]
                                          [(: ,a) ⋱↦ ((: ,a))]))]
                       ['right      (!do ([(,as ... (,bs ... (: ))) ⋱↦ (,@as (,@bs) (: ))]
                                          [(,as ... (,bs ... (: ,c))) ⋱↦ (,@as (,@bs ,c) (: ))]))]
                       [(alphanum)  (!do ([(: ) ⋱↦ (: ,(string->symbol (string key-code)))]
-                                         [(: ,(? symbol? s)) ⋱↦ (: ,(append-char-to key-code s))]))])]))))
+                                         [(: ,(? symbol? s)) ⋱↦ (: ,((append-char-to key-code) s))]))])]))))
 
 
 
@@ -892,9 +900,6 @@
 
 ; init globals
 (define mode 'select)
-(define num-chars 0)
-(define buffer "")
-(define buf-pat "")
 
 ; init display
 (send my-frame show #t)
