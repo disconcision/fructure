@@ -303,6 +303,39 @@
                         [(hash-table <in-pair> ...)
                          (hash-set source <out-pair> ...)])) ; need to splice outpairs
 
+(define (lookup-style-in styles property)
+  (second (assoc property styles)))
+
+(define (fill-in-parent-refs parent-styles)
+  [(,property (parent ,parent-prop)) ⋱↦ (,property ,(lookup-style-in parent-styles property))])
+
+
+(define default-styles '((format horizontal)
+                         (background-color (color 150 255 150))
+                         (text-color (color 128 128 128))
+                         (border-style none)
+                         (border-color (color 150 255 150))))
+
+(define (cascade-styles [parent-styles default-styles])
+  (match-lambda
+    [(and hs (hash-table ('style styles)))
+     (hash-set hs 'style ((fill-in-parent-refs parent-styles) styles))]
+    [`(,(and hs (hash-table ('style (app (fill-in-parent-refs parent-styles) new-parent-styles)))) ,xs ...)
+     `(,(hash-set hs 'style new-parent-styles) ,@(map (cascade-styles new-parent-styles) xs))]))
+
+#; (lookup-style-in '((background-color (color 247 0 114))
+                      (text-color (parent text-color))
+                      (border-style square-brackets)
+                      (border-color (color 255 255 255)))
+                    'border-style)
+
+#; ((fill-in-parent-refs
+     '((background-color (color 247 0 18674))
+       (text-color (color 999 999 999)) ))
+    '((background-color (color 247 0 114))
+      (text-color (parent text-color))
+      (border-style square-brackets)
+      (border-color (color 255 255 255))))
 
 (define (make-gui parent-ed)
   (compose (fmap-fruct (match-lambda
@@ -316,6 +349,7 @@
            (fmap-fruct (match-lambda
                          [(and hs (hash-table ('symbol s) ('gui (gui sn _ parent-ed))))
                           (send parent-ed insert sn) hs]))
+           (cascade-styles)
            (fmap-fruct (match-lambda
                          [(and hs (hash-table ('self s)))
                           (hash-set hs 'style (lookup-style s))]))
@@ -792,7 +826,8 @@
     (when (not (equal? key-code 'release))
       (case mode
         ['select    (match key-code
-                      ['escape (update! (compose simple-select simple-deselect)) ]
+                      ['escape (update! (compose simple-select simple-deselect))
+                               (pretty-print stage-gui)]
                       ['right (update! next-atom)]
                       ['left  (update! prev-atom)]
                       ['up    (update! parent)]

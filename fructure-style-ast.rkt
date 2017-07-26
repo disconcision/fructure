@@ -129,13 +129,13 @@
                                   ((background-color (color 98 59 99))
                                    (format indent)
                                    (border-style square-brackets)
-                                   (border-color (color 255 255 255) #;parent)))
+                                   (border-color (parent background-color))))
 
                                  (((◇ let) ([name expr] ...) expr ...)
                                   ((background-color (color 98 59 99))
                                    (text-color (color 239 165 241))
                                    (border-style square-brackets)
-                                   (border-color (color 98 59 99) #;wrapper-bkg)))
+                                   (border-color (parent background-color) #;wrapper-bkg)))
 
                                  ((let (◇ ([name expr] ...)) expr ...)
                                   ((background-color (color 98 59 99) #;wrapper-bkg)
