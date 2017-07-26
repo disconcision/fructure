@@ -172,7 +172,7 @@
 (define L1-sort-names '(atom hole expr free))
 (define L1-form-names '(if begin define let))
 (define L1-terminal-names '(name name-ref literal))
-(define L1-affo-names '(▹ selector ▹▹ search-selector c▹ command-selector c▹▹ command-sub-selector :))
+(define L1-affo-names '(▹ selector ▹▹ s▹ search-selector c▹ command-selector c▹▹ command-sub-selector :))
 
 
 (define-values (sort-name?
@@ -226,32 +226,32 @@
 ; map an s-expression to a fructure ast.
 (define (sexp->fruct source [ctx `(top (◇ expr))])
   (match source
-    [`(,(? affo-name? name) ,selectee) 
+    ; special case for single-hole affordances
+    [`(,(? affo-name? affo) ,selectee) 
      `(,(hash 'symbol void
-              'self `(,name hole)
+              'self `(◇ (,affo hole))
               'sort 'affo
-              'context ctx)
-       ,(hash 'symbol name
-              'self name
-              'context `((◇ ,name) hole))
+              'context '())
+       ,(hash 'symbol affo
+              'self `((◇ ,affo) hole)
+              'context '())
        ,(sexp->fruct selectee ctx))]
-    ; the above is a hack. it skips (single) selections
-    ; and just passes the context along to the selectee
-    [`(c▹ ,thingy ,selectee)
+    ; special case for double-hole affordances
+    [`(,(? affo-name? affo) ,thingy ,selectee)
      `(,(hash 'symbol void
-              'self `(c▹ hole hole)
+              'self `(◇ (,affo hole hole))
               'sort 'affo
-              'context ctx) 
-       ,(hash 'symbol 'c▹
-              'self 'c▹
-              'context `((◇ c▹) hole))
+              'context '()) 
+       ,(hash 'symbol affo
+              'self `((◇ ,affo) hole hole)
+              'context '())
        ,(sexp->fruct thingy ctx)
        ,(sexp->fruct selectee ctx))]
     [_
      (match (◇-project ctx)
        [(? terminal-name?)
         (hash 'symbol source
-              'self ctx ; hack for style
+              'self ctx
               'sort source 
               'context ctx)]
        [(? form-name?)
@@ -262,7 +262,7 @@
        [(? sort-name? sort)
         (let* ([form (source->form sort source)]
                [hash (hash 'symbol (if (list? form) void source)
-                           'self `(◇ ,form) ;hack for style
+                           'self `(◇ ,form)
                            'sort sort
                            'context ctx)])
           (if (list? form)
@@ -270,7 +270,7 @@
               hash))]
        [(? list?)
         `(,(hash 'symbol void
-                 'self ctx ; hack for style
+                 'self ctx
                  'sort 'literal-list
                  'context ctx) ,@(map sexp->fruct source (->child-contexts ctx source)))])]))
 
@@ -307,7 +307,7 @@
   (second (assoc property styles)))
 
 (define (fill-in-parent-refs parent-styles)
-  [(,property (parent ,parent-prop)) ⋱↦ (,property ,(lookup-style-in parent-styles property))])
+  [(,property (parent ,parent-prop)) ⋱↦ (,property ,(lookup-style-in parent-styles parent-prop))])
 
 
 (define default-styles '((format horizontal)
@@ -822,12 +822,12 @@
 
 
 (define (char-input event)
-  (match-let* ([key-code (send event get-key-code)])
+  (let ([key-code (send event get-key-code)])
     (when (not (equal? key-code 'release))
       (case mode
         ['select    (match key-code
-                      ['escape (update! (compose simple-select simple-deselect))
-                               (pretty-print stage-gui)]
+                      [#\- (pretty-print stage-gui)]
+                      ['escape (update! (compose simple-select simple-deselect))]
                       ['right (update! next-atom)]
                       ['left  (update! prev-atom)]
                       ['up    (update! parent)]
@@ -840,6 +840,7 @@
                        (update! [(▹ ,a) ⋱↦ (c▹ (: "") ,a)]) 
                        (set! mode 'transform)])]
         ['search    (match key-code
+                      [#\- (pretty-print stage-gui)]
                       ; precond: search results inside selector
                       ['right (update! ▹-next-▹▹)]
                       ['down  (update! ▹-first-▹▹-in-▹)]                       
@@ -854,6 +855,7 @@
                        (update! [(▹ ,a) ⋱↦ (▹ ,((▹▹tag-hits buffer) a))])])]
         ['project   (match key-code)]
         ['transform (match key-code
+                      [#\- (pretty-print stage-gui)]
                       ['escape     (update! [(c▹ (: ,w) ,a) ⋱↦ (▹ ,a)])
                                    (set! mode 'select)]
                       [#\return    (update! [(c▹ ,w ,a) ⋱↦ (▹ ,([(: ,x) ⋱↦ ,x] w))])

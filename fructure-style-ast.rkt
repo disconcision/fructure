@@ -10,8 +10,8 @@
  
   (define L1-form-names '(if begin define let lambda send new env kit meta))
   (define L1-terminal-names '(name name-new name-ref literal))
-  (define L1-sort-names '(expr name))
-  (define L1-affo-names '(▹ selector))
+  (define L1-sort-names '(expr name hole free))
+  (define L1-affo-names '(▹ ▹▹ c▹ s▹ :))
 
   (define atom? (compose not pair?))
   (define transpose (curry apply map list))
@@ -45,7 +45,7 @@
 
   (define (make-pattern pattern)
     (match pattern
-      [(? (λ (x) (member x L1-form-names)))
+      [(? (λ (x) (or (member x L1-form-names) (member x L1-affo-names))))
        pattern]
       [(? (λ (x) (member x L1-sort-names)))
        (†unquote (gensym))]
@@ -82,14 +82,40 @@
 
 
 (define (lookup-style form)
-  (form+stylesheet->style form '(((◇ (if expr expr expr))
+  (form+stylesheet->style form '(((◇ (▹ hole))
+                                  ((background-color (color 168 255 0))
+                                   (format horizontal)
+                                   (border-style square-brackets)
+                                   (border-color (parent background-color))))
+                                 
+                                 (((◇ ▹) hole)
+                                  ((background-color (parent background-color))
+                                   (text-color (color 0 0 0))
+                                   (border-style square-brackets)
+                                   (border-color (parent background-color))))
+
+
+                                 ((◇ (c▹ hole hole))
+                                  ((background-color (color 255 105 180))
+                                   (format horizontal)
+                                   (border-style square-brackets)
+                                   (border-color (parent background-color))))
+
+                                 (((◇ c▹) hole hole)
+                                  ((background-color (parent background-color))
+                                   (text-color (color 0 0 0))
+                                   (border-style square-brackets)
+                                   (border-color (parent background-color))))
+
+
+                                 ((◇ (if expr expr expr))
                                   ((background-color (color 65 160 130))
                                    (format indent)
                                    (border-style square-brackets)
-                                   (border-color (color 71 60 99) #;parent-form-bkg)))
+                                   (border-color (parent background-color))))
                      
                                  (((◇ if) expr expr expr)
-                                  ((background-color (color 65 160 130))
+                                  ((background-color (parent background-color))
                                    (text-color (color 132 243 223))
                                    (border-style square-brackets)
                                    (border-color (color 49 175 135))))
@@ -99,30 +125,30 @@
                                   ((format indent)
                                    (background-color (color 71 60 99))
                                    (border-style square-brackets)
-                                   (border-color (color 255 255 255) #;parent-form)))
+                                   (border-color (parent background-color))))
                                  
                                  (((◇ define) (name name ...) expr ...)
-                                  ((background-color (color 71 60 99) #;wrapper-bkg)
+                                  ((background-color (parent background-color))
                                    (text-color (color 211 196 253))
                                    (border-style square-brackets)
-                                   (border-color (color 71 60 99) #;wrapper-bkg)))
+                                   (border-color (parent background-color))))
                                  
                                  ((define ((◇ name) name ...) expr ...)
                                   ((background-color (color 132 255 251))
                                    (text-color (color 45 156 188))
                                    (border-style square-brackets)
-                                   (border-color (color 71 60 99) #;wrapper-bkg)))
+                                   (border-color (parent background-color))))
                                  
                                  ((define (◇ (name name ...)) expr ...)
-                                  ((background-color (color 71 60 99) #;wrapper-bkg)
+                                  ((background-color (parent background-color))
                                    (border-style square-brackets)
-                                   (border-color (color 71 60 99) #;wrapper-bkg)))
+                                   (border-color (parent background-color))))
                                  
                                  ((define (name name ... (◇ name) name ...) expr ...)
                                   ((background-color (color 119 57 99))
                                    (text-color (color 253 218 219))
                                    (border-style square-brackets)
-                                   (border-color (color 71 60 99) #;wrapper-bkg))) 
+                                   (border-color (parent background-color)))) 
 
 
                                  ((◇ (let ([name expr] ...) expr ...))
@@ -132,36 +158,36 @@
                                    (border-color (parent background-color))))
 
                                  (((◇ let) ([name expr] ...) expr ...)
-                                  ((background-color (color 98 59 99))
+                                  ((background-color (parent background-color))
                                    (text-color (color 239 165 241))
                                    (border-style square-brackets)
-                                   (border-color (parent background-color) #;wrapper-bkg)))
+                                   (border-color (parent background-color))))
 
                                  ((let (◇ ([name expr] ...)) expr ...)
-                                  ((background-color (color 98 59 99) #;wrapper-bkg)
+                                  ((background-color (parent background-color))
                                    (format vertical)
                                    (border-style square-brackets)
                                    (border-color (color 132 255 251))))
 
                                  ((let ([name expr] ... (◇ [name expr]) [name expr] ...) expr ...)
-                                  ((background-color (color 98 59 99) #;wrapper-bkg)
+                                  ((background-color (parent background-color))
                                    (format horizontal)
                                    (border-style square-brackets)
-                                   (border-color (color 98 59 99))))
+                                   (border-color (parent background-color))))
 
                                  ((let ([name expr] ... [(◇ name) expr] [name expr] ...) expr ...)
                                   ((background-color (color 132 255 251))
                                    (text-color (color 45 156 188))
                                    (border-style square-brackets)
-                                   (border-color (color 98 59 99) #;wrapper-bkg)))
+                                   (border-color (parent background-color))))
 
                                  
                                  (expr
                                   ((format horizontal)
-                                   (background-color (color 255 255 255))
+                                   (background-color (color 254 255 255))
                                    (text-color (color 128 128 128))
                                    (border-style none)
-                                   (border-color (color 255 255 255)))))))
+                                   (border-color (color 253 255 255)))))))
 
 
 
