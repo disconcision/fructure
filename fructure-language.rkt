@@ -6,6 +6,7 @@
          form-name?
          affo-name?)
 
+; source grammar
 (define L1 '((free (|| (free ...)))
              (def  (|| (define (name name ...) expr ...)
                        (define name expr)))
@@ -22,10 +23,28 @@
                        (meta expr ...)
                        (expr expr ...)))))
 
-(define L1-form-names '(if begin define let lambda send new env kit meta))
-(define L1-terminal-names '(name name-new name-ref literal))
-(define L1-sort-names '(expr name hole free))
-(define L1-affo-names '(▹ selector ▹▹ search-selector c▹ command-selector c▹▹ command-sub-selector :))
+
+(define L1-form-names '(if begin define let lambda
+                           send new
+                           env kit meta))
+
+
+(define L1-terminal-names '(name
+                            name-new
+                            name-ref
+                            literal))
+
+
+(define L1-sort-names '(expr
+                        name
+                        hole
+                        free))
+
+
+(define L1-affo-names '(▹ selector
+                          ▹▹ subselector
+                          s▹ search-selector
+                          c▹ command-selector))
 
 (define-values (sort-name?
                 terminal-name?

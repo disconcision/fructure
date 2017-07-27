@@ -6,58 +6,29 @@
 ; stylesheet ------------------------------------------
 
 (require (for-syntax racket/match racket/list racket/syntax racket/function
-                     "fructure-language.rkt"))
+                     "fructure-language.rkt"
+                     "fructure-utility.rkt"))
 
 (begin-for-syntax
  
-  (define atom? (compose not pair?))
-  (define transpose (curry apply map list))
-
-  (define (map-rec fn source)
-    (match (fn source)
-      [(? list? ls) (map (curry map-rec fn) ls)]
-      [(? atom? a) a]))
-
-  
-  ; desugars _ ... into (ooo _)
-  (define/match (undotdotdot source)
-    [((list a ... b '... c ...)) `(,@(undotdotdot a) (ooo ,b) ,@c)]
-    [(_) source])
-
-  
-  ; resugars (ooo _) into _ ...
-  (define/match (redotdotdot source)
-    [(`(,a ... (ooo ,b) ,c ...)) `(,@(redotdotdot a) ,b ... ,@c)]
-    [(_) source])
-
-  
-  (define-values  (†quote
-                   †quasiquote
-                   †unquote
-                   †unquote-splice) (values ((curry list) 'quote)
-                                            ((curry list) 'quasiquote)
-                                            ((curry list) 'unquote)
-                                            ((curry list) 'unquote-splicing)))
-
-
-  (define (make-pattern pattern)
+  (define (make-style-pattern pattern)
     (match pattern
       [(? (disjoin form-name? affo-name?))
        pattern]
       [(? sort-name?)
-       (†unquote (gensym))]
+       (// (gensym))]
       ['◇ '◇]
-      [`(ooo ,(app make-pattern new-pat))
+      [`(ooo ,(app make-style-pattern new-pat))
        `(ooo ,new-pat)]
       ; the above is sort of a hack. the test for first not equalling unquote detects when new-pat is actually a list of pats
       ; but maybe not robustly? to clarify, when the first is unquote we're assuming it's just a quoted, unquoted variable name
       [(? list? ls)
-       (map make-pattern ls)]))
+       (map make-style-pattern ls)]))
 
   
   (define form-list->pattern
     (compose (curry map-rec redotdotdot)
-             make-pattern
+             make-style-pattern
              (curry map-rec undotdotdot)))
 
   
@@ -98,6 +69,19 @@
                                    (border-color (parent background-color))))
 
                                  (((◇ c▹) hole hole)
+                                  ((background-color (parent background-color))
+                                   (text-color (color 0 0 0))
+                                   (border-style square-brackets)
+                                   (border-color (parent background-color))))
+
+
+                                 ((◇ (s▹ hole hole))
+                                  ((background-color (color 48 244 228))
+                                   (format horizontal)
+                                   (border-style square-brackets)
+                                   (border-color (parent background-color))))
+
+                                 (((◇ s▹) hole hole)
                                   ((background-color (parent background-color))
                                    (text-color (color 0 0 0))
                                    (border-style square-brackets)
@@ -232,16 +216,6 @@
                          (border-style square-brackets)
                          (border-color (color 0 0 0) #;wrapper-bkg)))
 
-                       (selector
-                        (wrapper
-                         (background-color (color 124 252 0))
-                         (border-style square-brackets)
-                         (border-color (color 255 255 255) #;parent-form))
-                        (head
-                         (background-color (color 124 252 0) #;wrapper-bkg)
-                         (text-color (color 0 0 0))
-                         (border-style square-brackets)
-                         (border-color (color 124 252 0) #;wrapper-bkg)))
                                                   
                        (send
                         (wrapper
@@ -348,14 +322,6 @@
 
 ; old style fns --------------------------------------
 
-#;(define (lookup-style fruct-name fruct-type)
-    '((format horizontal)
-      (background-color (color 247 0 114) #;parent)
-      (text-color (color 253 238 189))
-      (border-style square-brackets)
-      (border-color (color 255 255 255)))
-    #;(let ([result (rest (assoc fruct-type (rest (assoc fruct-name stylesheet))))])
-        (if result result (println "style lookup error"))))
 
 #; (define (make-style position code)
      `(my-style
@@ -363,20 +329,5 @@
                             [`(,(== selector) ,a ...) '(color 200 200 0)]
                             [_ `(color ,(modulo (exact-round (* 255 (sqrt (/ (length position) (tree-depth original-source))))) 256)
                                        60
-                                       100)]))
-       (format ,(match code
-                  [`((,(== selector) ,a) ,ls ...) (second (third (make-style position `(,a ,@ls))))] ; hacky
-                  [`(,form ,ls ...) #:when (member form '(let let* if begin define for)) 'indent]              
-                  [`([,a ...] ...) 'vertical]
-                  [_ 'horizontal]))))
+                                       100)]))))
 
-
-#; (define/match (set-style! style sn ed)
-     [(`(,name (background-color ,color)
-               (format ,format)) _ _)
-      (begin (send sn set-background-color color)
-             (send sn set-border-color '(color 30 205 90))
-             (send sn set-border-style 'square-brackets)
-             (send ed set-format format)
-             (send ed set-text-color '(color 255 255 210))
-             (send sn set-margins 4 2 2 2))])

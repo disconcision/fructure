@@ -6,25 +6,19 @@
   racket/gui/base
   fancy-app
   "fructure-style-ast.rkt"
-  "fructure-language.rkt")
+  "fructure-language.rkt"
+  "fructure-utility.rkt")
 
 (require
   (for-syntax racket/match
               racket/list
               racket/syntax
               racket/function
-              "fructure-language.rkt"))
+              "fructure-language.rkt"
+              "fructure-utility.rkt"))
 
 ; ----------------------------------------------------------------------------
 
-(define atom? (compose not pair?))
-
-(define proper-list? (conjoin list? (compose not empty?)))
-
-(define (map-rec fn source) ; copy 
-  (match (fn source)
-    [(? list? ls) (map (curry map-rec fn) ls)]
-    [(? atom? a) a]))
 
 (require (rename-in racket (#%app call)))
 (define-syntax #%app
@@ -48,32 +42,16 @@
     [(#%app f-expr arg-expr ...) (call f-expr arg-expr ...)]))
 
 
-(define-syntax-rule (↓ [pattern ⋱↦ result] ...)
-  ([pattern ⋱↦ result] ...)) ; explicit fallthrough annotation
-
 (define-match-expander alphanum
   (λ (stx)
     (syntax-case stx (alpha)
       [(_) #'(app string (regexp "[A-Za-z0-9_]"))])))
 
+
 (define-match-expander alpha
   (λ (stx)
     (syntax-case stx (alpha)
       [(_) #'(app string (regexp "[A-Za-z_]"))])))
-
-#; (define-syntax-rule (map-into source [<pattern> <payload> ...] ...)
-     (letrec ([recursor (match-lambda
-                          [<pattern> <payload> ...] ...
-                          [(? list? x) (map recursor x)]
-                          [(? atom? x) x])])
-       (recursor source)))
-
-#; (define-syntax-rule (map-into-fruct source [<pattern> <payload> ...] ...)
-     (letrec ([recursor (match-lambda
-                          [<pattern> <payload> ...] ...
-                          [`(,x . ,xs) (map recursor xs)]
-                          [(? atom? x) x])])
-       (recursor source)))
 
 
 ; ----------------------------------------------------------------------------
@@ -82,35 +60,6 @@
 
 (begin-for-syntax
  
-  (define atom? (compose not pair?))
-  (define transpose (curry apply map list))
-
-  (define (map-rec fn source)
-    (match (fn source)
-      [(? list? ls) (map (curry map-rec fn) ls)]
-      [(? atom? a) a]))
-
-  
-  ; desugars _ ... into (ooo _)
-  (define/match (undotdotdot source)
-    [((list a ... b '... c ...)) `(,@(undotdotdot a) (ooo ,b) ,@c)]
-    [(_) source])
-
-  
-  ; resugars (ooo _) into _ ...
-  (define/match (redotdotdot source)
-    [(`(,a ... (ooo ,b) ,c ...)) `(,@(redotdotdot a) ,b ... ,@c)]
-    [(_) source])
-
-
-  ; meta-quotation
-  (define-values (\\
-                  //
-                  /@) (values ((curry list) 'quasiquote)
-                              ((curry list) 'unquote)
-                              ((curry list) 'unquote-splicing)))
-  
-
   ; rewrites a form signature into a pattern-template pair for the parser
   (define (make-parse-pair pattern)
     (match pattern
@@ -212,7 +161,7 @@
 (define (sexp->fruct source [ctx `(top (◇ expr))])
   (match source
     ; special case for single-hole affordances
-    [`(,(? affo-name? affo) ,selectee) 
+    [`(,(? affo-name? affo) ,sel) 
      `(,(hash 'symbol void
               'self `(◇ (,affo hole))
               'sort 'affo
@@ -220,9 +169,9 @@
        ,(hash 'symbol affo
               'self `((◇ ,affo) hole)
               'context '())
-       ,(sexp->fruct selectee ctx))]
+       ,(sexp->fruct sel ctx))]
     ; special case for double-hole affordances
-    [`(,(? affo-name? affo) ,thingy ,selectee)
+    [`(,(? affo-name? affo) ,buf ,sel)
      `(,(hash 'symbol void
               'self `(◇ (,affo hole hole))
               'sort 'affo
@@ -230,8 +179,8 @@
        ,(hash 'symbol affo
               'self `((◇ ,affo) hole hole)
               'context '())
-       ,(sexp->fruct thingy ctx)
-       ,(sexp->fruct selectee ctx))]
+       ,(sexp->fruct buf ctx)
+       ,(sexp->fruct sel ctx))]
     [_
      (match (◇-project ctx)
        [(? terminal-name?)
@@ -263,6 +212,7 @@
 #; (define/match (get-symbol fruct)
      [(`(,(hash-table ('self s)) ,xs ...)) s])
 
+
 #; (define/match (project-symbol fruct)
      [(`(,x ,xs ...)) (map project-symbol xs)]
      [((hash-table ('self s))) s])
@@ -288,12 +238,13 @@
                         [(hash-table <in-pair> ...)
                          (hash-set source <out-pair> ...)])) ; need to splice outpairs
 
+
 (define (lookup-style-in styles property)
   (second (assoc property styles)))
 
+
 (define (fill-in-parent-refs parent-styles)
   [(,property (parent ,parent-prop)) ⋱↦ (,property ,(lookup-style-in parent-styles parent-prop))])
-
 
 
 (define (cascade-styles parent-styles)
@@ -303,19 +254,6 @@
     [`(,(and hs (hash-table ('style (app (fill-in-parent-refs parent-styles) new-parent-styles)))) ,xs ...)
      `(,(hash-set hs 'style new-parent-styles) ,@(map (cascade-styles new-parent-styles) xs))]))
 
-#; (lookup-style-in '((background-color (color 247 0 114))
-                      (text-color (parent text-color))
-                      (border-style square-brackets)
-                      (border-color (color 255 255 255)))
-                    'border-style)
-
-#; ((fill-in-parent-refs
-     '((background-color (color 247 0 18674))
-       (text-color (color 999 999 999)) ))
-    '((background-color (color 247 0 114))
-      (text-color (parent text-color))
-      (border-style square-brackets)
-      (border-color (color 255 255 255))))
 
 (define (make-gui parent-ed)
   (compose (fmap-fruct (match-lambda
@@ -497,11 +435,17 @@
       (super draw dc x y left top right bottom dx dy draw-caret))))
 
 
+
+
+
+
+; state processing ------------------------------------
+
 (define (update-gui stage kit)
   (let* ([new-main-board (new fruct-board%)]
-         #;[new-kit-board (new fruct-ed%)]
          [new-stage-board (new fruct-ed%)]
          [stage-board-snip (new fruct-sn% [editor new-stage-board] [parent-editor new-main-board])]
+         #;[new-kit-board (new fruct-ed%)]
          #;[kit-snip (new fruct-sn% [editor new-kit-board] [parent-editor new-main-board])])
 
     (set! stage-gui ((make-gui new-stage-board) stage ))
@@ -520,142 +464,14 @@
 
 
 
+(define (!do fn)
+  (set! stage (fn stage))
+  (set! stage-gui ((make-gui (new fruct-ed%)) stage))
+  (update-gui stage kit))
 
 
 
-
-; transformation ---------------------------------------
-
-(define simple-select
-  [,a ⋱↦ (▹ ,a)])
-
-(define simple-deselect
-  [(▹ ,a) ⋱↦ ,a]) ; note: doesn't work if a is list. needs new rule with context
-
-(define forms+ #hash(("define" . (define (▹ /name/) /expr/)) ; how about this notation?
-                     ("λ" . (λ ((▹ variable) ⋯) expr))
-                     ("define ()" . (define ((▹ name) variable ⋯) expr))
-                     ("let" . (let ([(▹ name) expr] ⋯) expr))
-                     ("letrec" . (letrec ([(▹ name) expr] ⋯) expr))
-                     ("begin" . (begin (▹ expr) expr ⋯))
-                     ("if" . (if (▹ expr) expr expr))
-                     ("cond" . (cond [(▹ expr) expr] ⋯ [expr expr]))
-                     ("match" . (match (▹ expr) [pattern expr] ⋯))
-                     ("quote" . (quote (▹ expr)))
-                     ("unquote" . (unquote (▹ expr)))
-                     ("map" . (map (▹ fn) ls ⋯))))
-
-(define (insert-form name)
-  [(▹ ,a) ⋱↦ ,(hash-ref forms+ name)])
-
-
-; simple nav 
-
-(define first-child
-  [(▹ (,a ,b ...)) ⋱↦ ((▹ ,a) ,@b)])
-
-(define last-child
-  [(▹ (,a ... ,b)) ⋱↦ (,@a (▹ ,b))])
-
-(define parent
-  [(,a ... (▹ ,b ...) ,c ...) ⋱↦ (▹ (,@a ,@b ,@c))])
-
-
-; atomic nav
-
-(define/match (first-contained-atom source)
-  [(`(▹ ,(? atom? a))) `(▹ ,a)]
-  [(`(▹ ,ls)) (first-contained-atom-inner ls)]
-  [((? atom? a)) a] 
-  [(ls) (map first-contained-atom ls)])
-
-(define/match (first-contained-atom-inner source)
-  [((? atom? a)) `(▹ ,a)]
-  [(`(,a ,b ...)) `(,(first-contained-atom-inner a) ,@b)])
-
-(define/match (selector-at-end? source)
-  [((? atom? a)) #false]
-  [(`(▹ ,a)) #true]
-  [(`(,a ... ,b)) (selector-at-end? b)])
-
-(define next-atom
-  (↓ [(▹ ,a) ⋱↦ (▹ ,a)]
-     [(,a ... ,(? selector-at-end? b) ,c ,d ...) ⋱↦ (,@a ,(simple-deselect b) ,(first-contained-atom `(▹ ,c)) ,@d)]))
-
-
-(define/match (last-contained-atom source)
-  [(`(▹ ,(? atom? a))) `(▹ ,a)]
-  [(`(▹ ,ls)) (last-contained-atom-inner ls)]
-  [((? atom? a)) a] 
-  [(ls) (map last-contained-atom ls)])
-
-(define/match (last-contained-atom-inner source)
-  [((? atom? a)) `(▹ ,a)]
-  [(`(,a ... ,b )) `(,@a ,(last-contained-atom-inner b))])
-
-(define/match (selector-at-start? source)
-  [((? atom? a)) #false]
-  [(`(▹ ,a)) #true]
-  [(`(,a ,b ...)) (selector-at-start? a)])
-
-(define prev-atom
-  (↓ [(▹ ,a) ⋱↦ (▹ ,a)]
-     [(,a ... ,b ,(? selector-at-start? c) ,d ...) ⋱↦ (,@a ,(last-contained-atom `(▹ ,b)) ,(simple-deselect c) ,@d)]))
-
-
-
-
-; predicate nav
-
-(define (▹first-contained- p?)
-  (match-lambda
-    [`(▹ ,(? p? a)) `(▹ ,a)]
-    [`(▹ ,ls) ((▹first-contained-inner- p?) ls)]
-    [(? atom? a) a] 
-    [(? list? ls) (map (▹first-contained- p?) ls)]))
-
-(define (▹first-contained-inner- p?)
-  (match-lambda
-    [(? p? a) `(▹ ,a)]
-    [`(,x ,xs ...) `(,((▹first-contained-inner- p?) x) ,@xs)]))
-
-(define (▹next- p?)
-  (↓ [(▹ ,a) ⋱↦ (▹ ,a)]
-     [(,a ... ,(? selector-at-end? b) ,c ,d ...) ⋱↦ (,@a ,(simple-deselect b) ,((▹first-contained- p?) `(▹ ,c)) ,@d)]))
-
-#; (define next-atom (▹next- atom?))
-
-(define ▹first-search-result
-  [(▹ ,a) ⋱↦ ,((▹first-contained- (curry equal? 3)#;[(▹▹ ,b) ≡]) a)])
-
-#; ((▹first-contained- (curry equal? 3)#;[(▹▹ ,b) ≡]) '(▹ (2 3 (▹▹ 1))))
-#; (▹first-search-result '(▹ (2 3 (▹▹ 1))))
-
-
-; simple transforms
-
-(define delete
-  [(,a ... (▹ ,b ...) ,c ...) ⋱↦ (▹ (,@a ,@c ))])
-
-(define insert-child-r
-  [(▹ (,a ...)) ⋱↦ (,@a (▹ (☺)))])
-
-(define insert-child-l
-  [(▹ (,a ...)) ⋱↦ ((▹ (☺)) ,@a)])
-
-(define new-sibling-r
-  [(,a ... (▹ (,b ...)) ,c ...) ⋱↦ (,@a ,@b (▹ (☺)) ,@c)])
-
-(define new-sibling-l
-  [(,a ... (▹ (,b ...)) ,c ...) ⋱↦ (,@a (▹ (☺)) ,@b ,@c)])
-
-(define wrap
-  [(▹ (,a ...)) ⋱↦ (▹ ((,@a)))])
-
-
-
-
-; helpers for main loop ------------------------------
+; transformation --------------------------------------
 
 
 ; notes: how to do relativize-direction right:
@@ -668,16 +484,17 @@
 ; hack for now: assume only other type is indent-after. compare position to 'after' to decide
 ; whether up/down should apply to parent, or if we have to recurse upwards 
 
-(define/match (sel-to-pos fruct)
-  [(`(▹ ,a)) '()]
-  [((? atom?)) #f]
-  [((? list?)) (let ([result (filter-map
-                              (λ (sub num)
-                                (let ([a (sel-to-pos sub)])
-                                  (if a `(,num ,@a) #f)))
-                              fruct
-                              (range 0 (length fruct)))])
-                 (if (empty? result) #f (first result)))])
+
+
+
+; helpers for main loop ------------------------------
+
+
+(define simple-select
+  [,a ⋱↦ (▹ ,a)])
+
+(define simple-deselect
+  [(▹ ,a) ⋱↦ ,a])
 
 
 (define/match ((?->lenses pred?) source)
@@ -693,22 +510,14 @@
                                       source
                                       (range (length source))))])
 
-#;(define ((?->lenses pred?) source)
-    (filter identity ((?->lens pred?) source)))
-
-(define ▹->lenses
-  (?->lenses [`(▹ ,a) ≡]))
 
 (define ▹▹->lenses
   (?->lenses [`(▹▹ ,a) ≡]))
 
-(define ▹-first-▹▹-in-▹
-  [(▹ ,a) ⋱↦ ,(▹-first-▹▹-in a)])
 
 (define (▹-first-▹▹-in source)
   (lens-transform (first (▹▹->lenses source)) source [(▹▹ ,a) ↦ (▹▹ (▹ ,a))]))
 
-#; (▹-first-▹▹-in-▹ `(▹ (1 2 (8 9 (7 6 (▹▹ 3) 5)) (▹▹ 4))))
 
 (define (▹-next-▹▹ source)
   (match (▹▹->lenses source)
@@ -722,47 +531,48 @@
                           b [(▹▹ ,x) ↦ (▹▹ (▹ ,x))])]
     [_ source]))
 
-#; (▹-next-▹▹ `(1 2 (8 9 (7 6 (▹▹ (▹ 3)) 5)) (▹▹ 4)))
-#; (▹-next-▹▹ (▹-next-▹▹ `(1 2 (8 9 (7 6 (▹▹ (▹ 3)) 5)) (▹▹ 4))))
-#; (▹-next-▹▹ (▹-next-▹▹ (▹-next-▹▹ `(1 2 (8 9 (7 6 (▹▹ (▹ 3)) 5)) (▹▹ 4)))))
 
-#;(▹->lens `(1 2 (8 9 (7 6 (▹ 3) 5)) (▹ 4)))
-#;(lens-view (second (▹->lenses `(1 2 (8 9 (7 6 (▹ 3) 5)) (▹ 4)))) `(1 2 (8 9 (7 6 (▹ 3) 5)) (▹ 4)))
-
-#;((?->lens [`(▹ ,a) ≡]) `(1 2 (8 9 (7 6 (▹ 3) 5)) (▹ 4)))
-#;(lens-view (second ((?->lenses [`(▹ ,a) ≡]) `(1 2 (8 9 (7 6 (▹ 3) 5)) (▹ 4)))) `(1 2 (8 9 (7 6 (▹ 3) 5)) (▹ 4)))
-
-#;(lens-view (second (▹▹->lenses `(1 2 (8 9 (7 6 (▹▹ 3) 5)) (▹▹ 4)))) `(1 2 (8 9 (7 6 (▹▹ 3) 5)) (▹▹ 4)))
-#;(lens-view (second (▹▹->lenses '((▹▹ (▹ define)) a ((▹▹ defne))))) '((▹▹ (▹ define)) a ((▹▹ defne))))
-#; (▹-next-▹▹ '((▹▹ (▹ define)) (fn a) a ((▹▹ define) (g q r) (let ([a 5] [b 6]) (if 1 2 2)))))
+(define ((▹-first-?-in pred?) source)
+  (lens-transform (first ((?->lenses [(? pred?) ≡]) source)) source [,a ↦ (▹ ,a)]))
 
 
-(define/match (obj-at-pos fruct pos)
-  [(_ `()) (first fruct)]
-  [(_ `(,a . ,as)) (obj-at-pos (list-ref (rest fruct) a) as)])
+(define ((▹-next-? pred?) source)
+  (match ((?->lenses [(or (? pred?) `(▹ ,_)) ≡]) source)
+    [`(,a ... ,(and b (app (curryr lens-view source) `(▹ ,x))) ,c ,ds ...)
+     (lens-transform/list source
+                          b [(▹ ,x) ↦ ,x]
+                          c [,x ↦ (▹ ,x)])]
+    [`(,a ,bs ... ,(and c (app (curryr lens-view source) `(▹ ,x))))
+     (lens-transform/list source
+                          c [(▹ ,x) ↦ ,x]
+                          a [,x ↦ (▹ ,x)])]
+    [_ source]))
 
-(define (!do fn)
-  (set! stage (fn stage))
-  (set! stage-gui ((make-gui (new fruct-ed%)) stage))
-  (update-gui stage kit-actual))
 
-#; (define/match (get-symbol-as-string fruct)
-     [((hash-table ('symbol (? symbol? s)))) (symbol->string s)]
-     [(_) ""])
+(define ((▹-prev-? pred?) source)
+  (match ((?->lenses [(or (? pred?) `(▹ ,_)) ≡]) source)
+    [`(,as ... ,b ,(and c (app (curryr lens-view source) `(▹ ,x))) ,ds ...)
+     (lens-transform/list source
+                          c [(▹ ,x) ↦ ,x]
+                          b [,x ↦ (▹ ,x)])]
+    [`(,(and a (app (curryr lens-view source) `(▹ ,x))) ,cs ... ,d)
+     (lens-transform/list source
+                          a [(▹ ,x) ↦ ,x]
+                          d [,x ↦ (▹ ,x)])]
+    [_ source]))
+
 
 (define-namespace-anchor an)
 (define ns (namespace-anchor->namespace an))
-
 (define (eval-match-λ pat-tem)
   (match-let ([`(,pat ,tem) pat-tem])
     (eval `(match-lambda [,pat ,tem] [x x]) ns)))
+
 
 (define (buf->pat+tem buf)
   `[(and x (? symbol? (app symbol->string (regexp (regexp ,(string-append "^" buf ".*"))))))
     `(▹▹ ,x)])
 
-#; ((eval-match-λ '`(,a ,b) 'a) '(1 5))
-#; (buf->pat+tem "def")
 
 (define ((search-map-rec fn) source) 
   (match (fn source)
@@ -770,38 +580,22 @@
     [(? list? ls) (map (curry search-map-rec fn) ls)]
     [(? atom? a) a]))
 
+
 ; single largest source of trivial bugs for me this project: copying a recursive function without changing the name of the rec call
 
-#; (search-map-rec (eval-match-λ (buf->pat+tem "a")) '(a b a))
-#; (match "define"
-     [(regexp (regexp "def.")) 777])
-#; (match (hash 'symbol 'a)
-     [(app get-symbol-as-string (regexp (regexp (string-append "a" ".*")))) "blop"])
-#; ((curry map-rec (eval-match-λ (buf->pat "a") '111)) (hash 'symbol 'a))
 
 (define ▹▹tag-hit (compose eval-match-λ buf->pat+tem))
 
 (define (▹▹tag-hits str) (search-map-rec (▹▹tag-hit str)))
 
-#; (buf->pat "def")
-#; ((eval-match-λ (buf->pat "def") 1) "deffine")
-#; ((eval-match-λ (buf->pat "a") '111) 'a)
-#; (get-symbol-as-string (sexp->fruct '(begin a b c)))
-#; (define (search-select fn source)
-     (match source
-       [(? atom?) (fn source)]
-       ((? list?) (map (curry search-select fn) source))))
 
 (define (remove-last-char-str str)
   (substring str 0 (sub1 (string-length str))))
 
+
 (define ((append-char-to-str key-code) str)
   (string-append str (string key-code)))
 
-(define remove-last-char
-  (compose string->symbol
-           remove-last-char-str
-           symbol->string))
 
 (define (append-char-to key-code)
   (compose string->symbol
@@ -809,6 +603,15 @@
            symbol->string))
 
 
+(define remove-last-char
+  (compose string->symbol
+           remove-last-char-str
+           symbol->string))
+
+
+(define (remove-last-char-splice s)
+  (let ([new (remove-last-char-str (symbol->string s))])
+    (if (non-empty-string? new) `(,(string->symbol new)) `())))
 
 
 
@@ -825,44 +628,48 @@
       (case mode
         ['select    (match key-code
                       [#\- (pretty-print stage-gui)]
-                      [#\return    (!do [(▹ ,a) ⋱↦ (c▹ (: ) ,a)]) 
+                      ['escape     (!do (compose [,a ⋱↦ (▹ ,a)] [(▹ ,a) ⋱↦ ,a]))]
+                      [#\return    (!do [(▹ ,a) ⋱↦ (c▹ (▹▹) ,a)]) 
                                    (set! mode 'transform)]
-                      ['escape     (!do (compose simple-select simple-deselect))]
-                      ['right      (!do next-atom)]
-                      ['left       (!do prev-atom)]
-                      ['up         (!do parent)]
-                      ['down       (!do first-child)]
+                      ['right      (!do (▹-next-? atom?))]
+                      ['left       (!do (▹-prev-? atom?))]
+                      ['up         (!do [(,a ... (▹ ,b ...) ,c ...) ⋱↦ (▹ (,@a ,@b ,@c))])]
+                      ['down       (!do [(▹ (,a ,b ...)) ⋱↦ ((▹ ,a) ,@b)])]
                       [(alpha)     (!do [(▹ ,a) ⋱↦ (s▹ ,(string key-code) ,((▹▹tag-hits (string key-code)) a))])
                                    (set! mode 'search)])]
         ['search    (match key-code
                       [#\- (pretty-print stage-gui)]
-                      ; precond: search results inside selector
-                      ['right      (!do ▹-next-▹▹)] ; fix this!
-                      ['down       (!do ▹-first-▹▹-in-▹)] ; and this!                
-                      ['escape     (!do (compose [(▹▹ ,a) ⋱↦ ,a]
-                                                 [(s▹ ,buf ,sel) ⋱↦  (▹ ,sel)]))
+                      ['escape     (!do (compose [(s▹ ,buf ,sel) ⋱↦ (▹ ,sel)]
+                                                 [(▹▹ ,a) ⋱↦ ,a]))
                                    (set! mode 'select)]
-                      [#\backspace (!do [(s▹ ,buf ,sel) ⋱↦ (s▹ ,(remove-last-char-str buf) ,((▹▹tag-hits (remove-last-char-str buf)) sel))])]
+                      ['right      (!do ▹-next-▹▹)]
+                      ['down       (!do [(s▹ ,buf ,sel) ⋱↦ ,(▹-first-▹▹-in sel)])]
+                      [#\backspace (!do [(s▹ ,buf ,sel) ⋱↦ ,(let ([bu (remove-last-char-str buf)])
+                                                              `(s▹ ,bu ,((▹▹tag-hits bu) sel)))])]
                       ; below: remember to deal with case of single (non-numeric!) character
-                      [(alphanum)  (!do [(s▹ ,buf ,sel) ⋱↦ (s▹ ,((append-char-to-str key-code) buf) ,((▹▹tag-hits ((append-char-to-str key-code) buf)) sel))])])]
+                      [(alphanum)  (!do [(s▹ ,buf ,sel) ⋱↦ ,(let ([new ((append-char-to-str key-code) buf)])
+                                                              `(s▹ ,new ,((▹▹tag-hits new) sel)))])])]
         ['project   (match key-code)]
         ['transform (match key-code
                       [#\-         (pretty-print stage-gui)]
-                      ['escape     (!do [(c▹ (: ,w) ,a) ⋱↦ (▹ ,a)])
+                      ['escape     (!do (compose [(c▹ ,buf ,sel) ⋱↦ (▹ ,sel)]
+                                                 [(▹▹ ,a) ⋱↦ ,a]))
                                    (set! mode 'select)]
-                      [#\return    (!do [(c▹ ,w ,a) ⋱↦ (▹ ,([(: ,x) ⋱↦ ,x] w))])
+                      [#\return    (!do [(c▹ ,buf ,sel) ⋱↦ (▹ ,([ (▹▹ ,x) ⋱↦ ,x] buf))])
                                    (set! mode 'select)]                
-                      [#\space     (!do ([(,as ... (: ,b)) ⋱↦ (,@as ,b (: ))]
-                                         [(: ,a) ⋱↦ (,a (: ))]))]
-                      [#\backspace (!do ([(: ,(? symbol? s)) ⋱↦ (: ,(remove-last-char s))]
-                                         #;[(,as ... ,b (: ) ,cs ...) ⋱↦ (,@as (: ) ,@cs)]
-                                         #;[(,as ... ,b (: ,c) ,ds ...) ⋱↦ (,@as (: ,c) ,@ds)]))]
-                      ['control    (!do ([(: ) ⋱↦ ((: ))]
-                                         [(: ,a) ⋱↦ ((: ,a))]))]
-                      ['right      (!do ([(,as ... (,bs ... (: ))) ⋱↦ (,@as (,@bs) (: ))]
-                                         [(,as ... (,bs ... (: ,c))) ⋱↦ (,@as (,@bs ,c) (: ))]))]
-                      [(alphanum)  (!do ([(: ) ⋱↦ (: ,(string->symbol (string key-code)))]
-                                         [(: ,(? symbol? s)) ⋱↦ (: ,((append-char-to key-code) s))]))])]))))
+                      [#\space     (!do ([(,as ...  (▹▹ ,b)) ⋱↦ (,@as ,b  (▹▹ ))]
+                                         [(▹▹ ,a) ⋱↦ (,a  (▹▹))]))]
+                      [#\backspace (!do ([(▹▹ ,(? symbol? s)) ⋱↦  (▹▹ ,@(remove-last-char-splice s))]
+                                         [(,as ... ,(and b (not (== `c▹))) (▹▹) ,cs ...) ⋱↦ (,@as (▹▹) ,@cs)]
+                                         [(,as ... ,(and b (not (== `c▹))) ((▹▹) ,xs ...) ,cs ...) ⋱↦ (,@as (▹▹ ,b) ,@cs)]
+                                         ; below is dangerous; it can escape the c▹
+                                         #; [(((▹▹) ,as ...) ,xs ...) ⋱↦ ((▹▹) ,@xs)]))]
+                      ['control    (!do ([(▹▹) ⋱↦ ((▹▹))]
+                                         [(▹▹ ,a) ⋱↦ ((▹▹ ,a))]))]
+                      ['right      (!do ([(,as ... (,bs ... (▹▹))) ⋱↦ (,@as (,@bs) (▹▹))]
+                                         [(,as ... (,bs ... (▹▹ ,c))) ⋱↦ (,@as (,@bs ,c) (▹▹))]))]
+                      [(alphanum)  (!do ([(▹▹) ⋱↦ (▹▹ ,(string->symbol (string key-code)))]
+                                         [(▹▹ ,(? symbol? s)) ⋱↦ (▹▹ ,((append-char-to key-code) s))]))])]))))
 
 
 
@@ -885,14 +692,14 @@
 
 ; init stage and kit
 (define stage
-  (first-child '(▹ (define (fn a) a (define (g q r) (let ([a 5] [b 6]) (if 1 2 2))))))
+  ((▹-first-?-in atom?) '(define (fn a) a (define (g q r) (let ([a 5] [b 6]) (if 1 2 2)))))
   #; '(▹ (define (fn a) a (define (g q r) (let ([a 5] [b 6]) (if 1 2 2)))))
   #; '(▹ (if a b c))
   #; '(define (fn a) a (define (g q r) (let ([a 5] [b 6]) (if 1 2 2))))
   #; '(define (fn a) a (define (g q r) 2))
-  #; '(define (selector (fn a)) 7))
+  #; '(define (▹ (fn a)) 7))
 
-(define kit-actual '(kit (env) (meta)))
+(define kit '(kit (env) (meta)))
 
 ; init gui refs
 (define stage-gui '())
@@ -903,20 +710,90 @@
 
 ; init display
 (send my-frame show #t)
-(update-gui stage kit-actual)
+(update-gui stage kit)
 
 
 
 
 
-#; ((make-gui (new fruct-ed%)) test-src )
-#; (source+grammar->form  '((selector let) (▹ ([f a][f a][k a][g a])) 4 4 4) '((if expr expr expr)
-                                                                               (begin expr ...)
-                                                                               (define (name name ...) expr ...)
-                                                                               (let ([name expr] ...) expr ...)))
-#; (pretty-print (sexp->fruct test-src))
-#; test-src
-#; (project-symbol (sexp->fruct test-src))
-#; (map-into-fruct (sexp->fruct test-src) [(hash-table ('self s)) s])
-#; (map-into test-src ['a 'b])
 
+
+
+
+
+; tests -----------------------------------------------------
+
+(module+ test (require rackunit)
+
+
+  (check-equal? 0 0)
+
+  
+  #; ((▹first-contained- (curry equal? 3)#;[(▹▹ ,b) ≡]) '(▹ (2 3 (▹▹ 1))))
+  #; (▹first-search-result '(▹ (2 3 (▹▹ 1))))
+
+
+  
+
+  #; (▹-first-▹▹-in-▹ `(▹ (1 2 (8 9 (7 6 (▹▹ 3) 5)) (▹▹ 4))))
+
+  #; (▹-next-▹▹ `(1 2 (8 9 (7 6 (▹▹ (▹ 3)) 5)) (▹▹ 4)))
+  #; (▹-next-▹▹ (▹-next-▹▹ `(1 2 (8 9 (7 6 (▹▹ (▹ 3)) 5)) (▹▹ 4))))
+  #; (▹-next-▹▹ (▹-next-▹▹ (▹-next-▹▹ `(1 2 (8 9 (7 6 (▹▹ (▹ 3)) 5)) (▹▹ 4)))))
+
+  #; (▹->lens `(1 2 (8 9 (7 6 (▹ 3) 5)) (▹ 4)))
+  #; (lens-view (second (▹->lenses `(1 2 (8 9 (7 6 (▹ 3) 5)) (▹ 4)))) `(1 2 (8 9 (7 6 (▹ 3) 5)) (▹ 4)))
+
+  #; ((?->lens [`(▹ ,a) ≡]) `(1 2 (8 9 (7 6 (▹ 3) 5)) (▹ 4)))
+  #; (lens-view (second ((?->lenses [`(▹ ,a) ≡]) `(1 2 (8 9 (7 6 (▹ 3) 5)) (▹ 4)))) `(1 2 (8 9 (7 6 (▹ 3) 5)) (▹ 4)))
+
+  #; (lens-view (second (▹▹->lenses `(1 2 (8 9 (7 6 (▹▹ 3) 5)) (▹▹ 4)))) `(1 2 (8 9 (7 6 (▹▹ 3) 5)) (▹▹ 4)))
+  #; (lens-view (second (▹▹->lenses '((▹▹ (▹ define)) a ((▹▹ defne))))) '((▹▹ (▹ define)) a ((▹▹ defne))))
+  #; (▹-next-▹▹ '((▹▹ (▹ define)) (fn a) a ((▹▹ define) (g q r) (let ([a 5] [b 6]) (if 1 2 2)))))
+
+  #; ((eval-match-λ '`(,a ,b) 'a) '(1 5))
+  #; (buf->pat+tem "def")
+
+  #; (search-map-rec (eval-match-λ (buf->pat+tem "a")) '(a b a))
+  #; (match "define"
+       [(regexp (regexp "def.")) 777])
+  #; (match (hash 'symbol 'a)
+       [(app get-symbol-as-string (regexp (regexp (string-append "a" ".*")))) "blop"])
+  #; ((curry map-rec (eval-match-λ (buf->pat "a") '111)) (hash 'symbol 'a))
+
+  #; (buf->pat "def")
+  #; ((eval-match-λ (buf->pat "def") 1) "deffine")
+  #; ((eval-match-λ (buf->pat "a") '111) 'a)
+  #; (get-symbol-as-string (sexp->fruct '(begin a b c)))
+
+
+  
+  #; ((make-gui (new fruct-ed%)) test-src )
+  #; (source+grammar->form  '((selector let) (▹ ([f a][f a][k a][g a])) 4 4 4) '((if expr expr expr)
+                                                                                 (begin expr ...)
+                                                                                 (define (name name ...) expr ...)
+                                                                                 (let ([name expr] ...) expr ...)))
+  #; (pretty-print (sexp->fruct test-src))
+  #; test-src
+  #; (project-symbol (sexp->fruct test-src))
+  #; (map-into-fruct (sexp->fruct test-src) [(hash-table ('self s)) s])
+  #; (map-into test-src ['a 'b])
+
+
+ 
+
+  #; (lookup-style-in '((background-color (color 247 0 114))
+                        (text-color (parent text-color))
+                        (border-style square-brackets)
+                        (border-color (color 255 255 255)))
+                      'border-style)
+
+  #; ((fill-in-parent-refs
+       '((background-color (color 247 0 18674))
+         (text-color (color 999 999 999)) ))
+      '((background-color (color 247 0 114))
+        (text-color (parent text-color))
+        (border-style square-brackets)
+        (border-color (color 255 255 255))))
+
+  )
