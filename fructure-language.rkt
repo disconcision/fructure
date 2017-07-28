@@ -44,7 +44,8 @@
 (define L1-affo-names '(▹ selector
                           ▹▹ subselector
                           s▹ search-selector
-                          c▹ command-selector))
+                          c▹ command-selector
+                          c▹▹ command-subselector))
 
 (define-values (sort-name?
                 terminal-name?

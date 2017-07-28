@@ -44,13 +44,13 @@
 
 (define-match-expander alphanum
   (λ (stx)
-    (syntax-case stx (alpha)
+    (syntax-case stx ()
       [(_) #'(app string (regexp "[A-Za-z0-9_]"))])))
 
 
 (define-match-expander alpha
   (λ (stx)
-    (syntax-case stx (alpha)
+    (syntax-case stx ()
       [(_) #'(app string (regexp "[A-Za-z_]"))])))
 
 
@@ -83,15 +83,18 @@
       [(? symbol?) (// `(ignore-affo ,source))]
       [(? list?) (// `(ignore-affo ,(map add-ignores source)))]))
 
-  
+
   ; rewrites form signatures into pattern-template pair for the parser
   (define form-list->parse-pair
     (compose (match-lambda [`(,(app add-ignores pat) ,tem) `(,pat ,tem)])
              (curry map-rec redotdotdot)
              make-parse-pair
-             (curry map-rec undotdotdot)))
+             (curry map-rec undotdotdot)
+             #; (match-lambda [(? list?) make-parse-pair]
+                              [(? sort-name? (app (λ (sort-name) (??? sort-name)))#;do-something-with-sort-refs)])
+             ))
 
-  
+
   ; rewrites the forms of a language specification into parse-pairs 
   (define lang->parse-lang
     (match-lambda
@@ -125,6 +128,7 @@
              ['<sort-name>
               (match <source>
                 [`<new-pat> `<new-tem>] ...
+                #;['quoted ????]
                 [(? atom? a) a])]
              ...)))]))
 
@@ -562,6 +566,12 @@
     [_ source]))
 
 
+(define (▹-cycle-▹▹ source)
+  (match ((?->lenses [`(▹ ,a) ≡]) source)
+    ['() ([(s▹ ,buf ,sel) ⋱↦ ,(▹-first-▹▹-in sel)] source)]
+    [_ (▹-next-▹▹ source)]))
+
+
 (define-namespace-anchor an)
 (define ns (namespace-anchor->namespace an))
 (define (eval-match-λ pat-tem)
@@ -590,7 +600,7 @@
 
 
 (define (remove-last-char-str str)
-  (substring str 0 (sub1 (string-length str))))
+  =(substring str 0 (sub1 (string-length str))))
 
 
 (define ((append-char-to-str key-code) str)
@@ -611,9 +621,12 @@
 
 (define (remove-last-char-splice s)
   (let ([new (remove-last-char-str (symbol->string s))])
-    (if (non-empty-string? new) `(,(string->symbol new)) `())))
+    (if #t #;(non-empty-string? new) `(,(string->symbol new)) `())))
 
 
+(define/match (project-symbol fruct)
+  [(`(,x ,xs ...)) (map project-symbol xs)]
+  [((hash-table ('symbol s))) s])
 
 ; main loop ---------------------------------------------
 
@@ -621,55 +634,50 @@
 ; make command to re-root the tree on current selection, and to expand selection if root selected
 ; make quick !!! command to collapse a subtree (remember to remember state)
 
-
+(define em-sym (string->symbol "")) (define empty-symbol? (curry equal? em-sym))
 (define (char-input event)
   (let ([key-code (send event get-key-code)])
-    (when (not (equal? key-code 'release))
-      (case mode
-        ['select    (match key-code
-                      [#\- (pretty-print stage-gui)]
-                      ['escape     (!do (compose [,a ⋱↦ (▹ ,a)] [(▹ ,a) ⋱↦ ,a]))]
-                      [#\return    (!do [(▹ ,a) ⋱↦ (c▹ (▹▹) ,a)]) 
-                                   (set! mode 'transform)]
-                      ['right      (!do (▹-next-? atom?))]
-                      ['left       (!do (▹-prev-? atom?))]
-                      ['up         (!do [(,a ... (▹ ,b ...) ,c ...) ⋱↦ (▹ (,@a ,@b ,@c))])]
-                      ['down       (!do [(▹ (,a ,b ...)) ⋱↦ ((▹ ,a) ,@b)])]
-                      [(alpha)     (!do [(▹ ,a) ⋱↦ (s▹ ,(string key-code) ,((▹▹tag-hits (string key-code)) a))])
-                                   (set! mode 'search)])]
-        ['search    (match key-code
-                      [#\- (pretty-print stage-gui)]
-                      ['escape     (!do (compose [(s▹ ,buf ,sel) ⋱↦ (▹ ,sel)]
-                                                 [(▹▹ ,a) ⋱↦ ,a]))
-                                   (set! mode 'select)]
-                      ['right      (!do ▹-next-▹▹)]
-                      ['down       (!do [(s▹ ,buf ,sel) ⋱↦ ,(▹-first-▹▹-in sel)])]
-                      [#\backspace (!do [(s▹ ,buf ,sel) ⋱↦ ,(let ([bu (remove-last-char-str buf)])
-                                                              `(s▹ ,bu ,((▹▹tag-hits bu) sel)))])]
-                      ; below: remember to deal with case of single (non-numeric!) character
-                      [(alphanum)  (!do [(s▹ ,buf ,sel) ⋱↦ ,(let ([new ((append-char-to-str key-code) buf)])
-                                                              `(s▹ ,new ,((▹▹tag-hits new) sel)))])])]
-        ['project   (match key-code)]
-        ['transform (match key-code
-                      [#\-         (pretty-print stage-gui)]
-                      ['escape     (!do (compose [(c▹ ,buf ,sel) ⋱↦ (▹ ,sel)]
-                                                 [(▹▹ ,a) ⋱↦ ,a]))
-                                   (set! mode 'select)]
-                      [#\return    (!do [(c▹ ,buf ,sel) ⋱↦ (▹ ,([ (▹▹ ,x) ⋱↦ ,x] buf))])
-                                   (set! mode 'select)]                
-                      [#\space     (!do ([(,as ...  (▹▹ ,b)) ⋱↦ (,@as ,b  (▹▹ ))]
-                                         [(▹▹ ,a) ⋱↦ (,a  (▹▹))]))]
-                      [#\backspace (!do ([(▹▹ ,(? symbol? s)) ⋱↦  (▹▹ ,@(remove-last-char-splice s))]
-                                         [(,as ... ,(and b (not (== `c▹))) (▹▹) ,cs ...) ⋱↦ (,@as (▹▹) ,@cs)]
-                                         [(,as ... ,(and b (not (== `c▹))) ((▹▹) ,xs ...) ,cs ...) ⋱↦ (,@as (▹▹ ,b) ,@cs)]
-                                         ; below is dangerous; it can escape the c▹
-                                         #; [(((▹▹) ,as ...) ,xs ...) ⋱↦ ((▹▹) ,@xs)]))]
-                      ['control    (!do ([(▹▹) ⋱↦ ((▹▹))]
-                                         [(▹▹ ,a) ⋱↦ ((▹▹ ,a))]))]
-                      ['right      (!do ([(,as ... (,bs ... (▹▹))) ⋱↦ (,@as (,@bs) (▹▹))]
-                                         [(,as ... (,bs ... (▹▹ ,c))) ⋱↦ (,@as (,@bs ,c) (▹▹))]))]
-                      [(alphanum)  (!do ([(▹▹) ⋱↦ (▹▹ ,(string->symbol (string key-code)))]
-                                         [(▹▹ ,(? symbol? s)) ⋱↦ (▹▹ ,((append-char-to key-code) s))]))])]))))
+    (when (not (equal? 'release key-code))
+      (match key-code
+        [#\- (pretty-print stage-gui)]
+        [#\= (pretty-print (project-symbol stage-gui))]
+        [_ (case mode
+             ['select    (match key-code
+                           ['escape     (!do (compose [,a ⋱↦ (▹ ,a)] [(▹ ,a) ⋱↦ ,a]))]
+                           [#\return    (!do ([((▹ ,(? form-name? a)) ,x ...) ⋱↦ (c▹ (c▹▹ ,em-sym) (,a ,@x))]
+                                              [(▹ ,a) ⋱↦ (c▹ (c▹▹ ,em-sym) ,a)])) 
+                                        (set! mode 'transform)]
+                           ['right      (!do (▹-next-? atom?))]
+                           ['left       (!do (▹-prev-? atom?))]
+                           ['up         (!do [(,a ... (▹ ,b ...) ,c ...) ⋱↦ (▹ (,@a ,@b ,@c))])]
+                           ['down       (!do [(▹ (,a ,b ...)) ⋱↦ ((▹ ,a) ,@b)])]
+                           [(alpha)     (!do [(▹ ,a) ⋱↦ (s▹ ,(string key-code) ,((▹▹tag-hits (string key-code)) a))])
+                                        (set! mode 'search)])]
+             ['search    (match key-code
+                           ['escape     (!do (compose [(s▹ ,buf ,sel) ⋱↦ (▹ ,sel)]
+                                                      [(▹▹ ,a) ⋱↦ ,a]))
+                                        (set! mode 'select)]
+                           ['right      (!do ▹-cycle-▹▹)]
+                           [#\backspace (!do [(s▹ ,buf ,sel) ⋱↦ ,(let ([bu (remove-last-char-str buf)])
+                                                                   `(s▹ ,bu ,((▹▹tag-hits bu) sel)))])]
+                           [(alphanum)  (!do [(s▹ ,buf ,sel) ⋱↦ ,(let ([new ((append-char-to-str key-code) buf)])
+                                                                   `(s▹ ,new ,((▹▹tag-hits new) sel)))])])]
+             ['transform (match key-code 
+                           ['escape     (!do (compose [(c▹ ,buf ,sel) ⋱↦ (▹ ,sel)]))
+                                        (set! mode 'select)]
+                           [#\return    (!do [(c▹ ,buf ,sel) ⋱↦ (▹ ,(([(c▹▹ ,x) ⋱↦ ,x]) buf))])
+                                        (set! mode 'select)]                
+                           [#\space     (!do ([(,as ...  (c▹▹ ,b)) ⋱↦ (,@as ,b  (c▹▹ ,em-sym))]
+                                              [(c▹▹ ,a) ⋱↦ (,a  (c▹▹ ,em-sym))]))]
+                           ['down       (!do ([(c▹▹ ,a) ⋱↦ ((c▹▹ ,a))]))]
+                           ['right      (!do ([(,as ... (,bs ... (c▹▹ ,c))) ⋱↦ (,@as (,@bs ,c) (c▹▹ ,em-sym))]))]
+                           [#\backspace (!do ([(c▹ (c▹▹ ,(? empty-symbol?)) ,xs ...) ⋱↦  (c▹ (c▹▹ ,em-sym) ,@xs)]
+                                              [((c▹▹ ,(? empty-symbol?)) ,as ...) ⋱↦ (c▹▹ ,em-sym)]
+                                              [(c▹▹ ,(? symbol? s)) ⋱↦  (c▹▹ ,@(remove-last-char-splice s))]
+                                              [(,xs ... ,(? symbol? s) (c▹▹ ,(? empty-symbol? s)) ,ys ...) ⋱↦  (,@xs (c▹▹ ,s) ,@ys)]
+                                              [(,xs ... (,as ...) (c▹▹ ,(? empty-symbol? s)) ,ys ...) ⋱↦  (,@xs (,@as (c▹▹ ,em-sym)) ,@ys)]))]
+                           [(alphanum)  (!do ([(c▹▹ ,(? symbol? s)) ⋱↦ (c▹▹ ,((append-char-to key-code) s))]))])]
+             ['project   (match key-code)])]))))
 
 
 
