@@ -54,6 +54,11 @@
       [(_) #'(app string (regexp "[A-Za-z_]"))])))
 
 
+(define-match-expander reg
+  (λ (stx)
+    (syntax-case stx ()
+      [(_ <str>) #'(app string (regexp <str>))])))
+
 ; ----------------------------------------------------------------------------
 
 
@@ -600,7 +605,8 @@
 
 
 (define (remove-last-char-str str)
-  =(substring str 0 (sub1 (string-length str))))
+  (let ([length (sub1 (string-length str))])
+    (if (> 0 length) "" (substring str 0 length))))
 
 
 (define ((append-char-to-str key-code) str)
@@ -643,40 +649,45 @@
         [#\= (pretty-print (project-symbol stage-gui))]
         [_ (case mode
              ['select    (match key-code
-                           ['escape     (!do (compose [,a ⋱↦ (▹ ,a)] [(▹ ,a) ⋱↦ ,a]))]
-                           [#\return    (!do ([((▹ ,(? form-name? a)) ,x ...) ⋱↦ (c▹ (c▹▹ ,em-sym) (,a ,@x))]
-                                              [(▹ ,a) ⋱↦ (c▹ (c▹▹ ,em-sym) ,a)])) 
-                                        (set! mode 'transform)]
-                           ['right      (!do (▹-next-? atom?))]
-                           ['left       (!do (▹-prev-? atom?))]
-                           ['up         (!do [(,a ... (▹ ,b ...) ,c ...) ⋱↦ (▹ (,@a ,@b ,@c))])]
-                           ['down       (!do [(▹ (,a ,b ...)) ⋱↦ ((▹ ,a) ,@b)])]
-                           [(alpha)     (!do [(▹ ,a) ⋱↦ (s▹ ,(string key-code) ,((▹▹tag-hits (string key-code)) a))])
-                                        (set! mode 'search)])]
+                           ['escape                (!do (compose [,a ⋱↦ (▹ ,a)] [(▹ ,a) ⋱↦ ,a]))]
+                           [#\return               (!do ([((▹ ,(? form-name? a)) ,x ...) ⋱↦ (c▹ (c▹▹ ,em-sym) (,a ,@x))]
+                                                         [(▹ ,a) ⋱↦ (c▹ (c▹▹ ,em-sym) ,a)])) 
+                                                   (set! mode 'transform)]
+                           ['right                 (!do (▹-next-? atom?))]
+                           ['left                  (!do (▹-prev-? atom?))]
+                           ['up                    (!do [(,a ... (▹ ,b ...) ,c ...) ⋱↦ (▹ (,@a ,@b ,@c))])]
+                           ['down                  (!do [(▹ (,a ,b ...)) ⋱↦ ((▹ ,a) ,@b)])]
+                           [(reg "[A-Za-z_]")      (!do [(▹ ,a) ⋱↦ (s▹ ,(string key-code) ,((▹▹tag-hits (string key-code)) a))])
+                                                   (set! mode 'search)])]
              ['search    (match key-code
-                           ['escape     (!do (compose [(s▹ ,buf ,sel) ⋱↦ (▹ ,sel)]
-                                                      [(▹▹ ,a) ⋱↦ ,a]))
-                                        (set! mode 'select)]
-                           ['right      (!do ▹-cycle-▹▹)]
-                           [#\backspace (!do [(s▹ ,buf ,sel) ⋱↦ ,(let ([bu (remove-last-char-str buf)])
-                                                                   `(s▹ ,bu ,((▹▹tag-hits bu) sel)))])]
-                           [(alphanum)  (!do [(s▹ ,buf ,sel) ⋱↦ ,(let ([new ((append-char-to-str key-code) buf)])
-                                                                   `(s▹ ,new ,((▹▹tag-hits new) sel)))])])]
+                           [(or 'escape #\return)  (!do (compose [(s▹ ,buf ,sel) ⋱↦ (▹ ,sel)]
+                                                                 [(▹▹ ,a) ⋱↦ ,a]))
+                                                   (set! mode 'select)]
+                           ['right                 (!do ▹-cycle-▹▹)]
+                           [(or 'left #\backspace) (!do [(s▹ ,buf ,sel) ⋱↦ ,(let ([bu (remove-last-char-str buf)])
+                                                                              `(s▹ ,bu ,((▹▹tag-hits bu) sel)))])]
+                           [(reg "[A-Za-z0-9_]")   (!do [(s▹ ,buf ,sel) ⋱↦ ,(let ([new ((append-char-to-str key-code) buf)])
+                                                                              `(s▹ ,new ,((▹▹tag-hits new) sel)))])])]
              ['transform (match key-code 
-                           ['escape     (!do (compose [(c▹ ,buf ,sel) ⋱↦ (▹ ,sel)]))
-                                        (set! mode 'select)]
-                           [#\return    (!do [(c▹ ,buf ,sel) ⋱↦ (▹ ,(([(c▹▹ ,x) ⋱↦ ,x]) buf))])
-                                        (set! mode 'select)]                
-                           [#\space     (!do ([(,as ...  (c▹▹ ,b)) ⋱↦ (,@as ,b  (c▹▹ ,em-sym))]
-                                              [(c▹▹ ,a) ⋱↦ (,a  (c▹▹ ,em-sym))]))]
-                           ['down       (!do ([(c▹▹ ,a) ⋱↦ ((c▹▹ ,a))]))]
-                           ['right      (!do ([(,as ... (,bs ... (c▹▹ ,c))) ⋱↦ (,@as (,@bs ,c) (c▹▹ ,em-sym))]))]
-                           [#\backspace (!do ([(c▹ (c▹▹ ,(? empty-symbol?)) ,xs ...) ⋱↦  (c▹ (c▹▹ ,em-sym) ,@xs)]
-                                              [((c▹▹ ,(? empty-symbol?)) ,as ...) ⋱↦ (c▹▹ ,em-sym)]
-                                              [(c▹▹ ,(? symbol? s)) ⋱↦  (c▹▹ ,@(remove-last-char-splice s))]
-                                              [(,xs ... ,(? symbol? s) (c▹▹ ,(? empty-symbol? s)) ,ys ...) ⋱↦  (,@xs (c▹▹ ,s) ,@ys)]
-                                              [(,xs ... (,as ...) (c▹▹ ,(? empty-symbol? s)) ,ys ...) ⋱↦  (,@xs (,@as (c▹▹ ,em-sym)) ,@ys)]))]
-                           [(alphanum)  (!do ([(c▹▹ ,(? symbol? s)) ⋱↦ (c▹▹ ,((append-char-to key-code) s))]))])]
+                           ['escape                (!do (compose [(c▹ ,buf ,sel) ⋱↦ (▹ ,sel)]
+                                                                 #; [(,a ... ,(? empty-symbol?) ,b ...) ⋱↦ (,@a ,@b)]))
+                                                   (set! mode 'select)]
+                           [#\return               (!do [(c▹ ,buf ,sel) ⋱↦ (▹ ,(([(c▹▹ ,x) ⋱↦ ,x]) buf))])
+                                                   (set! mode 'select)]                
+                           [(or 'right #\space)    (!do ([(,as ...  (c▹▹ ,(? empty-symbol?))) ⋱↦ (,@as (c▹▹ ,em-sym))]
+                                                         [(,as ...  (c▹▹ ,b)) ⋱↦ (,@as ,b  (c▹▹ ,em-sym))]
+                                                         [(c▹▹ ,(? empty-symbol?)) ⋱↦ (c▹▹ ,em-sym)]
+                                                         [(c▹▹ ,a) ⋱↦ (,a  (c▹▹ ,em-sym))]))]
+                           ['down                  (!do ([(c▹▹ ,a) ⋱↦ ((c▹▹ ,a))]))]
+                           ['up                    (!do ([(,as ... (,bs ... (c▹▹ ,(? empty-symbol?)))) ⋱↦ (,@as (,@bs) (c▹▹ ,em-sym))]
+                                                         [(,as ... (,bs ... (c▹▹ ,c))) ⋱↦ (,@as (,@bs ,c) (c▹▹ ,em-sym))]))]
+                           [(or 'left #\backspace) (!do ([((c▹▹ ,(? empty-symbol?)) ,as ...) ⋱↦ (c▹▹ ,em-sym)]
+                                                         [(c▹▹ ,(? symbol? s)) ⋱↦  (c▹▹ ,(remove-last-char s))]
+                                                         [(c▹▹ ,(? atom? s)) ⋱↦  (c▹▹ ,em-sym)]
+                                                         [(c▹ (c▹▹ ,(? empty-symbol?)) ,xs ...) ⋱↦  (c▹ (c▹▹ ,em-sym) ,@xs)]
+                                                         [(,xs ... ,(? atom? x) (c▹▹ ,(? empty-symbol?)) ,ys ...) ⋱↦  (,@xs (c▹▹ ,x) ,@ys)]
+                                                         [(,xs ... (,as ...) (c▹▹ ,(? empty-symbol? s)) ,ys ...) ⋱↦  (,@xs (,@as (c▹▹ ,em-sym)) ,@ys)]))]
+                           [(reg "[A-Za-z0-9_]")   (!do ([(c▹▹ ,(? symbol? s)) ⋱↦ (c▹▹ ,((append-char-to key-code) s))]))])]
              ['project   (match key-code)])]))))
 
 

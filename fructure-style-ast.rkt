@@ -198,10 +198,10 @@
                                  
                                  (expr
                                   ((format horizontal)
-                                   (background-color (color 254 255 255))
-                                   (text-color (color 128 128 128))
+                                   (background-color (parent background-color))
+                                   (text-color (color 247 224 23))
                                    (border-style none)
-                                   (border-color (color 253 255 255)))))))
+                                   (border-color (parent background-color)))))))
 
 
 
