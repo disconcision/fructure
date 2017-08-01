@@ -270,9 +270,14 @@
            (fmap-fruct (match-lambda
                          [(and hs (hash-table ('style st) ('gui (gui sn ed _))))
                           (apply-style! st sn ed) hs]))
+           ; include symbol as arg to above apply-style and do insert symbol as part of apply-style
+           ; abstract this imperative part out of this (so make-gui is pure; rename?)
+           ; move imperative part to update-gui below?
            (fmap-fruct (match-lambda
                          [(and hs (hash-table ('symbol s) ('gui (gui sn _ parent-ed))))
                           (send parent-ed insert sn) hs]))
+           ; like make this insert part of style as well? like, if 'show' is true, do insert
+           ; otherwise just insert some placeholder affordance instead?
            (cascade-styles '((format horizontal)
                              (background-color (color 150 255 150))
                              (text-color (color 128 128 128))
@@ -533,6 +538,15 @@
                           a [(▹▹ (▹ ,x)) ↦ (▹▹ ,x)]
                           b [(▹▹ ,x) ↦ (▹▹ (▹ ,x))])]
     [_ source]))
+
+
+#; (define (▹-next-▹▹ source)
+     (match source
+       [(ctx `(▹▹ ,a) \\\ `(,x ... (▹ ,y) ,z ,w... ))
+        (ctx \\\ `(,@x ,y (▹ ,z) ,@w))]
+       [(ctx `(▹▹ ,a) \\\ `(,x ,y ... (▹ ,z)))
+        (ctx \\\ `((▹ ,x) ,@y z))]))
+; note that pattern `(▹▹ ,a) is used to destructure each match
 
 
 (define ((▹-first-?-in pred?) source)
