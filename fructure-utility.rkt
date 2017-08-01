@@ -17,6 +17,7 @@
 (define transpose (curry apply map list))
 
 
+; pre-applies fn into source tree
 (define (map-rec fn source) 
   (match (fn source)
     [(? list? ls) (map (curry map-rec fn) ls)]

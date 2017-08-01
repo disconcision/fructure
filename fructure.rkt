@@ -91,7 +91,7 @@
              make-parse-pair
              (curry map-rec undotdotdot)
              #; (match-lambda [(? list?) make-parse-pair]
-                              [(? sort-name? (app (λ (sort-name) (??? sort-name)))#;do-something-with-sort-refs)])
+                              [(? sort-name? (app (λ (sort-name) (??? sort-name ???))))])
              ))
 
 
@@ -108,13 +108,13 @@
   (syntax-rules ()
     [(ignore-affo <pat>)
      (app (λ (source) (match source
-                        [`(,(? affo-name?) ,q ,a) (match a
+                        [`(,(? affo-name?) ,buf ,a) (match a
                                                     [`(,(? affo-name?) ,b) b]
                                                     [_ a])]
                         [`(,(? affo-name?) ,a) (match a
                                                  [`(,(? affo-name?) ,b) b]
                                                  [_ a])]
-                        ; the above is a hack. how do i recurse right in macros?
+                        ; the above is a hack. how do i recurse right in macros
                         [_ source])) `<pat>)]))
 
 
@@ -670,7 +670,8 @@
                            [#\space     (!do ([(,as ...  (c▹▹ ,b)) ⋱↦ (,@as ,b  (c▹▹ ,em-sym))]
                                               [(c▹▹ ,a) ⋱↦ (,a  (c▹▹ ,em-sym))]))]
                            ['down       (!do ([(c▹▹ ,a) ⋱↦ ((c▹▹ ,a))]))]
-                           ['right      (!do ([(,as ... (,bs ... (c▹▹ ,c))) ⋱↦ (,@as (,@bs ,c) (c▹▹ ,em-sym))]))]
+                           ['right      (!do ([(,as ... (,bs ... (c▹▹ ,(? empty-symbol?)))) ⋱↦ (,@as (,@bs) (c▹▹ ,em-sym))]
+                                              [(,as ... (,bs ... (c▹▹ ,c))) ⋱↦ (,@as (,@bs ,c) (c▹▹ ,em-sym))]))]
                            [#\backspace (!do ([(c▹ (c▹▹ ,(? empty-symbol?)) ,xs ...) ⋱↦  (c▹ (c▹▹ ,em-sym) ,@xs)]
                                               [((c▹▹ ,(? empty-symbol?)) ,as ...) ⋱↦ (c▹▹ ,em-sym)]
                                               [(c▹▹ ,(? symbol? s)) ⋱↦  (c▹▹ ,@(remove-last-char-splice s))]
