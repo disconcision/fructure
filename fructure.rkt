@@ -591,6 +591,8 @@
   (match-let ([`(,pat ,tem) pat-tem])
     (eval `(match-lambda [,pat ,tem] [x x]) ns)))
 
+(define (eval-match-? pat)
+    (eval `(match-lambda [(and x ,pat) x] [_ #f]) ns))
 
 (define (buf->pat+tem buf)
   `[(and x (? symbol? (app symbol->string (regexp (regexp ,(string-append "^" buf ".*"))))))
@@ -656,7 +658,8 @@
 #; (define (replace-with-first-autocomplete-match source)
      ([(c▹ ,pat ,sel) ⋱↦ (c▹ ,(first (autocomplete-matches pat)) ,sel)] source))
 #; (define (autocomplete-matches pat)
-     )
+     (filter-map (eval-match-? pat) forms))
+
 
 ;we have:
 #; (c▹ ((c▹▹ def)) whatever)
@@ -671,7 +674,16 @@
 
 ; so let's filter-map the matcher over a list of forms
 
-#; (define (make-matcher source))
+(define/match (make-matcher source)
+     [(`(c▹▹ ,(? empty-symbol?))) (// (gensym))]
+     [(`(c▹▹ ,(? symbol? s))) (// `(? symbol? (app symbol->string (regexp (string-append "^" ,(symbol->string s) ".*")))))]
+     [((? (disjoin symbol? number?) s)) s]
+     [(`(,xs ...)) (\\ `(,@(map make-matcher xs) (ooo ,(// (gensym)))))])
+
+(map-rec redotdotdot (make-matcher '((c▹▹ def))))
+(filter-map (eval-match-? (map-rec redotdotdot (make-matcher '((c▹▹ def))))) forms)
+(make-matcher '(define (f a (c▹▹ ||))))
+(make-matcher '(let ((a (c▹▹ |2|)))))
 
 #; (c▹ (define (f a (c▹▹ ||))) whatever)
 #; (c▹ (define (f a ,sel ,y ...) ,z ...) whatever)
