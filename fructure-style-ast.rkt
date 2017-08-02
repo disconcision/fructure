@@ -113,6 +113,25 @@
                                    (border-style square-brackets)
                                    (border-color (parent background-color))))
 
+
+                                 ((◇ (⋈ name hole))
+                                  ((background-color (parent background-color))
+                                   (format horizontal)
+                                   (border-style square-brackets)
+                                   (border-color (parent background-color))))
+
+                                 (((◇ ⋈) name hole)
+                                  ((background-color (parent background-color))
+                                   (text-color (color 0 255 0))
+                                   (border-style square-brackets)
+                                   (border-color (parent background-color))))
+
+                                 ((⋈ (◇ name) hole)
+                                  ((background-color (parent background-color))
+                                   (text-color (color 0 255 0))
+                                   (border-style square-brackets)
+                                   (border-color (parent background-color))))
+
                                  
                                  ((◇ (if expr expr expr))
                                   ((background-color (color 65 160 130))

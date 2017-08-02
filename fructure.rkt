@@ -209,7 +209,18 @@
               'self `((◇ ,affo) hole)
               'context '())
        ,(sexp->fruct sel ctx))]
-    ; special case for double-hole affordances
+    ; special case for bind/muq affordance
+    [`(⋈ ,name ,sel)
+     `(,(hash 'symbol void
+              'self `(◇ (⋈ name hole))
+              'sort 'affo
+              'context '()) 
+       ,(hash 'symbol '⋈
+              'self `((◇ ⋈) name hole)
+              'context '())
+       ,(sexp->fruct name `(⋈ (◇ name) hole))
+       ,(sexp->fruct sel ctx))]
+    ; special case for double-hole affordances    
     [`(,(? affo-name? affo) ,buf ,sel)
      `(,(hash 'symbol void
               'self `(◇ (,affo hole hole))
@@ -690,30 +701,36 @@
 
 ; helpers - pattern painting
 
-#; (define simple-paint
-     ([]))
-
 
 (define (simple-paint source)
-  (match ((?->lenses [(or `(⋈ ,_) `(▹ ,_)) ≡]) source)
-    [`(,(and a (app (curryr lens-view source) `(▹ ,_))))
-     (lens-transform/list source
-                          a [(▹ ,c) ↦ (▹ (⋈ 0 ,c))])]
+  (match ((?->lenses [(or `(⋈ ,_ ,_) `(▹ ,_)) ≡]) source)
     [`(,(and a (app (curryr lens-view source) `(▹ ,_)))
        ,(and bs (app (curryr lens-view source) `(⋈ ,_ ,_))) ...)
-     (lens-transform/list source
-                          a [(▹ ,c) ↦ (▹ (⋈ 0 ,c))]
-                          bs [(\\ ,m ,x) ↦ (⋈ ,(add1 m) ,x)])]
+     (let ([new-source (lens-transform a source [(▹ ,c) ↦ (▹ (⋈ 0 ,c))])])
+       (if (empty? bs) new-source (lens-transform (apply lens-join/list bs) new-source (curry map [(⋈ ,m ,x) ↦ (⋈ ,(add1 m) ,x)]))))]
     [`(,(app (curryr lens-view source) `(⋈ ,_ ,as)) ...
        ,(app (curryr lens-view source) `(⋈ ,n ,b))
-       ,(app (curryr lens-view source) `(▹ ,c))
-       ,(app (curryr lens-view source) `(⋈ ,_ ,ds)) ...)
-     (lens-transform/list source
-                          c [(▹ ,c) ↦ (▹ (⋈ ,(add1 n) ,c))]
-                          ds [(\\ ,m ,x) ↦ (⋈ ,(add1 m) ,x)])]
+       ,(and c (app (curryr lens-view source) `(▹ ,_)))
+       ,(and ds (app (curryr lens-view source) `(⋈ ,_ ,_))) ...)
+     (let ([new-source (lens-transform c source [(▹ ,c) ↦ (▹ (⋈ ,(add1 n) ,c))])])
+       (if (empty? ds) new-source (lens-transform (apply lens-join/list ds) new-source (curry map [(⋈ ,m ,x) ↦ (⋈ ,(add1 m) ,x)]))))]
     [_ source]))
 
 
+(define (named-paint-c▹▹ name)
+  [(c▹▹ ,a) ⋱↦ (c▹▹ (⋈ ,name _))])
+
+
+(define (eval-painted-buffer buf sel)
+  (match buf
+    [`(⋈ ,name ,_) (lookup-binding-value name sel)]
+    [(? atom?) buf]
+    [(? list?) (map (curryr eval-painted-buffer sel) buf)]))
+
+
+(define (lookup-binding-value name sel)
+  (match-let ([`(⋈ ,_ ,val) (lens-view (first ((?->lenses [`(⋈ ,(== name) ,_) ≡]) sel)) sel)])
+    val))
 
 
 ; main loop ---------------------------------------------
@@ -739,7 +756,7 @@
                            ['left                  (!do (▹-prev-? atom?))]
                            ['up                    (!do [(,a ... (▹ ,b ...) ,c ...) ⋱↦ (▹ (,@a ,@b ,@c))])]
                            ['down                  (!do [(▹ (,a ,b ...)) ⋱↦ ((▹ ,a) ,@b)])]
-                           [#\space                (!do simple-paint)]
+                           [#\space                (!do (compose (▹-next-? atom?) simple-paint))]
                            [(reg "[A-Za-z_]")      (!do [(▹ ,a) ⋱↦ (s▹ ,(string key-code) ,((▹▹tag-hits (string key-code)) a))])
                                                    (set! mode 'search)])]
              ['search    (match key-code
@@ -755,7 +772,7 @@
                            ['escape                (!do (compose [(c▹ ,buf ,sel) ⋱↦ (▹ ,sel)]
                                                                  #; [(,a ... ,(? empty-symbol?) ,b ...) ⋱↦ (,@a ,@b)]))
                                                    (set! mode 'select)]
-                           [#\return               (!do [(c▹ ,buf ,sel) ⋱↦ (▹ ,(([(c▹▹ ,x) ⋱↦ ,x]) buf))])
+                           [#\return               (!do [(c▹ ,buf ,sel) ⋱↦ (▹ ,(([(c▹▹ ,x) ⋱↦ ,x]) (eval-painted-buffer buf sel)))])
                                                    (set! mode 'select)]                
                            [(or 'right #\space)    (!do ([(,as ...  (c▹▹ ,(? empty-symbol?))) ⋱↦ (,@as (c▹▹ ,empty-symbol))]
                                                          [(,as ...  (c▹▹ ,b)) ⋱↦ (,@as ,b  (c▹▹ ,empty-symbol))]
@@ -770,8 +787,9 @@
                                                          [(c▹ (c▹▹ ,(? empty-symbol?)) ,xs ...) ⋱↦  (c▹ (c▹▹ ,empty-symbol) ,@xs)]
                                                          [(,xs ... ,(? atom? x) (c▹▹ ,(? empty-symbol?)) ,ys ...) ⋱↦  (,@xs (c▹▹ ,x) ,@ys)]
                                                          [(,xs ... (,as ...) (c▹▹ ,(? empty-symbol? s)) ,ys ...) ⋱↦  (,@xs (,@as (c▹▹ ,empty-symbol)) ,@ys)]))]
+                           [(reg "[0-9]")          (!do (named-paint-c▹▹ (string->number (string key-code))))]
                            [#\tab                  (!do replace-with-first-autocomplete-match)]
-                           [(reg "[A-Za-z0-9_]")   (!do ([(c▹▹ ,(? symbol? s)) ⋱↦ (c▹▹ ,((append-char-to key-code) s))]))])]
+                           [(reg "[A-Za-z_]")      (!do ([(c▹▹ ,(? symbol? s)) ⋱↦ (c▹▹ ,((append-char-to key-code) s))]))])]
              ['project   (match key-code)])]))))
 
 
@@ -924,5 +942,9 @@
   ; we want to put the subselector back in afterwords, so let's keep track of it
   ; it can be replaced by either a pattern var (if subsel'd is empty symbol)
   ; or a regexp (if subsel'd is non-empty symbol)
+
+
+
+  #; (lookup-binding-value 0 `(4 5 ( 3 (⋈ 0 9))))
 
   )
