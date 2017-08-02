@@ -122,7 +122,6 @@
              ['<sort-name>
               (match <source>
                 [`<new-pat> `<new-tem>] ...
-                #;['quoted ????]
                 [(? atom? a) a])]
              ...)))]))
 
@@ -649,17 +648,35 @@
 
 (define empty-symbol? (curry equal? empty-symbol))
 
-(define forms '((if void expr expr)
-                (begin expr ...)
-                (define (name name ...) expr ...)
+
+(define auto-forms '((if true expr expr)
+                (begin expr)
                 (define name expr)
-                (let ([name expr] ...) expr ...)))
+                (define (name name) expr)
+                (let ([name expr]) expr)))
 
-#; (define (replace-with-first-autocomplete-match source)
-     ([(c▹ ,pat ,sel) ⋱↦ (c▹ ,(first (autocomplete-matches pat)) ,sel)] source))
-#; (define (autocomplete-matches pat)
-     (filter-map (eval-match-? pat) forms))
+(define (replace-with-first-autocomplete-match source)
+     ([(c▹ ,pat ,sel) ⋱↦ (c▹ ,(if (empty? (autocomplete-matches pat)) pat `(c▹▹ ,(first (autocomplete-matches pat)))) ,sel)] source))
 
+(define (autocomplete-matches pat)
+     (filter-map (eval-match-? (map-rec redotdotdot (\\ (make-matcher pat)))) auto-forms))
+
+(define/match (make-matcher source)
+     [(`(c▹▹ ,(? empty-symbol?))) (// (gensym))]
+     [(`(c▹▹ ,(? symbol? s))) (// (partial-symbol-match s))]
+     [((? (disjoin symbol? number?) s)) s]
+     [(`(,xs ...)) `(,@(map make-matcher xs) (ooo ,(// (gensym))))])
+
+(define (partial-symbol-match s)
+  `(? symbol? (app symbol->string (regexp (string-append "^" ,(symbol->string s) ".*")))))
+
+
+#; (map-rec redotdotdot (make-matcher '((c▹▹ def))))
+#; (filter-map (eval-match-? (map-rec redotdotdot (\\ (make-matcher '((c▹▹ def)))))) forms)
+#; (map-rec redotdotdot (make-matcher '(define (f a (c▹▹ ||)))))
+#; (filter-map (eval-match-? (map-rec redotdotdot (\\ (make-matcher '(define (f a (c▹▹ ||))))))) '((define (f a b))))
+#; (map-rec redotdotdot (make-matcher '(let ((a (c▹▹ |2|))))))
+#; (filter-map (eval-match-? (map-rec redotdotdot (\\ (make-matcher '(let ((a (c▹▹ bag)))))))) '((let ((a bag))) (let ((a baggo)) 5) (let ((a baggo) 4)) (let ((a 3)))))
 
 ;we have:
 #; (c▹ ((c▹▹ def)) whatever)
@@ -673,17 +690,6 @@
 #; (c▹ (define (c▹▹ name) expr) whatever)
 
 ; so let's filter-map the matcher over a list of forms
-
-(define/match (make-matcher source)
-     [(`(c▹▹ ,(? empty-symbol?))) (// (gensym))]
-     [(`(c▹▹ ,(? symbol? s))) (// `(? symbol? (app symbol->string (regexp (string-append "^" ,(symbol->string s) ".*")))))]
-     [((? (disjoin symbol? number?) s)) s]
-     [(`(,xs ...)) (\\ `(,@(map make-matcher xs) (ooo ,(// (gensym)))))])
-
-(map-rec redotdotdot (make-matcher '((c▹▹ def))))
-(filter-map (eval-match-? (map-rec redotdotdot (make-matcher '((c▹▹ def))))) forms)
-(make-matcher '(define (f a (c▹▹ ||))))
-(make-matcher '(let ((a (c▹▹ |2|)))))
 
 #; (c▹ (define (f a (c▹▹ ||))) whatever)
 #; (c▹ (define (f a ,sel ,y ...) ,z ...) whatever)
@@ -749,6 +755,7 @@
                                                          [(c▹ (c▹▹ ,(? empty-symbol?)) ,xs ...) ⋱↦  (c▹ (c▹▹ ,empty-symbol) ,@xs)]
                                                          [(,xs ... ,(? atom? x) (c▹▹ ,(? empty-symbol?)) ,ys ...) ⋱↦  (,@xs (c▹▹ ,x) ,@ys)]
                                                          [(,xs ... (,as ...) (c▹▹ ,(? empty-symbol? s)) ,ys ...) ⋱↦  (,@xs (,@as (c▹▹ ,empty-symbol)) ,@ys)]))]
+                           [#\tab                  (!do replace-with-first-autocomplete-match)]
                            [(reg "[A-Za-z0-9_]")   (!do ([(c▹▹ ,(? symbol? s)) ⋱↦ (c▹▹ ,((append-char-to key-code) s))]))])]
              ['project   (match key-code)])]))))
 
