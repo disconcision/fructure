@@ -591,7 +591,7 @@
     (eval `(match-lambda [,pat ,tem] [x x]) ns)))
 
 (define (eval-match-? pat)
-    (eval `(match-lambda [(and x ,pat) x] [_ #f]) ns))
+  (eval `(match-lambda [(and x ,pat) x] [_ #f]) ns))
 
 (define (buf->pat+tem buf)
   `[(and x (? symbol? (app symbol->string (regexp (regexp ,(string-append "^" buf ".*"))))))
@@ -649,57 +649,71 @@
 (define empty-symbol? (curry equal? empty-symbol))
 
 
+; helpers - autocomplete
+
 (define auto-forms '((if true expr expr)
-                (begin expr)
-                (define name expr)
-                (define (name name) expr)
-                (let ([name expr]) expr)))
+                     (begin expr)
+                     (define name expr)
+                     (define (name name) expr)
+                     (let ([name expr]) expr)))
+
 
 (define (replace-with-first-autocomplete-match source)
-     ([(c▹ ,pat ,sel) ⋱↦ (c▹ ,(if (empty? (autocomplete-matches pat)) pat `(c▹▹ ,(first (autocomplete-matches pat)))) ,sel)] source))
+  ([(c▹ ,(and pat (app autocomplete-matches matches)) ,sel)
+    ⋱↦ (c▹ ,(if (empty? matches)
+                pat
+                `(c▹▹ ,(first matches))) ,sel)] source))
+
 
 (define (autocomplete-matches pat)
-     (filter-map (eval-match-? (map-rec redotdotdot (\\ (make-matcher pat)))) auto-forms))
+  (filter-map (eval-match-? (map-rec redotdotdot (\\ (make-matcher pat)))) auto-forms))
+
 
 (define/match (make-matcher source)
-     [(`(c▹▹ ,(? empty-symbol?))) (// (gensym))]
-     [(`(c▹▹ ,(? symbol? s))) (// (partial-symbol-match s))]
-     [((? (disjoin symbol? number?) s)) s]
-     [(`(,xs ...)) `(,@(map make-matcher xs) (ooo ,(// (gensym))))])
+  [(`(c▹▹ ,(? empty-symbol?))) (// (gensym))]
+  [(`(c▹▹ ,(? symbol? s))) (// (partial-symbol-match s))]
+  [((? (disjoin symbol? number?) s)) s]
+  [(`(,xs ...)) `(,@(map make-matcher xs) (ooo ,(// (gensym))))])
+
+
+#; (define autocomplete-matches
+     (compose (curryr filter-map auto-forms)
+              eval-match-?
+              (curry map-rec redotdotdot)
+              \\
+              make-matcher))
+
 
 (define (partial-symbol-match s)
   `(? symbol? (app symbol->string (regexp (string-append "^" ,(symbol->string s) ".*")))))
 
 
-#; (map-rec redotdotdot (make-matcher '((c▹▹ def))))
-#; (filter-map (eval-match-? (map-rec redotdotdot (\\ (make-matcher '((c▹▹ def)))))) forms)
-#; (map-rec redotdotdot (make-matcher '(define (f a (c▹▹ ||)))))
-#; (filter-map (eval-match-? (map-rec redotdotdot (\\ (make-matcher '(define (f a (c▹▹ ||))))))) '((define (f a b))))
-#; (map-rec redotdotdot (make-matcher '(let ((a (c▹▹ |2|))))))
-#; (filter-map (eval-match-? (map-rec redotdotdot (\\ (make-matcher '(let ((a (c▹▹ bag)))))))) '((let ((a bag))) (let ((a baggo)) 5) (let ((a baggo) 4)) (let ((a 3)))))
+; helpers - pattern painting
 
-;we have:
-#; (c▹ ((c▹▹ def)) whatever)
-; which means we're looking for stuff that looks like this matcher:
-#; (c▹ ((regexp "^def*") ,x ...) whatever)
-; let's say this is the first result:
-#; (c▹ (define name expr) whatever)
-; so we want this:
-#; (c▹ ((c▹▹ define) name expr) whatever)
-; or maybe this:
-#; (c▹ (define (c▹▹ name) expr) whatever)
+#; (define simple-paint
+     ([]))
 
-; so let's filter-map the matcher over a list of forms
 
-#; (c▹ (define (f a (c▹▹ ||))) whatever)
-#; (c▹ (define (f a ,sel ,y ...) ,z ...) whatever)
+(define (simple-paint source)
+  (match ((?->lenses [(or `(⋈ ,_) `(▹ ,_)) ≡]) source)
+    [`(,(and a (app (curryr lens-view source) `(▹ ,_))))
+     (lens-transform/list source
+                          a [(▹ ,c) ↦ (▹ (⋈ 0 ,c))])]
+    [`(,(and a (app (curryr lens-view source) `(▹ ,_)))
+       ,(and bs (app (curryr lens-view source) `(⋈ ,_ ,_))) ...)
+     (lens-transform/list source
+                          a [(▹ ,c) ↦ (▹ (⋈ 0 ,c))]
+                          bs [(\\ ,m ,x) ↦ (⋈ ,(add1 m) ,x)])]
+    [`(,(app (curryr lens-view source) `(⋈ ,_ ,as)) ...
+       ,(app (curryr lens-view source) `(⋈ ,n ,b))
+       ,(app (curryr lens-view source) `(▹ ,c))
+       ,(app (curryr lens-view source) `(⋈ ,_ ,ds)) ...)
+     (lens-transform/list source
+                          c [(▹ ,c) ↦ (▹ (⋈ ,(add1 n) ,c))]
+                          ds [(\\ ,m ,x) ↦ (⋈ ,(add1 m) ,x)])]
+    [_ source]))
 
-#; (c▹ (let ((a (c▹▹ |2|)))) whatever)
-#; (c▹ (let ((a (regexp "^2*") ,x ...) ,y ...) ,z ...) whatever)
 
-; we want to put the subselector back in afterwords, so let's keep track of it
-; it can be replaced by either a pattern var (if subsel'd is empty symbol)
-; or a regexp (if subsel'd is non-empty symbol)
 
 
 ; main loop ---------------------------------------------
@@ -725,6 +739,7 @@
                            ['left                  (!do (▹-prev-? atom?))]
                            ['up                    (!do [(,a ... (▹ ,b ...) ,c ...) ⋱↦ (▹ (,@a ,@b ,@c))])]
                            ['down                  (!do [(▹ (,a ,b ...)) ⋱↦ ((▹ ,a) ,@b)])]
+                           [#\space                (!do simple-paint)]
                            [(reg "[A-Za-z_]")      (!do [(▹ ,a) ⋱↦ (s▹ ,(string key-code) ,((▹▹tag-hits (string key-code)) a))])
                                                    (set! mode 'search)])]
              ['search    (match key-code
@@ -876,5 +891,38 @@
         (text-color (parent text-color))
         (border-style square-brackets)
         (border-color (color 255 255 255))))
+
+
+
+
+  #; (map-rec redotdotdot (make-matcher '((c▹▹ def))))
+  #; (filter-map (eval-match-? (map-rec redotdotdot (\\ (make-matcher '((c▹▹ def)))))) forms)
+  #; (map-rec redotdotdot (make-matcher '(define (f a (c▹▹ ||)))))
+  #; (filter-map (eval-match-? (map-rec redotdotdot (\\ (make-matcher '(define (f a (c▹▹ ||))))))) '((define (f a b))))
+  #; (map-rec redotdotdot (make-matcher '(let ((a (c▹▹ |2|))))))
+  #; (filter-map (eval-match-? (map-rec redotdotdot (\\ (make-matcher '(let ((a (c▹▹ bag)))))))) '((let ((a bag))) (let ((a baggo)) 5) (let ((a baggo) 4)) (let ((a 3)))))
+
+  ;we have:
+  #; (c▹ ((c▹▹ def)) whatever)
+  ; which means we're looking for stuff that looks like this matcher:
+  #; (c▹ ((regexp "^def*") ,x ...) whatever)
+  ; let's say this is the first result:
+  #; (c▹ (define name expr) whatever)
+  ; so we want this:
+  #; (c▹ ((c▹▹ define) name expr) whatever)
+  ; or maybe this:
+  #; (c▹ (define (c▹▹ name) expr) whatever)
+
+  ; so let's filter-map the matcher over a list of forms
+
+  #; (c▹ (define (f a (c▹▹ ||))) whatever)
+  #; (c▹ (define (f a ,sel ,y ...) ,z ...) whatever)
+
+  #; (c▹ (let ((a (c▹▹ |2|)))) whatever)
+  #; (c▹ (let ((a (regexp "^2*") ,x ...) ,y ...) ,z ...) whatever)
+
+  ; we want to put the subselector back in afterwords, so let's keep track of it
+  ; it can be replaced by either a pattern var (if subsel'd is empty symbol)
+  ; or a regexp (if subsel'd is non-empty symbol)
 
   )

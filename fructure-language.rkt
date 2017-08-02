@@ -45,7 +45,8 @@
                           ▹▹ subselector
                           s▹ search-selector
                           c▹ command-selector
-                          c▹▹ command-subselector))
+                          c▹▹ command-subselector
+                          ⋈ fruct-unquote))
 
 (define-values (sort-name?
                 terminal-name?
