@@ -42,7 +42,6 @@
   (syntax-case stx ()
     [(_ <form> <stylesheet>)  
      (let ([proc-sheet (stylesheet->parse-stylesheet (eval (syntax->datum #'<stylesheet>)))])
-       (println proc-sheet)
        (with-syntax* ([((<pat> <style>) ...) (datum->syntax #'<source> proc-sheet)])
          #'(match <form>
              [`<pat> `<style>] ...)))]))
