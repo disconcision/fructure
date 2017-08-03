@@ -46,7 +46,7 @@
 (define-match-expander reg
   (λ (stx)
     (syntax-case stx ()
-      [(_ <str>) #'(app string (regexp <str>))])))
+      [(_ <str>) #'(? char? (app string (regexp <str>)))])))
 
 ; ----------------------------------------------------------------------------
 
@@ -733,6 +733,18 @@
     val))
 
 
+(define (form-paint sel)
+  (match sel
+    [`(if ,a ,b ,c) `(if (⋈ 0 ,a) (⋈ 1 ,b) (⋈ 2 ,c))]
+    [`(begin ,as ...) `(begin ,@(map (λ (n x) `(⋈ n ,x)) (range (length as)) as))]))
+
+
+(define (toggle-paint sel)
+  (match sel
+    [`(,(not (== '⋈)) ,a ...) `(⋈ 0 ,sel)]
+    [`(⋈ ,_ ,sel) (form-paint sel)]))
+
+
 ; main loop ---------------------------------------------
 
 ; todo:
@@ -788,6 +800,7 @@
                                                          [(,xs ... ,(? atom? x) (c▹▹ ,(? empty-symbol?)) ,ys ...) ⋱↦  (,@xs (c▹▹ ,x) ,@ys)]
                                                          [(,xs ... (,as ...) (c▹▹ ,(? empty-symbol? s)) ,ys ...) ⋱↦  (,@xs (,@as (c▹▹ ,empty-symbol)) ,@ys)]))]
                            [(reg "[0-9]")          (!do (named-paint-c▹▹ (string->number (string key-code))))]
+                           ['control               (!do [(c▹ ,buf ,sel) ⋱↦ (c▹ ,buf ,(toggle-paint sel))])]
                            [#\tab                  (!do replace-with-first-autocomplete-match)]
                            [(reg "[A-Za-z_]")      (!do ([(c▹▹ ,(? symbol? s)) ⋱↦ (c▹▹ ,((append-char-to key-code) s))]))])]
              ['project   (match key-code)])]))))
