@@ -1,7 +1,8 @@
 #lang racket
 
 (provide lookup-style
-         apply-style!)
+         apply-style!
+         (struct-out gui))
 
 ; stylesheet ------------------------------------------
 
@@ -219,7 +220,8 @@
                                    (background-color (parent background-color))
                                    (text-color (color 247 224 23))
                                    (border-style none)
-                                   (border-color (parent background-color)))))))
+                                   (border-color (parent background-color))
+                                   (visible #true))))))
 
 
 
@@ -347,12 +349,18 @@
 
 ; style fns ------------------------------------------
 
-(define (apply-style! style sn ed)
-  (let ([get (λ (property) (get-property style property))])
+(struct gui (sn ed parent-ed))
+
+
+(define (apply-style! style g)
+  (match-let ([(gui sn ed parent-ed) g]
+              [get (λ (property) (get-property style property))])
+    
     (send sn set-background-color (get  'background-color))
     (send sn set-border-color (get 'border-color))
     (send sn set-border-style (get 'border-style))
     (send ed set-format (get 'format))
+    #;(when #true #;(get 'visible) (send parent-ed insert sn))
     (send ed set-text-color (get 'text-color))
     (send sn set-margins 4 2 2 2)))
 

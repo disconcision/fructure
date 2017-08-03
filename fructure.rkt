@@ -278,8 +278,8 @@
                             (send ed insert (cond [(symbol? s) (symbol->string s)]
                                                   [else (~a s)]))) hs]))
            (fmap-fruct (match-lambda
-                         [(and hs (hash-table ('style st) ('gui (gui sn ed _))))
-                          (apply-style! st sn ed) hs]))
+                         [(and hs (hash-table ('style st) ('gui g)))
+                          (apply-style! st g) hs]))
            ; include symbol as arg to above apply-style and do insert symbol as part of apply-style
            ; abstract this imperative part out of this (so make-gui is pure; rename?)
            ; move imperative part to update-gui below?
@@ -292,7 +292,8 @@
                              (background-color (color 150 255 150))
                              (text-color (color 128 128 128))
                              (border-style none)
-                             (border-color (color 150 255 150))))
+                             (border-color (color 150 255 150))
+                             (visible #true)))
            (fmap-fruct (match-lambda
                          [(and hs (hash-table ('self s)))
                           (hash-set hs 'style (lookup-style s))]))
@@ -305,7 +306,7 @@
 
 ; gui objs & structs ------------------------------------
 
-(struct gui (sn ed parent-ed))
+#; (struct gui (sn ed parent-ed)) ; this is now in stylefile
 
 (define fruct-board%
   (class pasteboard% 
@@ -320,6 +321,8 @@
     (define/public (set-text-color color)
       ;must be after super so style field is intialized
       (define my-style-delta (make-object style-delta%))
+
+      (send my-style-delta set-size-add 14)
       
       #; (send my-style-delta set-delta-background color) ; text bkg
       #; (send my-style-delta set-alignment-on 'top) ; ???
@@ -662,18 +665,25 @@
 
 ; helpers - autocomplete
 
-(define auto-forms '((if true expr expr)
+(define auto-forms '((if (c▹▹ true) expr expr)
                      (begin expr)
                      (define name expr)
                      (define (name name) expr)
                      (let ([name expr]) expr)))
 
 
-(define (replace-with-first-autocomplete-match source)
+#; (define (replace-with-first-autocomplete-match source)
   ([(c▹ ,(and pat (app autocomplete-matches matches)) ,sel)
     ⋱↦ (c▹ ,(if (empty? matches)
                 pat
                 `(c▹▹ ,(first matches))) ,sel)] source))
+
+
+(define (replace-with-first-autocomplete-match source)
+  ([(c▹ ,(and pat (app autocomplete-matches matches)) ,sel)
+    ⋱↦ (c▹ ,(if (empty? matches)
+                pat
+                (first matches)) ,sel)] source))
 
 
 (define (autocomplete-matches pat)
@@ -768,7 +778,7 @@
                            ['left                  (!do (▹-prev-? atom?))]
                            ['up                    (!do [(,a ... (▹ ,b ...) ,c ...) ⋱↦ (▹ (,@a ,@b ,@c))])]
                            ['down                  (!do [(▹ (,a ,b ...)) ⋱↦ ((▹ ,a) ,@b)])]
-                           [#\space                (!do (compose (▹-next-? atom?) simple-paint))]
+                           [#\space                (!do (compose #; (▹-next-? atom?) simple-paint))]
                            [(reg "[A-Za-z_]")      (!do [(▹ ,a) ⋱↦ (s▹ ,(string key-code) ,((▹▹tag-hits (string key-code)) a))])
                                                    (set! mode 'search)])]
              ['search    (match key-code
@@ -788,6 +798,7 @@
                                                    (set! mode 'select)]                
                            [(or 'right #\space)    (!do ([(,as ...  (c▹▹ ,(? empty-symbol?))) ⋱↦ (,@as (c▹▹ ,empty-symbol))]
                                                          [(,as ...  (c▹▹ ,b)) ⋱↦ (,@as ,b  (c▹▹ ,empty-symbol))]
+                                                         [(,as ...  (c▹▹ ,b) ,c ,cs ...) ⋱↦ (,@as ,b  (c▹▹ ,c) ,@cs)]
                                                          [(c▹▹ ,(? empty-symbol?)) ⋱↦ (c▹▹ ,empty-symbol)]
                                                          [(c▹▹ ,a) ⋱↦ (,a  (c▹▹ ,empty-symbol))]))]
                            ['down                  (!do ([(c▹▹ ,a) ⋱↦ ((c▹▹ ,a))]))]
