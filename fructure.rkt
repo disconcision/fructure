@@ -338,7 +338,8 @@
       (match format
         ['horizontal (format-horizontal)]
         ['vertical (format-vertical)]
-        ['indent (format-indent-after 2)]))
+        ['indent (format-indent-after 2)]
+        [`(indent-after ,n) (format-indent-after n)]))
 
     (define/public (set-string-form string)
       (remove-text-snips)
@@ -366,7 +367,7 @@
       (let ([num-items (send this last-position)])
         (for ([pos (range start-at (* 2 (sub1 num-items)) 2)])
           (send this insert "\n" pos))
-        (for ([line-num (range 1 (sub1 num-items))])
+        (for ([line-num (range 1 (add1 (- num-items start-at)))])
           (send this insert "    " (send this line-start-position line-num)))))
 
     (define/override (on-default-char event)
@@ -435,16 +436,25 @@
         (send dc draw-line left-x (+ bot-y -1) (+ 2 left-x) (+ bot-y -1)))
 
       (define (draw-right-square-bracket color)
-        (set! color (make-color 120 145 222)) ; temp
         (send dc set-pen color 1 'solid)
         (send dc draw-line (+ -1 right-x) top-y (+ -1 right-x) (+ bot-y -1))
         (send dc draw-line right-x top-y (+ -2 right-x) top-y)
         (send dc draw-line right-x (+ bot-y -1) (+ -2 right-x) (+ bot-y -1)))
 
+      (define (draw-full-box-border color)
+        (send dc set-pen color 1 'solid)
+        (send dc draw-line left-x top-y right-x top-y)
+        (send dc draw-line left-x top-y left-x (+ bot-y -1))
+        (send dc draw-line right-x top-y right-x (+ bot-y -1))
+        (send dc draw-line left-x (+ bot-y -1) right-x (+ bot-y -1)))
+
       (define (draw-square-brackets color)
         (draw-left-square-bracket color)
         #;(draw-right-square-bracket color))
-
+      
+      (define (draw-both-square-brackets color)
+        (draw-left-square-bracket color)
+        (draw-right-square-bracket color))
       
       ; actual draw calls (order sensitive!) -------------------------
       
@@ -452,7 +462,9 @@
       
       (case border-style
         ['none void]
-        ['square-brackets (draw-square-brackets border-color)])
+        ['full-box (draw-full-box-border border-color)]
+        ['square-brackets (draw-square-brackets border-color)]
+        ['both-square-brackets (draw-both-square-brackets border-color)])
 
       (send dc set-pen (make-color 255 255 255) 1 'solid)
       (super draw dc x y left top right bottom dx dy draw-caret))))
@@ -668,15 +680,16 @@
 (define auto-forms '((if (c▹▹ true) expr expr)
                      (begin expr)
                      (define name expr)
+                     (cond [(c▹▹ expr) expr])
                      (define (name name) expr)
                      (let ([name expr]) expr)))
 
 
 #; (define (replace-with-first-autocomplete-match source)
-  ([(c▹ ,(and pat (app autocomplete-matches matches)) ,sel)
-    ⋱↦ (c▹ ,(if (empty? matches)
-                pat
-                `(c▹▹ ,(first matches))) ,sel)] source))
+     ([(c▹ ,(and pat (app autocomplete-matches matches)) ,sel)
+       ⋱↦ (c▹ ,(if (empty? matches)
+                   pat
+                   `(c▹▹ ,(first matches))) ,sel)] source))
 
 
 (define (replace-with-first-autocomplete-match source)
@@ -792,13 +805,14 @@
                                                                               `(s▹ ,new ,((▹▹tag-hits new) sel)))])])]
              ['transform (match key-code 
                            ['escape                (!do (compose [(c▹ ,buf ,sel) ⋱↦ (▹ ,sel)]
+                                                                 [(⋈ ,num ,sel) ⋱↦ ,sel]
                                                                  #; [(,a ... ,(? empty-symbol?) ,b ...) ⋱↦ (,@a ,@b)]))
                                                    (set! mode 'select)]
                            [#\return               (!do [(c▹ ,buf ,sel) ⋱↦ (▹ ,(([(c▹▹ ,x) ⋱↦ ,x]) (eval-painted-buffer buf sel)))])
                                                    (set! mode 'select)]                
                            [(or 'right #\space)    (!do ([(,as ...  (c▹▹ ,(? empty-symbol?))) ⋱↦ (,@as (c▹▹ ,empty-symbol))]
                                                          [(,as ...  (c▹▹ ,b)) ⋱↦ (,@as ,b  (c▹▹ ,empty-symbol))]
-                                                         [(,as ...  (c▹▹ ,b) ,c ,cs ...) ⋱↦ (,@as ,b  (c▹▹ ,c) ,@cs)]
+                                                         [(,(and as (not (== 'c▹))) ...  (c▹▹ ,b) ,c ,cs ...) ⋱↦ (,@as ,b  (c▹▹ ,c) ,@cs)]
                                                          [(c▹▹ ,(? empty-symbol?)) ⋱↦ (c▹▹ ,empty-symbol)]
                                                          [(c▹▹ ,a) ⋱↦ (,a  (c▹▹ ,empty-symbol))]))]
                            ['down                  (!do ([(c▹▹ ,a) ⋱↦ ((c▹▹ ,a))]))]
@@ -837,7 +851,7 @@
 
 ; init stage and kit
 (define stage
-  ((▹-first-?-in atom?) '(define (fn a) a (define (g q r) (let ([a 5] [b 6]) (if 1 2 2)))))
+  ((▹-first-?-in atom?) '(define (fn a) a (define (g q r) (let ([a 5] [b 6]) (if apple banana orange)))))
   #; '(▹ (define (fn a) a (define (g q r) (let ([a 5] [b 6]) (if 1 2 2)))))
   #; '(▹ (if a b c))
   #; '(define (fn a) a (define (g q r) (let ([a 5] [b 6]) (if 1 2 2))))

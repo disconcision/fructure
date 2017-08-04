@@ -11,6 +11,7 @@
              (def  (|| (define (name name ...) expr ...)
                        (define name expr)))
              (expr (|| (if expr expr expr)
+                       (cond [expr expr] ...)
                        (begin expr ...)
                        (define (name name ...) expr ...)
                        (define name expr)
@@ -24,7 +25,7 @@
                        (expr expr ...)))))
 
 
-(define L1-form-names '(if begin define let lambda
+(define L1-form-names '(if cond begin define let lambda
                            send new
                            env kit meta))
 

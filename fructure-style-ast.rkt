@@ -117,8 +117,8 @@
                                  ((◇ (⋈ name hole))
                                   ((background-color (parent background-color))
                                    (format horizontal)
-                                   (border-style square-brackets)
-                                   (border-color (parent background-color))))
+                                   (border-style full-box)
+                                   (border-color (color 0 255 0))))
 
                                  (((◇ ⋈) name hole)
                                   ((background-color (parent background-color))
@@ -143,7 +143,25 @@
                                   ((background-color (parent background-color))
                                    (text-color (color 132 243 223))
                                    (border-style square-brackets)
-                                   (border-color (color 49 175 135))))
+                                   (border-color (parent background-color))))
+
+
+                                  ((◇ (cond [expr expr] ...))
+                                  ((background-color (color 85 140 160))
+                                   (format (indent-after 1))
+                                   (border-style square-brackets)
+                                   (border-color (parent background-color))))
+
+                                 (((◇ cond) [expr expr] ...)
+                                  ((background-color (parent background-color))
+                                   (text-color (color 152 233 243))
+                                   (border-style square-brackets)
+                                   (border-color (parent background-color))))
+
+                                 ((cond [expr expr] ... (◇ [expr expr]) [expr expr] ...)
+                                  ((background-color (parent background-color))
+                                   (border-style square-brackets)
+                                   (border-color (color 152 233 243))))
 
                                  
                                  ((◇ (define (name name ...) expr ...))
@@ -211,7 +229,7 @@
                                  ((◇ (free ...))
                                   ((background-color (color 128 128 128))
                                    (text-color (color 0 0 0))
-                                   (border-style square-brackets)
+                                   (border-style both-square-brackets)
                                    (border-color (color 255 0 0))))
 
                                  
