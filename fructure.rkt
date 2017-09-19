@@ -102,11 +102,14 @@
   (syntax-rules ()
     [(ignore-affo <pat>)
      (app (λ (source) (match source
+                        #; [`((,(? affo-name?) ,(and a (? affo-name?))) ,x ,y) `(,a ,x ,y)]
                         [`(,(? affo-name?) ,buf ,a) (match a
                                                       [`(,(? affo-name?) ,b) b]
+                                                      [`(,(? affo-name?) ,buf ,b) b]
                                                       [_ a])]
                         [`(,(? affo-name?) ,a) (match a
                                                  [`(,(? affo-name?) ,b) b]
+                                                 [`(,(? affo-name?) ,buf ,b) b]
                                                  [_ a])]
                         ; the above is a hack. how do i recurse right in macros
                         [_ source])) `<pat>)]))
@@ -166,13 +169,13 @@
   [(_ (? list?)) (map (curry fmap-fruct fn) source)])
 
 
-(define (lookup-style-in styles property)
+(define ((lookup-style-in styles) property)
   (second (assoc property styles)))
 
 
 (define (fill-in-parent-refs parent-styles)
   [(,property (parent ,parent-prop))
-   ⋱↦ (,property ,(lookup-style-in parent-styles parent-prop))])
+   ⋱↦ (,property ,((lookup-style-in parent-styles) parent-prop))])
 
 
 (define (cascade-styles parent-styles)
@@ -190,7 +193,7 @@
                          (hash-set source <out-pair> ...)])) ; need to splice outpairs
 
 
-
+; languages as interfaces
 
 
 ; parsing ------------------------------------------------------
@@ -302,6 +305,9 @@
 
 
 
+; machish principle:
+; grammar here is effected by structure there
+; ie or eg scope
 
 
 ; gui objs & structs ------------------------------------
@@ -530,6 +536,7 @@
   [(▹ ,a) ⋱↦ ,a])
 
 
+; returns a list of lenses into source whose views are pred?
 (define/match ((?->lenses pred?) source)
   [(_ (? pred?)) `(,identity-lens)]
   [(_ (? atom?)) #f]
@@ -542,6 +549,11 @@
                                                      #f)))
                                       source
                                       (range (length source))))])
+
+
+; true if there's a pred? in source
+(define ((contains- pred?) source)
+  (not (empty? ((?->lenses pred?) source))))
 
 
 (define ▹▹->lenses
@@ -723,11 +735,16 @@
 
 
 ; helpers - pattern painting
+((contains- ['⋈ ≡]) '⋈)
+((contains- ['⋈ ≡]) '(⋈ a b))
+((contains- ['⋈ ≡]) '(a b ⋈))
+((contains- ['⋈ ≡]) '((⋈ a) b))
+((contains- ['⋈ ≡]) '(a (⋈ b)))
 
-
+; todo : make sure you can't select within the command you're currently writing
 (define (simple-paint source)
   (match ((?->lenses [(or `(⋈ ,_ ,_) `(▹ ,_)) ≡]) source)
-    [`(,(and a (app (curryr lens-view source) `(▹ ,_)))
+    [`(,(and a (app (curryr lens-view source) `(▹ ,(not '⋈ `(⋈  ,_ ,_) (? (contains- ['⋈ ≡]))))))
        ,(and bs (app (curryr lens-view source) `(⋈ ,_ ,_))) ...)
      (let ([new-source (lens-transform a source [(▹ ,c) ↦ (▹ (⋈ 0 ,c))])])
        (if (empty? bs) new-source (lens-transform (apply lens-join/list bs) new-source (curry map [(⋈ ,m ,x) ↦ (⋈ ,(add1 m) ,x)]))))]
@@ -738,6 +755,7 @@
      (let ([new-source (lens-transform c source [(▹ ,c) ↦ (▹ (⋈ ,(add1 n) ,c))])])
        (if (empty? ds) new-source (lens-transform (apply lens-join/list ds) new-source (curry map [(⋈ ,m ,x) ↦ (⋈ ,(add1 m) ,x)]))))]
     [_ source]))
+
 
 
 (define (named-paint-c▹▹ name)
@@ -783,7 +801,7 @@
         [#\= (pretty-print (project-symbol stage-gui))]
         [_ (case mode
              ['select    (match key-code
-                           ['escape                (!do (compose [,a ⋱↦ (▹ ,a)] [(▹ ,a) ⋱↦ ,a]))]
+                           ['home                  (!do (compose [,a ⋱↦ (▹ ,a)] [(▹ ,a) ⋱↦ ,a]))]
                            [#\return               (!do ([((▹ ,(? form-name? a)) ,x ...) ⋱↦ (c▹ (c▹▹ ,empty-symbol) (,a ,@x))]
                                                          [(▹ ,a) ⋱↦ (c▹ (c▹▹ ,empty-symbol) ,a)])) 
                                                    (set! mode 'transform)]
@@ -791,7 +809,8 @@
                            ['left                  (!do (▹-prev-? atom?))]
                            ['up                    (!do [(,a ... (▹ ,b ...) ,c ...) ⋱↦ (▹ (,@a ,@b ,@c))])]
                            ['down                  (!do [(▹ (,a ,b ...)) ⋱↦ ((▹ ,a) ,@b)])]
-                           [#\space                (!do (compose #; (▹-next-? atom?) simple-paint))]
+                           [#\space                (!do (compose #;(▹-next-? atom?) simple-paint))]
+                           ['escape                (!do {(⋈ ,a ,b) ⋱↦ ,b})]
                            [(reg "[A-Za-z_]")      (!do [(▹ ,a) ⋱↦ (s▹ ,(string key-code) ,((▹▹tag-hits (string key-code)) a))])
                                                    (set! mode 'search)])]
              ['search    (match key-code
