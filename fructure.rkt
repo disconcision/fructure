@@ -744,7 +744,7 @@
 ; todo : make sure you can't select within the command you're currently writing
 (define (simple-paint source)
   (match ((?->lenses [(or `(⋈ ,_ ,_) `(▹ ,_)) ≡]) source)
-    [`(,(and a (app (curryr lens-view source) `(▹ ,(not '⋈ `(⋈  ,_ ,_) (? (contains- ['⋈ ≡]))))))
+    [`(,(and a (app (curryr lens-view source) `(▹ ,(or (not '⋈ `(⋈  ,_ ,_) (? (contains- ['⋈ ≡]))) (? atom?))))) ; atom is hack
        ,(and bs (app (curryr lens-view source) `(⋈ ,_ ,_))) ...)
      (let ([new-source (lens-transform a source [(▹ ,c) ↦ (▹ (⋈ 0 ,c))])])
        (if (empty? bs) new-source (lens-transform (apply lens-join/list bs) new-source (curry map [(⋈ ,m ,x) ↦ (⋈ ,(add1 m) ,x)]))))]
