@@ -122,12 +122,15 @@
 
                                  (((◇ ⋈) name hole)
                                   ((background-color (parent background-color))
+                                   (text-size 0)
                                    (text-color (color 0 255 0))
                                    (border-style square-brackets)
                                    (border-color (parent background-color))))
 
                                  ((⋈ (◇ name) hole)
                                   ((background-color (parent background-color))
+                                   (text-size 8)
+                                   (text-align center)
                                    (text-color (color 0 255 0))
                                    (border-style square-brackets)
                                    (border-color (parent background-color))))
@@ -146,7 +149,7 @@
                                    (border-color (parent background-color))))
 
 
-                                  ((◇ (cond [expr expr] ...))
+                                 ((◇ (cond [expr expr] ...))
                                   ((background-color (color 85 140 160))
                                    (format (indent-after 1))
                                    (border-style square-brackets)
@@ -194,15 +197,29 @@
                                    (border-color (parent background-color)))) 
 
 
+                                 #;((◇ (let ([name expr] ...) expr ...))
+                                    ((background-color (color 98 59 99))
+                                     (format indent)
+                                     (border-style square-brackets)
+                                     (border-color (parent background-color))))
+
                                  ((◇ (let ([name expr] ...) expr ...))
                                   ((background-color (color 98 59 99))
                                    (format indent)
-                                   (border-style square-brackets)
-                                   (border-color (parent background-color))))
+                                   (margins 80 20 2 2)
+
+                                   ))
 
                                  (((◇ let) ([name expr] ...) expr ...)
                                   ((background-color (parent background-color))
                                    (text-color (color 239 165 241))
+
+                                   (text-size 8)
+                                   (text-family symbol)
+                                   (italic? #true)
+                                   (bold? #true)
+                                   (smooth? #true)
+                                   
                                    (border-style square-brackets)
                                    (border-color (parent background-color))))
 
@@ -234,13 +251,76 @@
 
                                  
                                  (expr
-                                  ((format horizontal)
+                                  ((visible #true)
                                    (background-color (parent background-color))
-                                   (text-color (color 247 224 23))
                                    (border-style none)
-                                   (border-color (parent background-color))
-                                   (visible #true))))))
+                                   (border-color (color 200 32 200))
+                                   (format horizontal)
+                                   (margins 4 2 2 2)
+                                   (text-color (color 247 224 23))
+                                   (text-color-add)
+                                   (text-color-mult)
+                                   (text-size 24)
+                                   (text-family base)
+                                   (text-align top) ; doesn't work for some reason
+                                   (italic? #false)
+                                   (bold? #false)
+                                   (smooth? #false))))))
 
+
+
+
+
+; style fns ------------------------------------------
+
+(struct gui (sn ed parent-ed))
+
+
+(define (get-property style property)
+  (let ([result (assoc property style)])
+    (if result
+        (second result)
+        (second (assoc property (lookup-style 'expr)))))) ; this lookup-style argument is a hack
+
+
+(define (apply-style! style g)
+  (match-let ([(gui sn ed parent-ed) g]
+              [get (λ (property) (get-property style property))])
+    
+    (send sn set-background-color (get 'background-color))
+    (send sn set-border-color (get 'border-color))
+    (send sn set-border-style (get 'border-style))
+    (send sn set-margins 4 2 2 2)
+
+    (send ed set-format (get 'format))
+    
+    #;(when #true #;(get 'visible) (send parent-ed insert sn))
+    #;(send ed set-text-color (get 'text-color))
+    
+    (send ed set-text-style
+          (get 'text-color)
+          #; (get 'text-color-add)
+          #; (get 'text-color-mult)
+          (get 'text-size)
+          (get 'text-family)
+          (get 'text-align)
+          (get 'italic?)
+          (get 'bold?)
+          (get 'smooth?))))
+
+
+
+
+; old style fns --------------------------------------
+
+
+#; (define (make-style position code)
+     `(my-style
+       (background-color ,(match code
+                            [`(,(== selector) ,a ...) '(color 200 200 0)]
+                            [_ `(color ,(modulo (exact-round (* 255 (sqrt (/ (length position) (tree-depth original-source))))) 256)
+                                       60
+                                       100)]))))
 
 
 
@@ -359,45 +439,3 @@
                          (text-color (color 253 238 189))
                          (border-style square-brackets)
                          (border-color (color 255 255 255))))))
-
-
-
-
-
-
-; style fns ------------------------------------------
-
-(struct gui (sn ed parent-ed))
-
-
-(define (apply-style! style g)
-  (match-let ([(gui sn ed parent-ed) g]
-              [get (λ (property) (get-property style property))])
-    
-    (send sn set-background-color (get  'background-color))
-    (send sn set-border-color (get 'border-color))
-    (send sn set-border-style (get 'border-style))
-    (send ed set-format (get 'format))
-    #;(when #true #;(get 'visible) (send parent-ed insert sn))
-    (send ed set-text-color (get 'text-color))
-    (send sn set-margins 4 2 2 2)))
-
-
-(define (get-property style property)
-  (let ([result (assoc property style)])
-    (if result
-        (second result)
-        (second (assoc property (lookup-style 'expr)))))) ; this lookup-style argument is a hack
-
-
-; old style fns --------------------------------------
-
-
-#; (define (make-style position code)
-     `(my-style
-       (background-color ,(match code
-                            [`(,(== selector) ,a ...) '(color 200 200 0)]
-                            [_ `(color ,(modulo (exact-round (* 255 (sqrt (/ (length position) (tree-depth original-source))))) 256)
-                                       60
-                                       100)]))))
-

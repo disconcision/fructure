@@ -324,7 +324,7 @@
 (define fruct-ed%
   (class text% (super-new [line-spacing 0])
     
-    (define/public (set-text-color color)
+    #; (define/public (set-text-color color)
       ;must be after super so style field is intialized
       (define my-style-delta (make-object style-delta%))
 
@@ -339,6 +339,20 @@
          (send my-style-delta set-delta-foreground (make-color r g b))])
       
       (send this change-style my-style-delta))
+
+    (define/public (set-text-style color size family align italic? bold? smooth?)
+                  
+         (define my-style-delta (make-object style-delta%))
+
+         (send my-style-delta set-delta-foreground (apply make-color (rest color)))
+         (send my-style-delta set-delta 'change-size size)
+         (send my-style-delta set-delta 'change-family family)
+         (send my-style-delta set-delta 'change-alignment align)
+         (send my-style-delta set-delta 'change-style (if italic? 'italic 'normal))
+         (send my-style-delta set-delta 'change-weight (if bold? 'bold 'normal))
+         (send my-style-delta set-delta 'change-smoothing (if smooth? 'smoothed 'unsmoothed))
+      
+         (send this change-style my-style-delta))
     
     (define/public (set-format format)
       (match format
@@ -797,10 +811,15 @@
   (let ([key-code (send event get-key-code)])
     (when (not (equal? 'release key-code))
       (match key-code
-        [#\- (pretty-print stage-gui)]
-        [#\= (pretty-print (project-symbol stage-gui))]
+        
+        ['f1 (!do (λ (_) backup-stage))] ; restores stage to initial state
+        ['f2 (pretty-print (project-symbol stage-gui))] ; print s-expr representing stage
+        ['f3 (pretty-print stage-gui)] ; print raw stage data
+        
         [_ (case mode
+             
              ['select    (match key-code
+                           
                            ['home                  (!do (compose [,a ⋱↦ (▹ ,a)] [(▹ ,a) ⋱↦ ,a]))]
                            [#\return               (!do ([((▹ ,(? form-name? a)) ,x ...) ⋱↦ (c▹ (c▹▹ ,empty-symbol) (,a ,@x))]
                                                          [(▹ ,a) ⋱↦ (c▹ (c▹▹ ,empty-symbol) ,a)])) 
@@ -813,7 +832,9 @@
                            ['escape                (!do {(⋈ ,a ,b) ⋱↦ ,b})]
                            [(reg "[A-Za-z_]")      (!do [(▹ ,a) ⋱↦ (s▹ ,(string key-code) ,((▹▹tag-hits (string key-code)) a))])
                                                    (set! mode 'search)])]
+             
              ['search    (match key-code
+                           
                            [(or 'escape #\return)  (!do (compose [(s▹ ,buf ,sel) ⋱↦ (▹ ,sel)]
                                                                  [(▹▹ ,a) ⋱↦ ,a]))
                                                    (set! mode 'select)]
@@ -822,7 +843,9 @@
                                                                               `(s▹ ,bu ,((▹▹tag-hits bu) sel)))])]
                            [(reg "[A-Za-z0-9_]")   (!do [(s▹ ,buf ,sel) ⋱↦ ,(let ([new ((append-char-to-str key-code) buf)])
                                                                               `(s▹ ,new ,((▹▹tag-hits new) sel)))])])]
-             ['transform (match key-code 
+             
+             ['transform (match key-code
+                           
                            ['escape                (!do (compose [(c▹ ,buf ,sel) ⋱↦ (▹ ,sel)]
                                                                  [(⋈ ,num ,sel) ⋱↦ ,sel]
                                                                  #; [(,a ... ,(? empty-symbol?) ,b ...) ⋱↦ (,@a ,@b)]))
@@ -847,6 +870,7 @@
                            ['control               (!do [(c▹ ,buf ,sel) ⋱↦ (c▹ ,buf ,(toggle-paint sel))])]
                            [#\tab                  (!do replace-with-first-autocomplete-match)]
                            [(reg "[A-Za-z_]")      (!do ([(c▹▹ ,(? symbol? s)) ⋱↦ (c▹▹ ,((append-char-to key-code) s))]))])]
+             
              ['project   (match key-code)])]))))
 
 
@@ -876,6 +900,9 @@
   #; '(define (fn a) a (define (g q r) (let ([a 5] [b 6]) (if 1 2 2))))
   #; '(define (fn a) a (define (g q r) 2))
   #; '(define (▹ (fn a)) 7))
+
+(define backup-stage
+  ((▹-first-?-in atom?) '(define (fn a) a (define (g q r) (let ([a 5] [b 6]) (if apple banana orange))))))
 
 (define kit '(kit (env) (meta)))
 
