@@ -325,34 +325,34 @@
   (class text% (super-new [line-spacing 0])
     
     #; (define/public (set-text-color color)
-      ;must be after super so style field is intialized
-      (define my-style-delta (make-object style-delta%))
+         ;must be after super so style field is intialized
+         (define my-style-delta (make-object style-delta%))
 
-      (send my-style-delta set-size-add 14)
+         (send my-style-delta set-size-add 14)
       
-      #; (send my-style-delta set-delta-background color) ; text bkg
-      #; (send my-style-delta set-alignment-on 'top) ; ???
-      #; (send my-style-delta set-transparent-text-backing-on #f) ; ineffective
+         #; (send my-style-delta set-delta-background color) ; text bkg
+         #; (send my-style-delta set-alignment-on 'top) ; ???
+         #; (send my-style-delta set-transparent-text-backing-on #f) ; ineffective
       
-      (match color
-        [`(color ,r ,g ,b)
-         (send my-style-delta set-delta-foreground (make-color r g b))])
+         (match color
+           [`(color ,r ,g ,b)
+            (send my-style-delta set-delta-foreground (make-color r g b))])
       
-      (send this change-style my-style-delta))
+         (send this change-style my-style-delta))
 
     (define/public (set-text-style color size family align italic? bold? smooth?)
                   
-         (define my-style-delta (make-object style-delta%))
+      (define my-style-delta (make-object style-delta%))
 
-         (send my-style-delta set-delta-foreground (apply make-color (rest color)))
-         (send my-style-delta set-delta 'change-size size)
-         (send my-style-delta set-delta 'change-family family)
-         (send my-style-delta set-delta 'change-alignment align)
-         (send my-style-delta set-delta 'change-style (if italic? 'italic 'normal))
-         (send my-style-delta set-delta 'change-weight (if bold? 'bold 'normal))
-         (send my-style-delta set-delta 'change-smoothing (if smooth? 'smoothed 'unsmoothed))
+      (send my-style-delta set-delta-foreground (apply make-color (rest color)))
+      (send my-style-delta set-delta 'change-size size)
+      (send my-style-delta set-delta 'change-family family)
+      (send my-style-delta set-delta 'change-alignment align)
+      (send my-style-delta set-delta 'change-style (if italic? 'italic 'normal))
+      (send my-style-delta set-delta 'change-weight (if bold? 'bold 'normal))
+      (send my-style-delta set-delta 'change-smoothing (if smooth? 'smoothed 'unsmoothed))
       
-         (send this change-style my-style-delta))
+      (send this change-style my-style-delta))
     
     (define/public (set-format format)
       (match format
@@ -807,6 +807,118 @@
 ; make quick !!! command to collapse a subtree (remember to remember state)
 
 
+; macro attempt 1
+#; (match key-code                      
+     [#\return               (!do ([((▹ ,(? form-name? a)) ,x ...) ⋱↦ (c▹ (c▹▹ ,empty-symbol) (,a ,@x))]
+                                   [(▹ ,a) ⋱↦ (c▹ (c▹▹ ,empty-symbol) ,a)])) 
+                             (set! mode 'transform)]
+     ['down                  (!do [(▹ (,a ,b ...)) ⋱↦ ((▹ ,a) ,@b)])])
+#; (match key-code [key-pat (!do a-transformation) ...
+                            (~optional (set! mode 'a-mode))] ...)
+(require syntax/parse)
+#; (define/syntax-parse (match-do! key-code [key-pat a-transformation (~optional (mode: a-mode))] ...)
+     (match key-code [key-pat (!do a-transformation)
+                              (~optional (set! mode 'a-mode))] ...))
+#;(define-syntax (match-do! stx)
+    (syntax-case stx (mode:)
+      [ (_ key-code [key-pat a-transformation (mode: a-mode) ...] ...)
+        #`(match key-code [key-pat (!do a-transformation)
+                                   (set! mode a-mode) ...] ...)]))
+
+
+; macro attempt 2
+#; (main-loop event
+              [amodal-key amodeal-action]
+              ...
+              (a-mode
+               [a-key an-action] ...)
+              ...)
+#; (define (char-input event)
+     (let ([key-code (send event get-key-code)])
+       (when (not (equal? 'release key-code))
+         (match key-code
+           [amodal-key amodeal-action]
+           [_ (case mode
+                [a-mode     (match key-code
+                              [a-key     an-action])])])))) 
+
+
+
+
+#; (main-loop
+    
+    ; amodal functions
+    ['f1 (!do (λ (_) backup-stage))] ; restores stage to initial state
+    ['f2 (pretty-print (project-symbol stage-gui))] ; print s-expr representing stage
+    ['f3 (pretty-print stage-gui)] ; print raw stage data
+
+    (SELECT     
+     ['home                  [,a ⋱↦ (▹ ,a)] [(▹ ,a) ⋱↦ ,a]]                         
+     [#\return               ([((▹ ,(? form-name? a)) ,x ...) ⋱↦ (c▹ (c▹▹ ,empty-symbol) (,a ,@x))]
+                              [(▹ ,a) ⋱↦ (c▹ (c▹▹ ,empty-symbol) ,a)]) 
+                             (mode: TRANSFORM)]
+                           
+     ['right                 (▹-next-? atom?)]
+     ['left                  (▹-prev-? atom?)]
+     ['up                    [(,a ... (▹ ,b ...) ,c ...) ⋱↦ (▹ (,@a ,@b ,@c))]]
+     ['down                  [(▹ (,a ,b ...)) ⋱↦ ((▹ ,a) ,@b)]]
+                           
+     [#\space                simple-paint]
+     ['escape                [(⋈ ,a ,b) ⋱↦ ,b]]
+                           
+     [(reg "[A-Za-z_]")      [(▹ ,a) ⋱↦ (s▹ ,(string key-code) ,((▹▹tag-hits (string key-code)) a))]
+                             (mode: SEARCH)])
+   
+    (SEARCH    
+     [(or 'escape #\return)  (compose [(s▹ ,buf ,sel) ⋱↦ (▹ ,sel)]
+                                      [(▹▹ ,a) ⋱↦ ,a])
+                             (mode: SELECT)]
+                           
+     ['right                 ▹-cycle-▹▹]
+                           
+     [(or 'left #\backspace) [(s▹ ,buf ,sel) ⋱↦ ,(let ([bu (remove-last-char-str buf)])
+                                                   `(s▹ ,bu ,((▹▹tag-hits bu) sel)))]]
+                           
+     [(reg "[A-Za-z0-9_]")   [(s▹ ,buf ,sel) ⋱↦ ,(let ([new ((append-char-to-str key-code) buf)])
+                                                   `(s▹ ,new ,((▹▹tag-hits new) sel)))]])
+
+    (TRANSFORM
+     ['escape                (compose [(c▹ ,buf ,sel) ⋱↦ (▹ ,sel)]
+                                      [(⋈ ,num ,sel) ⋱↦ ,sel])
+                             (mode: select)]
+                           
+     [#\return               [(c▹ ,buf ,sel) ⋱↦ (▹ ,(([(c▹▹ ,x) ⋱↦ ,x]) (eval-painted-buffer buf sel)))]
+                             (mode:select)]
+                           
+     [(or 'right #\space)    ([(,as ...  (c▹▹ ,(? empty-symbol?))) ⋱↦ (,@as (c▹▹ ,empty-symbol))]
+                              [(,as ...  (c▹▹ ,b)) ⋱↦ (,@as ,b  (c▹▹ ,empty-symbol))]
+                              [(,(and as (not (== 'c▹))) ...  (c▹▹ ,b) ,c ,cs ...) ⋱↦ (,@as ,b  (c▹▹ ,c) ,@cs)]
+                              [(c▹▹ ,(? empty-symbol?)) ⋱↦ (c▹▹ ,empty-symbol)]
+                              [(c▹▹ ,a) ⋱↦ (,a  (c▹▹ ,empty-symbol))])]
+                           
+     ['down                  [(c▹▹ ,a) ⋱↦ ((c▹▹ ,a))]]
+                           
+     ['up                    ([(,as ... (,bs ... (c▹▹ ,(? empty-symbol?)))) ⋱↦ (,@as (,@bs) (c▹▹ ,empty-symbol))]
+                              [(,as ... (,bs ... (c▹▹ ,c))) ⋱↦ (,@as (,@bs ,c) (c▹▹ ,empty-symbol))])]
+                           
+     [(or 'left #\backspace) ([((c▹▹ ,(? empty-symbol?)) ,as ...) ⋱↦ (c▹▹ ,empty-symbol)]
+                              [(c▹▹ ,(? symbol? s)) ⋱↦  (c▹▹ ,(remove-last-char s))]
+                              [(c▹▹ ,(? atom? s)) ⋱↦  (c▹▹ ,empty-symbol)]
+                              [(c▹ (c▹▹ ,(? empty-symbol?)) ,xs ...) ⋱↦  (c▹ (c▹▹ ,empty-symbol) ,@xs)]
+                              [(,xs ... ,(? atom? x) (c▹▹ ,(? empty-symbol?)) ,ys ...) ⋱↦  (,@xs (c▹▹ ,x) ,@ys)]
+                              [(,xs ... (,as ...) (c▹▹ ,(? empty-symbol? s)) ,ys ...) ⋱↦  (,@xs (,@as (c▹▹ ,empty-symbol)) ,@ys)])]
+                           
+     [(reg "[0-9]")          (named-paint-c▹▹ (string->number (string key-code)))]
+     ['control               [(c▹ ,buf ,sel) ⋱↦ (c▹ ,buf ,(toggle-paint sel))]]
+     [#\tab                  replace-with-first-autocomplete-match]
+     [(reg "[A-Za-z_]")      [(c▹▹ ,(? symbol? s)) ⋱↦ (c▹▹ ,((append-char-to key-code) s))]])
+
+    (PROJECT))
+
+
+
+
+
 (define (char-input event)
   (let ([key-code (send event get-key-code)])
     (when (not (equal? 'release key-code))
@@ -821,28 +933,40 @@
              ['select    (match key-code
                            
                            ['home                  (!do (compose [,a ⋱↦ (▹ ,a)] [(▹ ,a) ⋱↦ ,a]))]
+                           
                            [#\return               (!do ([((▹ ,(? form-name? a)) ,x ...) ⋱↦ (c▹ (c▹▹ ,empty-symbol) (,a ,@x))]
                                                          [(▹ ,a) ⋱↦ (c▹ (c▹▹ ,empty-symbol) ,a)])) 
                                                    (set! mode 'transform)]
+                           
                            ['right                 (!do (▹-next-? atom?))]
                            ['left                  (!do (▹-prev-? atom?))]
                            ['up                    (!do [(,a ... (▹ ,b ...) ,c ...) ⋱↦ (▹ (,@a ,@b ,@c))])]
                            ['down                  (!do [(▹ (,a ,b ...)) ⋱↦ ((▹ ,a) ,@b)])]
+                           
                            [#\space                (!do (compose #;(▹-next-? atom?) simple-paint))]
                            ['escape                (!do {(⋈ ,a ,b) ⋱↦ ,b})]
+                           
                            [(reg "[A-Za-z_]")      (!do [(▹ ,a) ⋱↦ (s▹ ,(string key-code) ,((▹▹tag-hits (string key-code)) a))])
-                                                   (set! mode 'search)])]
+                                                   (set! mode 'search)])
+
+                         #;(match-do! key-code
+                                      ['down [(▹ (,a ,b ...)) ⋱↦ ((▹ ,a) ,@b)]]
+                                      (mode: 'transform))]
              
              ['search    (match key-code
                            
                            [(or 'escape #\return)  (!do (compose [(s▹ ,buf ,sel) ⋱↦ (▹ ,sel)]
                                                                  [(▹▹ ,a) ⋱↦ ,a]))
                                                    (set! mode 'select)]
+                           
                            ['right                 (!do ▹-cycle-▹▹)]
+                           
                            [(or 'left #\backspace) (!do [(s▹ ,buf ,sel) ⋱↦ ,(let ([bu (remove-last-char-str buf)])
                                                                               `(s▹ ,bu ,((▹▹tag-hits bu) sel)))])]
+                           
                            [(reg "[A-Za-z0-9_]")   (!do [(s▹ ,buf ,sel) ⋱↦ ,(let ([new ((append-char-to-str key-code) buf)])
                                                                               `(s▹ ,new ,((▹▹tag-hits new) sel)))])])]
+             
              
              ['transform (match key-code
                            
@@ -850,22 +974,28 @@
                                                                  [(⋈ ,num ,sel) ⋱↦ ,sel]
                                                                  #; [(,a ... ,(? empty-symbol?) ,b ...) ⋱↦ (,@a ,@b)]))
                                                    (set! mode 'select)]
+                           
                            [#\return               (!do [(c▹ ,buf ,sel) ⋱↦ (▹ ,(([(c▹▹ ,x) ⋱↦ ,x]) (eval-painted-buffer buf sel)))])
-                                                   (set! mode 'select)]                
+                                                   (set! mode 'select)]
+                           
                            [(or 'right #\space)    (!do ([(,as ...  (c▹▹ ,(? empty-symbol?))) ⋱↦ (,@as (c▹▹ ,empty-symbol))]
                                                          [(,as ...  (c▹▹ ,b)) ⋱↦ (,@as ,b  (c▹▹ ,empty-symbol))]
                                                          [(,(and as (not (== 'c▹))) ...  (c▹▹ ,b) ,c ,cs ...) ⋱↦ (,@as ,b  (c▹▹ ,c) ,@cs)]
                                                          [(c▹▹ ,(? empty-symbol?)) ⋱↦ (c▹▹ ,empty-symbol)]
                                                          [(c▹▹ ,a) ⋱↦ (,a  (c▹▹ ,empty-symbol))]))]
+                           
                            ['down                  (!do ([(c▹▹ ,a) ⋱↦ ((c▹▹ ,a))]))]
+                           
                            ['up                    (!do ([(,as ... (,bs ... (c▹▹ ,(? empty-symbol?)))) ⋱↦ (,@as (,@bs) (c▹▹ ,empty-symbol))]
                                                          [(,as ... (,bs ... (c▹▹ ,c))) ⋱↦ (,@as (,@bs ,c) (c▹▹ ,empty-symbol))]))]
+                           
                            [(or 'left #\backspace) (!do ([((c▹▹ ,(? empty-symbol?)) ,as ...) ⋱↦ (c▹▹ ,empty-symbol)]
                                                          [(c▹▹ ,(? symbol? s)) ⋱↦  (c▹▹ ,(remove-last-char s))]
                                                          [(c▹▹ ,(? atom? s)) ⋱↦  (c▹▹ ,empty-symbol)]
                                                          [(c▹ (c▹▹ ,(? empty-symbol?)) ,xs ...) ⋱↦  (c▹ (c▹▹ ,empty-symbol) ,@xs)]
                                                          [(,xs ... ,(? atom? x) (c▹▹ ,(? empty-symbol?)) ,ys ...) ⋱↦  (,@xs (c▹▹ ,x) ,@ys)]
                                                          [(,xs ... (,as ...) (c▹▹ ,(? empty-symbol? s)) ,ys ...) ⋱↦  (,@xs (,@as (c▹▹ ,empty-symbol)) ,@ys)]))]
+                           
                            [(reg "[0-9]")          (!do (named-paint-c▹▹ (string->number (string key-code))))]
                            ['control               (!do [(c▹ ,buf ,sel) ⋱↦ (c▹ ,buf ,(toggle-paint sel))])]
                            [#\tab                  (!do replace-with-first-autocomplete-match)]
