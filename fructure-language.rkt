@@ -17,6 +17,7 @@
                        (define name expr)
                        (let ([name expr] ...) expr ...)
                        (lambda (name ...) expr ...)
+                       (local (expr ...) expr ...)
                        (send expr expr expr ...)
                        (new expr [name expr] ...)
                        (env expr ...)
@@ -26,6 +27,7 @@
 
 
 (define L1-form-names '(if cond begin define let lambda
+                           local
                            send new
                            env kit meta))
 

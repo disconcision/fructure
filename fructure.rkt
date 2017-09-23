@@ -1024,7 +1024,13 @@
 
 ; init stage and kit
 (define stage
-  ((▹-first-?-in atom?) '(define (fn a) a (define (g q r) (let ([a 5] [b 6]) (if apple banana orange)))))
+  ((▹-first-?-in atom?) '(define (sub-sequences l)
+                           (cond [(empty? l) (list (list))]
+                                 [else (local [(define a-list (sub-sequences (rest l)))]
+                                         (append a-list
+                                                 (include-in-all (first l) a-list)))])))
+  
+  #; '((▹-first-?-in atom?) '(define (fn a) a (define (g q r) (let ([a 5] [b 6]) (if apple banana orange)))))
   #; '(▹ (define (fn a) a (define (g q r) (let ([a 5] [b 6]) (if 1 2 2)))))
   #; '(▹ (if a b c))
   #; '(define (fn a) a (define (g q r) (let ([a 5] [b 6]) (if 1 2 2))))

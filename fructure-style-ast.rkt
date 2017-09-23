@@ -166,6 +166,39 @@
                                    (border-style square-brackets)
                                    (border-color (color 152 233 243))))
 
+
+                                 ((◇ (define name expr))
+                                  ((format indent)
+                                   (background-color (color 71 60 99))
+                                   (border-style square-brackets)
+                                   (border-color (parent background-color))))
+
+
+                                 (((◇ define) name expr)
+                                  ((background-color (parent background-color))
+                                   (text-color (color 211 196 253))
+                                   (border-style square-brackets)
+                                   (border-color (parent background-color))))
+
+                                 ((define (◇ name) expr)
+                                  ((background-color (color 132 255 251))
+                                   (text-color (color 45 156 188))
+                                   (border-style square-brackets)
+                                   (border-color (parent background-color))))
+
+
+                                 ((◇ (local (expr ...) expr ...))
+                                  ((format indent)
+                                   (background-color (color 31 40 69))
+                                   (border-style square-brackets)
+                                   (border-color (parent background-color))))
+
+                                 (((◇ local) (expr ...) expr ...)
+                                  ((background-color (parent background-color))
+                                   (background-color (color 91 110 149))
+                                   (border-style square-brackets)
+                                   (border-color (parent background-color))))
+                                 
                                  
                                  ((◇ (define (name name ...) expr ...))
                                   ((format indent)
@@ -243,11 +276,32 @@
 
                                  
                                  ; danger! since we're not checking sorts, this is a fallthrough!!
-                                 ((◇ (free ...))
-                                  ((background-color (color 128 128 128))
-                                   (text-color (color 0 0 0))
+                                 #; ((◇ (free ...))
+                                     ((background-color (color 128 128 128))
+                                      (text-color (color 0 0 0))
+                                      (border-style both-square-brackets)
+                                      (border-color (color 255 0 0))))
+
+                                 
+                                 ((◇ (expr ...))
+                                  ((background-color (parent background-color))
                                    (border-style both-square-brackets)
-                                   (border-color (color 255 0 0))))
+                                   (border-color (color 100 200 255))
+                                   (format horizontal)
+                                   (text-size 24)
+                                   (text-family base)
+                                   (italic? #true)))
+
+                                 ; this doesn't work
+                                 (((◇ expr) expr ...)
+                                  ((background-color (color 30 67 82))
+                                   (border-style both-square-brackets)
+                                   (border-color (parent background-color))
+                                   (format horizontal)
+                                   (text-color (color 100 200 0))
+                                   (text-size 24)
+                                   (text-family base)
+                                   (italic? #true)))
 
                                  
                                  (expr
