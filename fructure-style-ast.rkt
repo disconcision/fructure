@@ -592,13 +592,25 @@
      (transpose `(,(map form-list->pattern form-pat) ,style))]))
 
 
-(define (demacrod-form+stylesheet->style stylesheet form)
+(define (makecode stylesheet)
   (let ([proc-sheet (stylesheet->parse-stylesheet stylesheet)])
     (match-let* ([`((,pat ,style) ...) proc-sheet]
-                 [return `(match ,(\\ form)
+                 [return `(match-lambda
                             #;,@proc-sheet
                             ,@(map (match-lambda [`(,pat ,style) `(,(\\ pat) ,(\\ style))]) proc-sheet)
                             #;(transpose `(,pat ,style)))])
+      return)))
+
+(define match-stylesheet (makecode stylesheet))
+
+(define (demacrod-form+stylesheet->style stylesheet form)
+  (let ([proc-sheet (stylesheet->parse-stylesheet stylesheet)])
+    (match-let* ([`((,pat ,style) ...) proc-sheet]
+                 [return `(,match-stylesheet ,(\\ form))]
+                 #;[return `(match ,(\\ form)
+                              #;,@proc-sheet
+                              ,@(map (match-lambda [`(,pat ,style) `(,(\\ pat) ,(\\ style))]) proc-sheet)
+                              #;(transpose `(,pat ,style)))])
       return)))
 
 ;todo: rewrite this as non-macro using (eval-match-λ pat-tem) from utility library
@@ -612,20 +624,20 @@
 
 
 (define (lookup-style form)
-    (form+stylesheet->style form stylesheet))
+  (form+stylesheet->style form stylesheet))
 
 (define-namespace-anchor an)
 (define ns (namespace-anchor->namespace an))
-#; (define (lookup-style form)
+(define (lookup-style-2 form)
   #; (display (demacrod-form+stylesheet->style stylesheet form))
   #; (display "---------------------------------------------------------------")
   (eval (demacrod-form+stylesheet->style stylesheet form) ns)
   #; (demacrod-form+stylesheet->style stylesheet form))
 
-#; (lookup-style '(if a b c))
+(time (lookup-style '(if a b c)))
 #; (display "---------------------------------------------------------------")
-#; (lookup-style-2 '(if a b c))
-
+(time (lookup-style-2 '(if a b c)))
+(time (lookup-style-2 '(if 1 2 3)))
 
 
 ; style fns ------------------------------------------
