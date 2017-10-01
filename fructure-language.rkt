@@ -6,8 +6,29 @@
          form-name?
          affo-name?)
 
-; source grammar
-(define L1 '((free (|| (free ...)))
+; sorts
+(define L1-sort-names '(expr
+                        name
+                        hole
+                        free))
+
+
+; terminal sorts
+(define L1-terminal-names '(name
+                            name-new
+                            name-ref
+                            literal))
+
+
+; form identifiers (reserved words)
+(define L1-form-names '(if cond begin define let lambda
+                           local
+                           send new
+                           env kit meta))
+
+
+; grammar
+(define L1 '(#; (free (|| (free ...)))
              (def  (|| (define (name name ...) expr ...)
                        (define name expr)))
              (expr (|| (if expr expr expr)
@@ -26,24 +47,8 @@
                        (expr expr ...)))))
 
 
-(define L1-form-names '(if cond begin define let lambda
-                           local
-                           send new
-                           env kit meta))
 
-
-(define L1-terminal-names '(name
-                            name-new
-                            name-ref
-                            literal))
-
-
-(define L1-sort-names '(expr
-                        name
-                        hole
-                        free))
-
-
+; snaffos: syntactic affordances for interface metalanguage
 (define L1-affo-names '(▹ selector
                           ▹▹ subselector
                           s▹ search-selector
@@ -51,6 +56,7 @@
                           c▹▹ command-subselector
                           ⋈ fruct-unquote))
 
+; membership predicates
 (define-values (sort-name?
                 terminal-name?
                 form-name?

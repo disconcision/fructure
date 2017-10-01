@@ -6,6 +6,8 @@
          map-rec
          undotdotdot
          redotdotdot
+         eval-match-λ
+         eval-match-?
          \\
          //
          /@)
@@ -42,3 +44,13 @@
                 /@) (values ((curry list) 'quasiquote)
                             ((curry list) 'unquote)
                             ((curry list) 'unquote-splicing)))
+
+
+
+(define-namespace-anchor an)
+(define ns (namespace-anchor->namespace an))
+(define (eval-match-λ pat-tem)
+  (match-let ([`(,pat ,tem) pat-tem])
+    (eval `(match-lambda [,pat ,tem] [x x]) ns)))
+(define (eval-match-? pat)
+  (eval `(match-lambda [(and x ,pat) x] [_ #f]) ns))

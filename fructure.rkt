@@ -636,13 +636,12 @@
     [_ (▹-next-▹▹ source)]))
 
 
-(define-namespace-anchor an)
-(define ns (namespace-anchor->namespace an))
-(define (eval-match-λ pat-tem)
+#; (define-namespace-anchor an)
+#; (define ns (namespace-anchor->namespace an))
+#; (define (eval-match-λ pat-tem)
   (match-let ([`(,pat ,tem) pat-tem])
     (eval `(match-lambda [,pat ,tem] [x x]) ns)))
-
-(define (eval-match-? pat)
+#; (define (eval-match-? pat)
   (eval `(match-lambda [(and x ,pat) x] [_ #f]) ns))
 
 (define (buf->pat+tem buf)
@@ -1024,6 +1023,7 @@
 
 ; init stage and kit
 (define stage
+  #; '(if a b c)
   ((▹-first-?-in atom?) '(define (sub-sequences l)
                            (cond [(empty? l) (list (list))]
                                  [else (local [(define a-list (sub-sequences (rest l)))]
