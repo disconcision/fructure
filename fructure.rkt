@@ -632,7 +632,7 @@
 
 (define (▹-cycle-▹▹ source)
   (match ((?->lenses [`(▹ ,a) ≡]) source)
-    ['() ([(s▹ ,buf ,sel) ⋱↦ ,(▹-first-▹▹-in sel)] source)]
+    ['() ([(s▹ ,buf ,sel) ⋱↦ (s▹ ,buf ,(▹-first-▹▹-in sel))] source)]
     [_ (▹-next-▹▹ source)]))
 
 
@@ -960,7 +960,7 @@
                            
                            ['right                 (!do ▹-cycle-▹▹)]
                            
-                           [(or 'left #\backspace) (!do [(s▹ ,buf ,sel) ⋱↦ ,(let ([bu (remove-last-char-str buf)])
+                           [(or #\backspace) (!do [(s▹ ,buf ,sel) ⋱↦ ,(let ([bu (remove-last-char-str buf)])
                                                                               `(s▹ ,bu ,((▹▹tag-hits bu) sel)))])]
                            
                            [(reg "[A-Za-z0-9_]")   (!do [(s▹ ,buf ,sel) ⋱↦ ,(let ([new ((append-char-to-str key-code) buf)])
