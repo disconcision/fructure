@@ -639,10 +639,10 @@
 #; (define-namespace-anchor an)
 #; (define ns (namespace-anchor->namespace an))
 #; (define (eval-match-λ pat-tem)
-  (match-let ([`(,pat ,tem) pat-tem])
-    (eval `(match-lambda [,pat ,tem] [x x]) ns)))
+     (match-let ([`(,pat ,tem) pat-tem])
+       (eval `(match-lambda [,pat ,tem] [x x]) ns)))
 #; (define (eval-match-? pat)
-  (eval `(match-lambda [(and x ,pat) x] [_ #f]) ns))
+     (eval `(match-lambda [(and x ,pat) x] [_ #f]) ns))
 
 (define (buf->pat+tem buf)
   `[(and x (? symbol? (app symbol->string (regexp (regexp ,(string-append "^" buf ".*"))))))
@@ -770,6 +770,27 @@
     [_ source]))
 
 
+; bug with simple-paint:
+; turn into test case
+#; '(((▹ ⋈) 0 define)
+     (fn a)
+     a
+     (define (g q r) (let ((a 5) (b 6)) (if apple banana orange))))
+#; '(((▹ (⋈ 0 ⋈)) 0 define)
+     (fn a)
+     a
+     (define (g q r) (let ((a 5) (b 6)) (if apple banana orange))))
+
+; most local solution: make simple-paint identity in case of (▹ ⋈)
+; current general idea: prohibit selection of (some?) affordances
+; property of affordances: selectability
+; option: if not selectable: when selected, select first child or next sibling
+; option: selection modes. usual mode doesn't have some affos as selectable
+; subselectability: ability to select affordance icon, subparts
+
+; idea: independently make file manager based on interface concept
+; basically can create/delete/navigate/search folders/rkt-files
+; maybe lang lines and modules in files? require/provide hooks?
 
 (define (named-paint-c▹▹ name)
   [(c▹▹ ,a) ⋱↦ (c▹▹ (⋈ ,name _))])
@@ -827,7 +848,7 @@
 
 ; macro attempt 2
 #; (main-loop event
-              [amodal-key amodeal-action]
+              [amodal-key amodal-action]
               ...
               (a-mode
                [a-key an-action] ...)
@@ -844,6 +865,7 @@
 
 
 
+; potential format for main loop macro
 #; (main-loop
     
     ; amodal functions
@@ -859,59 +881,8 @@
                            
      ['right                 (▹-next-? atom?)]
      ['left                  (▹-prev-? atom?)]
-     ['up                    [(,a ... (▹ ,b ...) ,c ...) ⋱↦ (▹ (,@a ,@b ,@c))]]
-     ['down                  [(▹ (,a ,b ...)) ⋱↦ ((▹ ,a) ,@b)]]
-                           
-     [#\space                simple-paint]
-     ['escape                [(⋈ ,a ,b) ⋱↦ ,b]]
-                           
-     [(reg "[A-Za-z_]")      [(▹ ,a) ⋱↦ (s▹ ,(string key-code) ,((▹▹tag-hits (string key-code)) a))]
-                             (mode: SEARCH)])
-   
-    (SEARCH    
-     [(or 'escape #\return)  (compose [(s▹ ,buf ,sel) ⋱↦ (▹ ,sel)]
-                                      [(▹▹ ,a) ⋱↦ ,a])
-                             (mode: SELECT)]
-                           
-     ['right                 ▹-cycle-▹▹]
-                           
-     [(or 'left #\backspace) [(s▹ ,buf ,sel) ⋱↦ ,(let ([bu (remove-last-char-str buf)])
-                                                   `(s▹ ,bu ,((▹▹tag-hits bu) sel)))]]
-                           
-     [(reg "[A-Za-z0-9_]")   [(s▹ ,buf ,sel) ⋱↦ ,(let ([new ((append-char-to-str key-code) buf)])
-                                                   `(s▹ ,new ,((▹▹tag-hits new) sel)))]])
-
-    (TRANSFORM
-     ['escape                (compose [(c▹ ,buf ,sel) ⋱↦ (▹ ,sel)]
-                                      [(⋈ ,num ,sel) ⋱↦ ,sel])
-                             (mode: select)]
-                           
-     [#\return               [(c▹ ,buf ,sel) ⋱↦ (▹ ,(([(c▹▹ ,x) ⋱↦ ,x]) (eval-painted-buffer buf sel)))]
-                             (mode:select)]
-                           
-     [(or 'right #\space)    ([(,as ...  (c▹▹ ,(? empty-symbol?))) ⋱↦ (,@as (c▹▹ ,empty-symbol))]
-                              [(,as ...  (c▹▹ ,b)) ⋱↦ (,@as ,b  (c▹▹ ,empty-symbol))]
-                              [(,(and as (not (== 'c▹))) ...  (c▹▹ ,b) ,c ,cs ...) ⋱↦ (,@as ,b  (c▹▹ ,c) ,@cs)]
-                              [(c▹▹ ,(? empty-symbol?)) ⋱↦ (c▹▹ ,empty-symbol)]
-                              [(c▹▹ ,a) ⋱↦ (,a  (c▹▹ ,empty-symbol))])]
-                           
-     ['down                  [(c▹▹ ,a) ⋱↦ ((c▹▹ ,a))]]
-                           
-     ['up                    ([(,as ... (,bs ... (c▹▹ ,(? empty-symbol?)))) ⋱↦ (,@as (,@bs) (c▹▹ ,empty-symbol))]
-                              [(,as ... (,bs ... (c▹▹ ,c))) ⋱↦ (,@as (,@bs ,c) (c▹▹ ,empty-symbol))])]
-                           
-     [(or 'left #\backspace) ([((c▹▹ ,(? empty-symbol?)) ,as ...) ⋱↦ (c▹▹ ,empty-symbol)]
-                              [(c▹▹ ,(? symbol? s)) ⋱↦  (c▹▹ ,(remove-last-char s))]
-                              [(c▹▹ ,(? atom? s)) ⋱↦  (c▹▹ ,empty-symbol)]
-                              [(c▹ (c▹▹ ,(? empty-symbol?)) ,xs ...) ⋱↦  (c▹ (c▹▹ ,empty-symbol) ,@xs)]
-                              [(,xs ... ,(? atom? x) (c▹▹ ,(? empty-symbol?)) ,ys ...) ⋱↦  (,@xs (c▹▹ ,x) ,@ys)]
-                              [(,xs ... (,as ...) (c▹▹ ,(? empty-symbol? s)) ,ys ...) ⋱↦  (,@xs (,@as (c▹▹ ,empty-symbol)) ,@ys)])]
-                           
-     [(reg "[0-9]")          (named-paint-c▹▹ (string->number (string key-code)))]
-     ['control               [(c▹ ,buf ,sel) ⋱↦ (c▹ ,buf ,(toggle-paint sel))]]
-     [#\tab                  replace-with-first-autocomplete-match]
-     [(reg "[A-Za-z_]")      [(c▹▹ ,(? symbol? s)) ⋱↦ (c▹▹ ,((append-char-to key-code) s))]])
-
+     )
+  
     (PROJECT))
 
 
@@ -942,7 +913,12 @@
                            ['up                    (!do [(,a ... (▹ ,b ...) ,c ...) ⋱↦ (▹ (,@a ,@b ,@c))])]
                            ['down                  (!do [(▹ (,a ,b ...)) ⋱↦ ((▹ ,a) ,@b)])]
                            
-                           [#\space                (!do (compose #;(▹-next-? atom?) simple-paint))]
+                           [#\space                (!do ([(▹ ,(and a (? atom?))) ⋱↦ (▹ ,a)] ; why isn't this working
+                                                         [(▹ ⋈) ⋱↦ (▹ ⋈)] ; redundant to below
+                                                         [(▹ (⋈ ,a ,b)) ⋱↦ (▹ (⋈ ,a ,b))]
+                                                         [(▹ ,(and a (? (contains- ['⋈ ≡])))) ⋱↦ (▹ ,a)]
+                                                         [,x ⋱↦ ,(simple-paint x)]))]
+                           
                            ['escape                (!do {(⋈ ,a ,b) ⋱↦ ,b})]
                            
                            [(reg "[A-Za-z_]")      (!do [(▹ ,a) ⋱↦ (s▹ ,(string key-code) ,((▹▹tag-hits (string key-code)) a))])
@@ -961,7 +937,7 @@
                            ['right                 (!do ▹-cycle-▹▹)]
                            
                            [(or #\backspace) (!do [(s▹ ,buf ,sel) ⋱↦ ,(let ([bu (remove-last-char-str buf)])
-                                                                              `(s▹ ,bu ,((▹▹tag-hits bu) sel)))])]
+                                                                        `(s▹ ,bu ,((▹▹tag-hits bu) sel)))])]
                            
                            [(reg "[A-Za-z0-9_]")   (!do [(s▹ ,buf ,sel) ⋱↦ ,(let ([new ((append-char-to-str key-code) buf)])
                                                                               `(s▹ ,new ,((▹▹tag-hits new) sel)))])])]
