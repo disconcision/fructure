@@ -189,7 +189,7 @@
   (make-constructor
    `([([sort expr] xs ... / ⊙)
       ([sort expr] xs ... /
-                   (ref ([sort expr] / ,id)))])))
+                   (ref ',id))])))
 
 (define (make-ref-hash in-scope)
   (define in-scope-constructors
@@ -480,9 +480,15 @@
                        'transforms (rest transforms))])]
     ; transform keys
     [_
+     (define my-in-scope
+       (f/match stx
+         [(c ⋱ (▹ in-scope As ... / a))
+          in-scope]
+         [_ '()])) ;fallthrough case - current λ params list has no in-scope
      (define transform
-       (hash-ref (hash-union (make-ref-hash '(0)) alpha-constructors keymap #:combine/key (λ (k v v1) v)) key identity->))
-     (apply-> transform state)]))
+       (hash-ref (hash-union (make-ref-hash my-in-scope) alpha-constructors keymap #:combine/key (λ (k v v1) v)) key identity->))
+     (apply-> transform state)
+     ]))
 
 (require racket/hash)
 

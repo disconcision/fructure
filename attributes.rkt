@@ -106,9 +106,10 @@
                          ,(W (body-anns ... / body))))]
 
     [(('in-scope env) top-rest ... /
-                      `(ref ,(a ... / a-expr)))
+                      `(ref ,whatever))
      (('in-scope env) top-rest ... /
-                      `(ref ,(W (('in-scope env) a ... / a-expr))))]
+                      `(ref ,whatever))]
+    ; don't need to descend into the thing
     
     [(('in-scope env) top-rest ... /
                       `(var ,(a ... / a-expr)))
