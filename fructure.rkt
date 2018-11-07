@@ -235,6 +235,7 @@
                    (xs ... / (id as ... (▹ ys ... / b) bs ...))
                    (xs ... / (id as ... (ys ... / 'a) (▹ [sort char] / b) bs ...))]))
 
+   ; destructors
    "\b" (-> 'runtime (set)
             '([⋱
                 (xs ... / (id as ... a (▹ ys ... / b) bs ...))
@@ -248,7 +249,7 @@
               ,(make-destructor
                 '([(xs ... / 0)
                    (xs ... / ⊙)]
-                  [(xs ... / (var a))
+                  [(xs ... / (ref a))
                    (xs ... / ⊙)]
                   [(xs ... / (id a))
                    (xs ... / ⊙)]
@@ -269,25 +270,9 @@
                    (as ... (ws ... / a) (▹ zs ... / b) bs ...))]
              [A A]))
 
-   ; TODO!!!
-   ; need to adapt write-in-vars to new id format
-   
-   ; destructors
 
-   ; TODO: make fallthrough combinator
-   ; so that i can combine this with the delete key
-   "-" (make-destructor
-        '([(xs ... / 0)
-           (xs ... / ⊙)]
-          [(xs ... / (var a))
-           (xs ... / ⊙)]
-          [(xs ... / (id a))
-           (xs ... / ⊙)]
-          [(xs ... / (app a b))
-           (xs ... / ⊙)]
-          [(xs ... / (λ a b))
-           (xs ... / ⊙)]
-          ))
+
+
 
    ; movements
    
