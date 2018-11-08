@@ -1,5 +1,7 @@
 #lang racket
 
+(require racket/hash)
+
 ; fructure uses some additional match syntax for rewriting
 (require "../fructerm/fructerm.rkt"
          "../fructerm/f-match.rkt")
@@ -55,18 +57,6 @@
 
 ; -------------------------------------------------
 
-; idea: flip a switch to change which is implied, list or app
-
-; top ◇
-; cursor ▹
-; hole ⊙
-; hole-ellipses ⊙...
-#; ((_... (▹ whatever) ⊙...) → (_... whatever (▹ (⊙ pat)) ⊙...))
-; BUT
-#; ((_... (▹ (⊙ pat)) ⊙... (▹ whatever)) → (_... ⊙... (▹ whatever)))
-; actually, alternatively to above:
-; select ⊙... normally, but on transformation, clone it to the right
-; another alternative: when ⊙... selected, ENTER expands it hole + ⊙...
 
 
 #hash((stx . (◇ (p/ #hash((▹ . ▹) (sort . expr)) ⊙)))
@@ -151,15 +141,16 @@
       (set 'meta 'move-▹)
       raw-rule))
 
-(define select-first-⊙
-  (curry runtime-match literals
-         '([(c ⋱ (▹ ys ... / (d ⋱ (xs ... / ⊙))))
-            (c ⋱ (ys ... / (d ⋱ (▹ xs ... / ⊙))))]
-           [A A])))
+#;(define select-first-⊙
+    (curry runtime-match literals
+           '([(c ⋱ (▹ ys ... / (d ⋱ (xs ... / ⊙))))
+              (c ⋱ (ys ... / (d ⋱ (▹ xs ... / ⊙))))]
+             [A A])))
 
 (define alphabet
   '(a b c d e f g h i j k l m n o p q r s t u v w x y z))
 
+; make constructors for each character
 (define alpha-constructors
   (for/fold ([alpha (hash)])
             ([x alphabet])
@@ -168,22 +159,55 @@
               (-> 'runtime (set)
                   `([⋱
                       (xs ... / (id as ... (▹ ys ... / b) bs ...))
-                      (xs ... / (id as ... (ys ... / ',x) (▹ [sort char] / b) bs ...))])))))
+                      (xs ... / (id as ... ([sort char] / ',x) (▹ ys ... / b) bs ...))])))))
+
+
+
+(define raw-base-constructor-list
+  (list '([([sort expr] xs ... / ⊙)
+           ([sort expr] xs ... / 0)])
+        '([([sort expr] xs ... / ⊙)
+           ([sort expr] xs ... / (app ([sort expr] / ⊙)
+                                      ([sort expr] / ⊙)))])
+        '([([sort expr] xs ... / ⊙)
+           ([sort expr] xs ... / (λ ( / (([sort pat] / (id ([sort char] / ⊙)))))
+                                   ([sort expr] / ⊙)))])))
 
 (define base-constructor-list
-  (list (make-constructor
-         '([([sort expr] xs ... / ⊙)
-            ([sort expr] xs ... / 0)])
-         )
-        (make-constructor
-         '([([sort expr] xs ... / ⊙)
-            ([sort expr] xs ... / (app ([sort expr] / ⊙)
-                                       ([sort expr] / ⊙)))]))
-        (make-constructor
-         '([([sort expr] xs ... / ⊙)
-            ([sort expr] xs ... / (λ ( / (([sort pat] / (id ([sort char] / ⊙)))))
-                                    ([sort expr] / ⊙)))]))))
+  (map make-constructor
+       raw-base-constructor-list))
 
+
+(define (base-menu raw-constructor-list stx)
+  (for/fold ([menu '()])
+            ([constructor raw-constructor-list])
+    (if (test-apply-single-> constructor stx)
+        `(,@menu ,(runtime-match literals constructor stx))
+        menu)))
+
+(module+ test
+  (require rackunit)
+  (check-equal? (base-menu raw-base-constructor-list
+                           '(p/
+                             #hash((sort . expr) (▹ . ▹))
+                             ⊙))
+                '((p/ #hash((sort . expr) (▹ . ▹)) 0)
+                  (p/
+                   #hash((sort . expr) (▹ . ▹))
+                   (app
+                    (p/ #hash((sort . expr)) ⊙)
+                    (p/ #hash((sort . expr)) ⊙)))
+                  (p/
+                   #hash((sort . expr) (▹ . ▹))
+                   (λ (p/
+                       #hash()
+                       ((p/
+                         #hash((sort . pat))
+                         (id
+                          (p/
+                           #hash((sort . char))
+                           ⊙)))))
+                     (p/ #hash((sort . expr)) ⊙))))))
 
 (define (id->ref-constructor id)
   (make-constructor
@@ -191,12 +215,19 @@
       ([sort expr] xs ... /
                    (ref ',id))])))
 
+(define (id->raw-ref-constructor id)
+  `([([sort expr] xs ... / ⊙)
+     ([sort expr] xs ... /
+                  (ref ',id))]))
+
 (define (make-ref-hash in-scope)
   (define in-scope-constructors
     (map id->ref-constructor in-scope))
   (if (not (empty? in-scope))
       (hash "5" (first in-scope-constructors))
       (hash)))
+
+
 
 (define keymap
   ; map from keys to functions
@@ -229,11 +260,6 @@
    #;#;"5" (make-constructor
             '([([sort pat] xs ... / ⊙)
                ([sort pat] xs ... / (id ([sort char] / ⊙)))]))
-   ; should make ⊙ into + above and below but....
-   #;#;"a" (-> 'runtime (set)
-               '([⋱
-                   (xs ... / (id as ... (▹ ys ... / b) bs ...))
-                   (xs ... / (id as ... (ys ... / 'a) (▹ [sort char] / b) bs ...))]))
 
    ; destructors
    "\b" (-> 'runtime (set)
@@ -345,35 +371,35 @@
     (runtime-match literals a s)))
 
 
-(define (mode-text-entry key state)
-  (match-define
-    (hash-table ('stx stx)) state)
-  (match key
-    ["\r"
-     (hash-set*
-      state
-      'mode 'nav)]
-    [(regexp #rx"[a-z]")
-     (define my-transform
-       `([⋱ (▹ (sort char) / ||)
-            (▹ (sort char) / ,(string->symbol key))]))
-     (define extract
-       `([(⋱ (▹ (sort char) / a))
-          a]))
-     (define extracted-value
-       (runtime-match literals extract stx))
-     (define new-value
-       (string->symbol (string-append (symbol->string extracted-value) key)))
-     (println `(extracted ,extracted-value))
-     (define insert
-       `([⋱ (▹ (sort char) / a)
-            (▹ (sort char) / ,new-value)]))
-     (define inserted-result ; THIS HAS A PROBLEM WITH THE LITERAL a. check pattern-match lib
-       (runtime-match (hash-set literals new-value '_) insert stx))
-     (println `(inserted ,inserted-result))
-     (hash-set*
-      state
-      'stx inserted-result)]))
+#;(define (mode-text-entry key state)
+    (match-define
+      (hash-table ('stx stx)) state)
+    (match key
+      ["\r"
+       (hash-set*
+        state
+        'mode 'nav)]
+      [(regexp #rx"[a-z]")
+       (define my-transform
+         `([⋱ (▹ (sort char) / ||)
+              (▹ (sort char) / ,(string->symbol key))]))
+       (define extract
+         `([(⋱ (▹ (sort char) / a))
+            a]))
+       (define extracted-value
+         (runtime-match literals extract stx))
+       (define new-value
+         (string->symbol (string-append (symbol->string extracted-value) key)))
+       (println `(extracted ,extracted-value))
+       (define insert
+         `([⋱ (▹ (sort char) / a)
+              (▹ (sort char) / ,new-value)]))
+       (define inserted-result ; THIS HAS A PROBLEM WITH THE LITERAL a. check pattern-match lib
+         (runtime-match (hash-set literals new-value '_) insert stx))
+       (println `(inserted ,inserted-result))
+       (hash-set*
+        state
+        'stx inserted-result)]))
 
 
 (define (apply-> transform state)
@@ -401,76 +427,53 @@
          'messages `("performed action" ,@messages)
          )])]))
 
+(define (test-apply-single-> transform stx)
+  (match transform
+    [`([,pat ,tem])
+     (match (runtime-match literals `([,pat 'true]) stx)
+       ['no-match #f]
+       ['true #t]
+       [_ (error "test-apply-single")])]))
+
 
 (define (mode:navigate key state)
   (define-from state
     stx mode transforms messages)
-  (define menu-stx
-    (map my-desugar `((♦ (sort expr) / 0) 
-                      ((sort expr) / (app ((sort expr) / ⊙) ((sort expr) / ⊙)))
-                      #;((sort expr) / (λ (((sort pat) / ⊙)) ((sort expr) / ⊙)))
-                      #;((sort expr) / (var ((sort char) / ⊙))))))
   (define update (curry hash-set* state))
+  (define my-in-scope
+    (f/match stx
+      [(c ⋱ (▹ in-scope As ... / a))
+       in-scope]
+      [_ '()])) ;fallthrough case - current λ params list has no in-scope
+  #;(println `(curtrans ,(append raw-base-constructor-list
+                                 (map id->ref-constructor my-in-scope))))
+  (define current-selected-thing
+    (f/match stx
+      [(c ⋱ (▹ As ... / a))
+       (As ... / a)]
+      [_ (error "no thing selected???")]))
+  (define menu-stx
+    (base-menu (append raw-base-constructor-list
+                       (map id->raw-ref-constructor my-in-scope))
+               current-selected-thing))
   (match key
+    ; transform mode
+    ["\r"
+     (define (my-select stx)
+       (runtime-match literals
+                      '([(y ... / a)
+                         (▹ y ... / a)]) stx))
+     (update
+      'mode 'menu
+      'stx (f/match stx
+             [(c ⋱ (▹ ('sort expr) As ... / ⊙))
+              (c ⋱ (('transform (cons (my-select (first menu-stx)) (rest menu-stx))) ('sort expr) As ... / ⊙))]
+             ))]
 
-    #;["`"
-       (define new-stx
-         (f/match stx
-           [(c ⋱ (▹ ys ... / (d ⋱ (sort xs ... / a))))
-            (println "goaaaaal")
-            ; problem is probably the ⋱ currently demands unique result
-            (c ⋱ (ys ... / (d ⋱ (▹ sort xs ... / a))))]
-           #;[(c ⋱ (capture-when (or (and sort (▹ xs ... / _)) (and ▹ (sort xs ... / _))))
-                 `(,as ... ,(▹ ws ... / a) ,(zs ... / b) ,bs ...))
-              (c ⋱ 
-                 `(,@as ,(ws ... / a) ,(▹ zs ... / b) ,@bs))]
-           [x x]
-           #;[(c ⋱ (capture-when (or `(▹ ,_) (? number?)))
-                 `(,x ... (▹ ,y) ,z ,w ...))
-              (c ⋱
-                 `(,@x ,y (▹ ,z) ,@w) ...)]))
-       (hash-set* state
-                  'stx new-stx)]
-    ; the new ENTER (transform mode) candidate
-    [";"
-     ; here we initially just want to replace a hole with a menu of fill options
-     (hash-set* state
-                'mode 'menu
-                'stx (f/match stx
-                       [(c ⋱ (▹ ('sort expr) As ... / ⊙))
-                        (c ⋱ (▹ ('template menu-stx) ('sort expr) As ... / ⊙))]
-                       ))]
-    ; original begin enter text mode
-    #;["\r"
-       (define (select-first stx)
-         (f/match stx
-           [`(,x ,xs ...)
-            `((▹ ,x) ,@xs)]))
-       (f/match stx
-         [(c ⋱ (▹ (sort char) in-scope as ... / '⊙))
-          (c ⋱ (('string-list (select-first in-scope)) (sort char) in-scope as ... / '⊙))])]
-    #;["\r" (define my-transform
-              '([(⋱ (▹ (sort char) / ⊙))
-                 0]))
-            (define my-transform2
-              `([⋱ (▹ (sort char) / ⊙)
-                   (▹ (sort char) / ||)]))
-            (cond [(equal? 0 (runtime-match literals my-transform stx))
-                   (begin (println "yeah")
-                          (hash-set*
-                           state
-                           'stx (runtime-match (hash-set literals '|| '_)
-                                               my-transform2
-                                               stx)
-                           'mode 'text-entry))]
-                  [else
-                   (begin (println "nah")
-                          state)]                  
-                  )]
     ["f1" (update 'stx #;save-state-1)]
     ["/"  (update 'messages (cons transforms messages))]
-    ; undo last transform
-    ; BUG for UNDO: do 0 0 0 u x u z results in 'no-match
+    
+    ; undo (currently broken)
     [","  (match transforms
             ['() (update 'messages
                          `("no undo states" ,messages))]
@@ -480,48 +483,90 @@
                        'transforms (rest transforms))])]
     ; transform keys
     [_
-     (define my-in-scope
-       (f/match stx
-         [(c ⋱ (▹ in-scope As ... / a))
-          in-scope]
-         [_ '()])) ;fallthrough case - current λ params list has no in-scope
      (define transform
        (hash-ref (hash-union (make-ref-hash my-in-scope) alpha-constructors keymap #:combine/key (λ (k v v1) v)) key identity->))
      (apply-> transform state)
      ]))
 
-(require racket/hash)
 
-(define (mode-menu key state)
+
+; a better navigation mode with fixed ⋱ :
+#;["`"
+   (define new-stx
+     (f/match stx
+       [(c ⋱ (▹ ys ... / (d ⋱ (sort xs ... / a))))
+        (println "goaaaaal")
+        ; problem is probably the ⋱ currently demands unique result
+        (c ⋱ (ys ... / (d ⋱ (▹ sort xs ... / a))))]
+       #;[(c ⋱ (capture-when (or (and sort (▹ xs ... / _)) (and ▹ (sort xs ... / _))))
+             `(,as ... ,(▹ ws ... / a) ,(zs ... / b) ,bs ...))
+          (c ⋱ 
+             `(,@as ,(ws ... / a) ,(▹ zs ... / b) ,@bs))]
+       [x x]
+       #;[(c ⋱ (capture-when (or `(▹ ,_) (? number?)))
+             `(,x ... (▹ ,y) ,z ,w ...))
+          (c ⋱
+             `(,@x ,y (▹ ,z) ,@w) ...)]))
+   (hash-set* state
+              'stx new-stx)]
+
+
+(define (mode:menu key state)
   (define-from state stx)
-  (match key
-    ["down"
-     (hash-set*
-      state
-      'stx
-      (f/match stx
-        [(ctx ⋱ (▹ ('template `(,xs ... ,(♦ y-anns ... / y) ,(z-anns ... / z) ,ws ...))
-                   ; note missing rest-anns ...
-                   ; above is bug/incomplete-implementation in f-match maybe
-                   / s))
-         (ctx ⋱ (▹ ('template `(,@xs ,(y-anns ... / y) ,(♦ z-anns ... / z) ,@ws)) ; note missing as above
-                   / s))
-         ]))]
-    ["up"
-     (hash-set*
-      state
-      'stx
-      (f/match stx
-        [(ctx ⋱ (▹ ('template `(,xs ... ,(y-anns ... / y) ,(♦ z-anns ... / z) ,ws ...))
-                   ; note missing rest-anns ...
-                   ; above is bug/incomplete-implementation in f-match maybe
-                   / s))
-         (ctx ⋱ (▹ ('template `(,@xs ,(♦ y-anns ... / y) ,(z-anns ... / z) ,@ws)) ; note missing as above
-                   / s))
-         ]
-        ))]))
+  (define update (curry hash-set* state))
+  (f/match stx
+    [(ctx ⋱ (('transform template) xs ...
+                                   / pattern))
+     (match key
+       ["up"
+        (define new-template
+          (f/match template
+            [(ctx2 ⋱ `(,a ... ,( As ... / b) ,(▹ Bs ... / c) ,d ...))
+             (ctx2 ⋱ `(,@a ,(▹ As ... / b) ,(Bs ... / c) ,@d))]
+            [x x]))
+        (update 'stx
+                (ctx ⋱ (('transform new-template) xs ... 
+                                                  / pattern)))]
+       ["down"
+        (define new-template
+          (f/match template
+            [(ctx2 ⋱ `(,a ... ,(▹ As ... / b) ,(Bs ... / c) ,d ...))
+             (ctx2 ⋱ `(,@a ,(As ... / b) ,(▹ Bs ... / c) ,@d))]
+            [x x]))
+        (update 'stx
+                (ctx ⋱ (('transform new-template) xs ... 
+                                                  / pattern)))]
+       ["\r"
+        (define new-thing
+          (f/match template
+            [(ctx2 ⋱ `(,a ... ,(▹ As ... / b) ,d ...))
+             (▹ As ... / b)]
+            [x x]))
+        (update 'mode 'nav
+                'stx
+                (ctx ⋱ new-thing))]
+       )
+     ]))
 
 
+
+
+
+
+; -----------------------------------
+
+; idea: flip a switch to change which is implied, list or app
+
+; top ◇
+; cursor ▹
+; hole ⊙
+; hole-ellipses ⊙...
+#; ((_... (▹ whatever) ⊙...) → (_... whatever (▹ (⊙ pat)) ⊙...))
+; BUT
+#; ((_... (▹ (⊙ pat)) ⊙... (▹ whatever)) → (_... ⊙... (▹ whatever)))
+; actually, alternatively to above:
+; select ⊙... normally, but on transformation, clone it to the right
+; another alternative: when ⊙... selected, ENTER expands it hole + ⊙...
 
 
 
@@ -598,10 +643,10 @@ create list of rhs templates
 (define (mode-loop key state)
   (define-from state mode)
   (match mode
-    ['text-entry
-     (mode-text-entry key state)]
+    #;['text-entry
+       (mode-text-entry key state)]
     ['menu
-     (mode-menu key state)]
+     (mode:menu key state)]
     ['nav
      (mode:navigate key state)]))
 

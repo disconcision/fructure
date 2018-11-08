@@ -64,10 +64,14 @@
          ,(bs ... / body)))
      (define new-var
        (string->symbol (apply string-append (map symbol->string (drop-right chars 1)))))
+     (define new-in-scope
+       (if (equal? '|| new-var)
+           env
+           `(,new-var ,@env)))
      (('in-scope env)
       top-rest ... /
       `(λ ,(xs ... / `(,(ys ... / my-stx)))
-         ,(W (('in-scope `(,new-var ,@env)) bs ... / body))))]
+         ,(W (('in-scope new-in-scope) bs ... / body))))]
 
     [(('in-scope env) top-rest ... /
                       `(λ ,(c ... / `(,(a ... / '⊙)))
