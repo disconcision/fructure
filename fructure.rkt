@@ -141,7 +141,7 @@
       (set 'meta 'move-▹)
       raw-rule))
 
-#;(define select-first-⊙
+(define select-first-⊙
     (curry runtime-match literals
            '([(c ⋱ (▹ ys ... / (d ⋱ (xs ... / ⊙))))
               (c ⋱ (ys ... / (d ⋱ (▹ xs ... / ⊙))))]
@@ -542,9 +542,12 @@
             [(ctx2 ⋱ `(,a ... ,(▹ As ... / b) ,d ...))
              (▹ As ... / b)]
             [x x]))
+        (define select-first-in-new-thing
+          (select-first-⊙ new-thing))
+        (println `(new ,new-thing ,select-first-in-new-thing))
         (update 'mode 'nav
                 'stx
-                (ctx ⋱ new-thing))]
+                (ctx ⋱ select-first-in-new-thing))]
        )
      ]))
 
