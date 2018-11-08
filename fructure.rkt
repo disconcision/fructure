@@ -142,10 +142,10 @@
       raw-rule))
 
 (define select-first-⊙
-    (curry runtime-match literals
-           '([(c ⋱ (▹ ys ... / (d ⋱ (xs ... / ⊙))))
-              (c ⋱ (ys ... / (d ⋱ (▹ xs ... / ⊙))))]
-             [A A])))
+  (curry runtime-match literals
+         '([(c ⋱ (▹ ys ... / (d ⋱ (xs ... / ⊙))))
+            (c ⋱ (ys ... / (d ⋱ (▹ xs ... / ⊙))))]
+           [A A])))
 
 (define alphabet
   '(a b c d e f g h i j k l m n o p q r s t u v w x y z))
@@ -158,8 +158,8 @@
               (symbol->string x)
               (-> 'runtime (set)
                   `([⋱
-                      (xs ... / (id as ... (▹ ys ... / b) bs ...))
-                      (xs ... / (id as ... ([sort char] / ',x) (▹ ys ... / b) bs ...))])))))
+                     (xs ... / (id as ... (▹ ys ... / b) bs ...))
+                     (xs ... / (id as ... ([sort char] / ',x) (▹ ys ... / b) bs ...))])))))
 
 
 
@@ -169,8 +169,12 @@
         '([([sort expr] xs ... / ⊙)
            ([sort expr] xs ... / (app ([sort expr] / ⊙)
                                       ([sort expr] / ⊙)))])
-        '([([sort expr] xs ... / ⊙)
+        #;'([([sort expr] xs ... / ⊙)
            ([sort expr] xs ... / (λ ( / (([sort pat] / (id ([sort char] / ⊙)))))
+                                   ([sort expr] / ⊙)))])
+        ; leaving sort off pat for now for smooth sort-based movement
+        '([([sort expr] xs ... / ⊙)
+           ([sort expr] xs ... / (λ ( / (( / (id ([sort char] / ⊙)))))
                                    ([sort expr] / ⊙)))])))
 
 (define base-constructor-list
@@ -202,7 +206,7 @@
                    (λ (p/
                        #hash()
                        ((p/
-                         #hash((sort . pat))
+                         #hash()
                          (id
                           (p/
                            #hash((sort . char))
@@ -247,31 +251,19 @@
         '([([sort expr] xs ... / ⊙)
            ([sort expr] xs ... / (λ ( / (([sort pat] / (id ([sort char] / ⊙)))))
                                    ([sort expr] / ⊙)))]))
-   #;(make-constructor
-      '([([sort expr] xs ... / ⊙)
-         ([sort expr] xs ... / (λ ( / (([sort pat] / ⊙)))
-                                 ([sort expr] / ⊙)))]))
-   #;#;"4" (make-constructor
-            '([([sort pat]  xs ... / ⊙)
-               ([sort pat]  xs ... / (var ([sort char] / ⊙)))]
-              [([sort expr] xs ... / ⊙)
-               ([sort expr] xs ... / (var ([sort char] / ⊙)))]))
-
-   #;#;"5" (make-constructor
-            '([([sort pat] xs ... / ⊙)
-               ([sort pat] xs ... / (id ([sort char] / ⊙)))]))
 
    ; destructors
+   
    "\b" (-> 'runtime (set)
             '([⋱
-                (xs ... / (id as ... a (▹ ys ... / b) bs ...))
-                (xs ... / (id as ... (▹ ys ... / b) bs ...))]))
+               (xs ... / (id as ... a (▹ ys ... / b) bs ...))
+               (xs ... / (id as ... (▹ ys ... / b) bs ...))]))
 
    "\u007F" `(fallthrough->
               ,(-> 'runtime (set)
                    '([⋱
-                       (xs ... / (id as ... (▹ ys ... / a) (zs ... / b) bs ...))
-                       (xs ... / (id as ... (▹ zs ... / b) bs ...))]))
+                      (xs ... / (id as ... (▹ ys ... / a) (zs ... / b) bs ...))
+                      (xs ... / (id as ... (▹ zs ... / b) bs ...))]))
               ,(make-destructor
                 '([(xs ... / 0)
                    (xs ... / ⊙)]
@@ -285,80 +277,65 @@
                    (xs ... / ⊙)]
                   )))
 
-
-   ; need to repair/augment fructerm to make 2nd clause here work
-   "`" (-> 'runtime (set)
-           '([(c ⋱ (▹ ys ... / (d ⋱ (sort xs ... / a))))
-              (c ⋱ (ys ... / (d ⋱ (▹ sort xs ... / a))))]
-             #;[(c ⋱ (capture-when (or (▹ xs ... / _) (sort ys ... / _)))
-                   (as ... (▹ ws ... / a) (zs ... / b) bs ...))
-                (c ⋱ 
-                   (as ... (ws ... / a) (▹ zs ... / b) bs ...))]
-             [A A]))
-
-
-
-
-
    ; movements
    
    "up" (make-movement
          '([(◇ a ... (▹ As ... / b) c ...)
             (◇ a ... (▹ As ... / b) c ...)]
            [⋱
-             (As ... / (λ (Cs ... / ((▹ Bs ... / a))) b))
-             (▹ As ... / (λ (Cs ... / ((Bs ... / a))) b))]
+            (As ... / (λ (Cs ... / ((▹ Bs ... / a))) b))
+            (▹ As ... / (λ (Cs ... / ((Bs ... / a))) b))]
            #;[⋱
-               (As ... / (λ (Cs ... / ((▹ Bs ... / a))) b))
-               (▹ As ... / (λ (Cs ... / ((Bs ... / a))) b))]
+              (As ... / (λ (Cs ... / ((▹ Bs ... / a))) b))
+              (▹ As ... / (λ (Cs ... / ((Bs ... / a))) b))]
            [⋱
-             (As ... / (a ... (▹ Bs ... / b) c ...))
-             (▹ As ... / (a ... (Bs ... / b) c ...))]))
+            (As ... / (a ... (▹ Bs ... / b) c ...))
+            (▹ As ... / (a ... (Bs ... / b) c ...))]))
 
    "down" (make-movement
            '([⋱
-               (▹ As ... / ⊙)
-               (▹ As ... / ⊙)]
+              (▹ As ... / ⊙)
+              (▹ As ... / ⊙)]
              [⋱
-               (▹ As ... / 0)
-               (▹ As ... / 0)]
+              (▹ As ... / 0)
+              (▹ As ... / 0)]
              [⋱
-               (▹ As ... / (ctx ⋱ (sort Bs ... / b)))
-               (As ... / (ctx ⋱ (▹ sort Bs ... / b)))]
+              (▹ As ... / (ctx ⋱ (sort Bs ... / b)))
+              (As ... / (ctx ⋱ (▹ sort Bs ... / b)))]
              ; note this selects the next sorted expression
              ; notably, it descends into lambda params list
              ))
 
    "left" (make-movement
            '([⋱
-               (◇ (▹ As ... / c))
-               (◇ (▹ As ... / c))]
+              (◇ (▹ As ... / c))
+              (◇ (▹ As ... / c))]
              [⋱
-               (var (▹ As ... / c))
-               (var (▹ As ... / c))]
+              (var (▹ As ... / c))
+              (var (▹ As ... / c))]
              [⋱
-               (app (▹ As ... / c) d ...)
-               (app (▹ As ... / c) d ...)]
+              (app (▹ As ... / c) d ...)
+              (app (▹ As ... / c) d ...)]
              [⋱
-               (λ (Cs ... / ((▹ Bs ... / a))) b)
-               (λ (Cs ... / ((▹ Bs ... / a))) b)]
+              (λ (Cs ... / ((▹ Bs ... / a))) b)
+              (λ (Cs ... / ((▹ Bs ... / a))) b)]
              [⋱
-               (λ (Cs ... / ((As ... / a))) (▹ Bs ... / b))
-               (λ (Cs ... / ((▹ As ... / a))) (Bs ... / b))]
+              (λ (Cs ... / ((As ... / a))) (▹ Bs ... / b))
+              (λ (Cs ... / ((▹ As ... / a))) (Bs ... / b))]
              [⋱
-               ((▹ As ... / c) d ...)
-               ((▹ As ... / c) d ...)]
+              ((▹ As ... / c) d ...)
+              ((▹ As ... / c) d ...)]
              [⋱
-               (a ... (As ... / b) (▹ Bs ... / c) d ...)
-               (a ... (▹ As ... / b) (Bs ... / c) d ...)]))
+              (a ... (As ... / b) (▹ Bs ... / c) d ...)
+              (a ... (▹ As ... / b) (Bs ... / c) d ...)]))
 
    "right" (make-movement
             '([⋱
-                (λ (Cs ... / ((▹ As ... / a))) (Bs ... / b))
-                (λ (Cs ... / ((As ... / a))) (▹ Bs ... / b))]
+               (λ (Cs ... / ((▹ As ... / a))) (Bs ... / b))
+               (λ (Cs ... / ((As ... / a))) (▹ Bs ... / b))]
               [⋱
-                (a ... (▹ As ... / b) (Bs ... / c) d ...)
-                (a ... (As ... / b) (▹ Bs ... / c) d ...)]))
+               (a ... (▹ As ... / b) (Bs ... / c) d ...)
+               (a ... (As ... / b) (▹ Bs ... / c) d ...)]))
    
    ))
 
@@ -370,36 +347,6 @@
             ([a actions])
     (runtime-match literals a s)))
 
-
-#;(define (mode-text-entry key state)
-    (match-define
-      (hash-table ('stx stx)) state)
-    (match key
-      ["\r"
-       (hash-set*
-        state
-        'mode 'nav)]
-      [(regexp #rx"[a-z]")
-       (define my-transform
-         `([⋱ (▹ (sort char) / ||)
-              (▹ (sort char) / ,(string->symbol key))]))
-       (define extract
-         `([(⋱ (▹ (sort char) / a))
-            a]))
-       (define extracted-value
-         (runtime-match literals extract stx))
-       (define new-value
-         (string->symbol (string-append (symbol->string extracted-value) key)))
-       (println `(extracted ,extracted-value))
-       (define insert
-         `([⋱ (▹ (sort char) / a)
-              (▹ (sort char) / ,new-value)]))
-       (define inserted-result ; THIS HAS A PROBLEM WITH THE LITERAL a. check pattern-match lib
-         (runtime-match (hash-set literals new-value '_) insert stx))
-       (println `(inserted ,inserted-result))
-       (hash-set*
-        state
-        'stx inserted-result)]))
 
 
 (define (apply-> transform state)
@@ -457,6 +404,38 @@
                        (map id->raw-ref-constructor my-in-scope))
                current-selected-thing))
   (match key
+    ["right"
+     (define new-stx
+       (f/match stx
+         [(c ⋱ (▹ ys ... / (d ⋱ (sort xs ... / a))))
+          (c ⋱ (ys ... / (d ⋱ (▹ sort xs ... / a))))]
+         [(c ⋱ (capture-when (or (and  (('▹ _) xs ... / _))
+                                 (and  (('sort _) xs ... / (not (⋱ (('▹ _) _ ... / _)))))))
+             `(,as ... ,(▹ ws ... / a) ,(zs ... / b) ,bs ...))
+          (c ⋱... 
+             `(,@as ,(ws ... / a) ,(▹ zs ... / b) ,@bs))]
+         [x x]))
+     (hash-set* state
+                'stx new-stx)]
+    ["left"
+     (define new-stx
+       (f/match stx
+         ; left logic not quite right
+         ; if sibling to left, select rightmost child of that sibling
+         ; otherwise, find nearest parent sort
+         [(c ⋱ (capture-when (or (('▹ _) xs ... / _)
+                                 (('sort _) xs ... / (not (⋱ (('▹ _) _ ... / _))))))
+             `(,as ... ,(ws ... / a) ,(▹ zs ... / b) ,bs ...))
+          (c ⋱... 
+             `(,@as ,(▹ ws ... / a) ,(zs ... / b) ,@bs))]
+         [(c ⋱ (and (sort ys ... / (d ⋱ (▹ xs ... / a)))
+                    ; does not contain another sort which contains a sort containing ▹  
+                    (not (sort _ ... / (_ ⋱ (sort _ ... / (_ ⋱ (▹ _ ... / _))))))))
+          (c ⋱ (▹ sort ys ... / (d ⋱ (xs ... / a))))]
+         
+         [x x]))
+     (hash-set* state
+                'stx new-stx)]
     ; transform mode
     ["\r"
      (define (my-select stx)
@@ -489,26 +468,6 @@
      ]))
 
 
-
-; a better navigation mode with fixed ⋱ :
-#;["`"
-   (define new-stx
-     (f/match stx
-       [(c ⋱ (▹ ys ... / (d ⋱ (sort xs ... / a))))
-        (println "goaaaaal")
-        ; problem is probably the ⋱ currently demands unique result
-        (c ⋱ (ys ... / (d ⋱ (▹ sort xs ... / a))))]
-       #;[(c ⋱ (capture-when (or (and sort (▹ xs ... / _)) (and ▹ (sort xs ... / _))))
-             `(,as ... ,(▹ ws ... / a) ,(zs ... / b) ,bs ...))
-          (c ⋱ 
-             `(,@as ,(ws ... / a) ,(▹ zs ... / b) ,@bs))]
-       [x x]
-       #;[(c ⋱ (capture-when (or `(▹ ,_) (? number?)))
-             `(,x ... (▹ ,y) ,z ,w ...))
-          (c ⋱
-             `(,@x ,y (▹ ,z) ,@w) ...)]))
-   (hash-set* state
-              'stx new-stx)]
 
 
 (define (mode:menu key state)
@@ -548,8 +507,7 @@
         (update 'mode 'nav
                 'stx
                 (ctx ⋱ select-first-in-new-thing))]
-       )
-     ]))
+       )]))
 
 
 
