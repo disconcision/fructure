@@ -158,9 +158,8 @@
               (symbol->string x)
               (-> 'runtime (set)
                   `([⋱
-                     (xs ... / (id as ... (▹ ys ... / b) bs ...))
-                     (xs ... / (id as ... ([sort char] / ',x) (▹ ys ... / b) bs ...))])))))
-
+                      (xs ... / (id as ... (▹ ys ... / b) bs ...))
+                      (xs ... / (id as ... ([sort char] / ',x) (▹ ys ... / b) bs ...))])))))
 
 
 (define raw-base-constructor-list
@@ -170,8 +169,8 @@
            ([sort expr] xs ... / (app ([sort expr] / ⊙)
                                       ([sort expr] / ⊙)))])
         #;'([([sort expr] xs ... / ⊙)
-           ([sort expr] xs ... / (λ ( / (([sort pat] / (id ([sort char] / ⊙)))))
-                                   ([sort expr] / ⊙)))])
+             ([sort expr] xs ... / (λ ( / (([sort pat] / (id ([sort char] / ⊙)))))
+                                     ([sort expr] / ⊙)))])
         ; leaving sort off pat for now for smooth sort-based movement
         '([([sort expr] xs ... / ⊙)
            ([sort expr] xs ... / (λ ( / (( / (id ([sort char] / ⊙)))))
@@ -188,6 +187,11 @@
     (if (test-apply-single-> constructor stx)
         `(,@menu ,(runtime-match literals constructor stx))
         menu)))
+
+(define (menu in-scope current-selection)
+  (base-menu (append raw-base-constructor-list
+                     (map id->raw-ref-constructor in-scope))
+             current-selection))
 
 (module+ test
   (require rackunit)
@@ -256,14 +260,14 @@
    
    "\b" (-> 'runtime (set)
             '([⋱
-               (xs ... / (id as ... a (▹ ys ... / b) bs ...))
-               (xs ... / (id as ... (▹ ys ... / b) bs ...))]))
+                (xs ... / (id as ... a (▹ ys ... / b) bs ...))
+                (xs ... / (id as ... (▹ ys ... / b) bs ...))]))
 
    "\u007F" `(fallthrough->
               ,(-> 'runtime (set)
                    '([⋱
-                      (xs ... / (id as ... (▹ ys ... / a) (zs ... / b) bs ...))
-                      (xs ... / (id as ... (▹ zs ... / b) bs ...))]))
+                       (xs ... / (id as ... (▹ ys ... / a) (zs ... / b) bs ...))
+                       (xs ... / (id as ... (▹ zs ... / b) bs ...))]))
               ,(make-destructor
                 '([(xs ... / 0)
                    (xs ... / ⊙)]
@@ -283,59 +287,59 @@
          '([(◇ a ... (▹ As ... / b) c ...)
             (◇ a ... (▹ As ... / b) c ...)]
            [⋱
-            (As ... / (λ (Cs ... / ((▹ Bs ... / a))) b))
-            (▹ As ... / (λ (Cs ... / ((Bs ... / a))) b))]
+             (As ... / (λ (Cs ... / ((▹ Bs ... / a))) b))
+             (▹ As ... / (λ (Cs ... / ((Bs ... / a))) b))]
            #;[⋱
-              (As ... / (λ (Cs ... / ((▹ Bs ... / a))) b))
-              (▹ As ... / (λ (Cs ... / ((Bs ... / a))) b))]
+               (As ... / (λ (Cs ... / ((▹ Bs ... / a))) b))
+               (▹ As ... / (λ (Cs ... / ((Bs ... / a))) b))]
            [⋱
-            (As ... / (a ... (▹ Bs ... / b) c ...))
-            (▹ As ... / (a ... (Bs ... / b) c ...))]))
+             (As ... / (a ... (▹ Bs ... / b) c ...))
+             (▹ As ... / (a ... (Bs ... / b) c ...))]))
 
    "down" (make-movement
            '([⋱
-              (▹ As ... / ⊙)
-              (▹ As ... / ⊙)]
+               (▹ As ... / ⊙)
+               (▹ As ... / ⊙)]
              [⋱
-              (▹ As ... / 0)
-              (▹ As ... / 0)]
+               (▹ As ... / 0)
+               (▹ As ... / 0)]
              [⋱
-              (▹ As ... / (ctx ⋱ (sort Bs ... / b)))
-              (As ... / (ctx ⋱ (▹ sort Bs ... / b)))]
+               (▹ As ... / (ctx ⋱ (sort Bs ... / b)))
+               (As ... / (ctx ⋱ (▹ sort Bs ... / b)))]
              ; note this selects the next sorted expression
              ; notably, it descends into lambda params list
              ))
 
    "left" (make-movement
            '([⋱
-              (◇ (▹ As ... / c))
-              (◇ (▹ As ... / c))]
+               (◇ (▹ As ... / c))
+               (◇ (▹ As ... / c))]
              [⋱
-              (var (▹ As ... / c))
-              (var (▹ As ... / c))]
+               (var (▹ As ... / c))
+               (var (▹ As ... / c))]
              [⋱
-              (app (▹ As ... / c) d ...)
-              (app (▹ As ... / c) d ...)]
+               (app (▹ As ... / c) d ...)
+               (app (▹ As ... / c) d ...)]
              [⋱
-              (λ (Cs ... / ((▹ Bs ... / a))) b)
-              (λ (Cs ... / ((▹ Bs ... / a))) b)]
+               (λ (Cs ... / ((▹ Bs ... / a))) b)
+               (λ (Cs ... / ((▹ Bs ... / a))) b)]
              [⋱
-              (λ (Cs ... / ((As ... / a))) (▹ Bs ... / b))
-              (λ (Cs ... / ((▹ As ... / a))) (Bs ... / b))]
+               (λ (Cs ... / ((As ... / a))) (▹ Bs ... / b))
+               (λ (Cs ... / ((▹ As ... / a))) (Bs ... / b))]
              [⋱
-              ((▹ As ... / c) d ...)
-              ((▹ As ... / c) d ...)]
+               ((▹ As ... / c) d ...)
+               ((▹ As ... / c) d ...)]
              [⋱
-              (a ... (As ... / b) (▹ Bs ... / c) d ...)
-              (a ... (▹ As ... / b) (Bs ... / c) d ...)]))
+               (a ... (As ... / b) (▹ Bs ... / c) d ...)
+               (a ... (▹ As ... / b) (Bs ... / c) d ...)]))
 
    "right" (make-movement
             '([⋱
-               (λ (Cs ... / ((▹ As ... / a))) (Bs ... / b))
-               (λ (Cs ... / ((As ... / a))) (▹ Bs ... / b))]
+                (λ (Cs ... / ((▹ As ... / a))) (Bs ... / b))
+                (λ (Cs ... / ((As ... / a))) (▹ Bs ... / b))]
               [⋱
-               (a ... (▹ As ... / b) (Bs ... / c) d ...)
-               (a ... (As ... / b) (▹ Bs ... / c) d ...)]))
+                (a ... (▹ As ... / b) (Bs ... / c) d ...)
+                (a ... (As ... / b) (▹ Bs ... / c) d ...)]))
    
    ))
 
@@ -382,27 +386,31 @@
        ['true #t]
        [_ (error "test-apply-single")])]))
 
+(define (extract-selection-and-scope stx)
+  (f/match stx
+    [(c ⋱ (▹ in-scope As ... / a))
+     (values (in-scope As ... / a)
+             in-scope)]
+    ; fallthrough case - current λ params list has no in-scope
+    [(c ⋱ (▹ As ... / a))
+     (values (As ... / a)
+             '())]))
+
+(define (my-select stx)
+  (runtime-match literals
+                 '([(y ... / a)
+                    (▹ y ... / a)]) stx))
 
 (define (mode:navigate key state)
+  
   (define-from state
     stx mode transforms messages)
   (define update (curry hash-set* state))
-  (define my-in-scope
-    (f/match stx
-      [(c ⋱ (▹ in-scope As ... / a))
-       in-scope]
-      [_ '()])) ;fallthrough case - current λ params list has no in-scope
-  #;(println `(curtrans ,(append raw-base-constructor-list
-                                 (map id->ref-constructor my-in-scope))))
-  (define current-selected-thing
-    (f/match stx
-      [(c ⋱ (▹ As ... / a))
-       (As ... / a)]
-      [_ (error "no thing selected???")]))
-  (define menu-stx
-    (base-menu (append raw-base-constructor-list
-                       (map id->raw-ref-constructor my-in-scope))
-               current-selected-thing))
+  
+  (define-values (current-selection in-scope)
+    (extract-selection-and-scope stx))
+  (define menu-stx (menu in-scope current-selection))
+  
   (match key
     ["right"
      (define new-stx
@@ -438,15 +446,12 @@
                 'stx new-stx)]
     ; transform mode
     ["\r"
-     (define (my-select stx)
-       (runtime-match literals
-                      '([(y ... / a)
-                         (▹ y ... / a)]) stx))
+     
      (update
       'mode 'menu
       'stx (f/match stx
              [(c ⋱ (▹ ('sort expr) As ... / ⊙))
-              (c ⋱ (('transform (cons (my-select (first menu-stx)) (rest menu-stx))) ('sort expr) As ... / ⊙))]
+              (c ⋱ (('transform `(menu ,(cons (my-select (first menu-stx)) (rest menu-stx)))) ('sort expr) As ... / ⊙))]
              ))]
 
     ["f1" (update 'stx #;save-state-1)]
@@ -463,7 +468,7 @@
     ; transform keys
     [_
      (define transform
-       (hash-ref (hash-union (make-ref-hash my-in-scope) alpha-constructors keymap #:combine/key (λ (k v v1) v)) key identity->))
+       (hash-ref (hash-union #;(make-ref-hash my-in-scope) alpha-constructors keymap #:combine/key (λ (k v v1) v)) key identity->))
      (apply-> transform state)
      ]))
 
@@ -471,17 +476,74 @@
 
 
 (define (mode:menu key state)
+  
   (define-from state stx)
   (define update (curry hash-set* state))
+
+
   (f/match stx
     [(ctx ⋱ (('transform template) xs ...
                                    / pattern))
      (match key
+       ["right"
+        (define new-template
+          (f/match template
+            [(ctx2 ⋱ `(menu (,a ... ,(▹ Bs ... / c) ,d ...)))
+             
+             (define new-candidate
+               (select-first-⊙ (▹ Bs ... / c)))
+             (define no-holes?
+               (equal? new-candidate (▹ Bs ... / c)))
+             #;(println `(nhh ,no-holes? ,new-candidate ,(▹ Bs ... / c)))
+             (cond
+               [no-holes?
+                ; STILL NEED TO HANDLE LAST IN LIST CASE
+                (println "no holes case")
+                (define replacement (ctx2 ⋱ (Bs ... / c))) ; remove ▹ 
+                (println `(replacement ,replacement))
+                (define w-selected
+                  (f/match replacement
+                    [(c ⋱ (xs ... / '⊙))
+                     (c ⋱ (▹ xs ... / '⊙))])
+                  #;((curry runtime-match literals
+                            '([(c ⋱ (xs ... / ⊙))
+                               (c ⋱ (▹ xs ... / ⊙))]
+                              [A A]))
+                     replacement))
+                (println `(w-selected ,w-selected))
+                (define-values (current-selection in-scope)
+                  (extract-selection-and-scope w-selected))
+                (define menu-stx (menu in-scope current-selection))
+                (define replace-selected-hole-with-menu
+                  (f/match w-selected
+                    [(c ⋱ (▹ xs ... / ⊙))
+                     (c ⋱ `(menu ,(cons (my-select (first menu-stx)) (rest menu-stx))))]
+                    [x x]))
+                (println `(replace-selected-hole-with-menu ,replace-selected-hole-with-menu))
+                replace-selected-hole-with-menu
+                ]
+               [else
+                (define-values (current-selection in-scope)
+                  (extract-selection-and-scope new-candidate))
+                (define menu-stx (menu in-scope current-selection))
+                (define replace-selected-hole-with-menu
+                  (f/match new-candidate
+                    [(c ⋱ (▹ xs ... / ⊙))
+                     (c ⋱ `(menu ,(cons (my-select (first menu-stx)) (rest menu-stx))))]
+                    [x x]))
+                (println `(rshwm ,replace-selected-hole-with-menu))
+                (ctx2 ⋱ replace-selected-hole-with-menu)])]
+            [x x]))
+        
+        (update 'stx
+                (ctx ⋱ (('transform new-template) xs ... 
+                                                  / pattern)))
+        ]
        ["up"
         (define new-template
           (f/match template
-            [(ctx2 ⋱ `(,a ... ,( As ... / b) ,(▹ Bs ... / c) ,d ...))
-             (ctx2 ⋱ `(,@a ,(▹ As ... / b) ,(Bs ... / c) ,@d))]
+            [(ctx2 ⋱ `(menu (,a ... ,( As ... / b) ,(▹ Bs ... / c) ,d ...)))
+             (ctx2 ⋱ `(menu (,@a ,(▹ As ... / b) ,(Bs ... / c) ,@d)))]
             [x x]))
         (update 'stx
                 (ctx ⋱ (('transform new-template) xs ... 
@@ -489,8 +551,8 @@
        ["down"
         (define new-template
           (f/match template
-            [(ctx2 ⋱ `(,a ... ,(▹ As ... / b) ,(Bs ... / c) ,d ...))
-             (ctx2 ⋱ `(,@a ,(As ... / b) ,(▹ Bs ... / c) ,@d))]
+            [(ctx2 ⋱ `(menu (,a ... ,(▹ As ... / b) ,(Bs ... / c) ,d ...)))
+             (ctx2 ⋱ `(menu (,@a ,(As ... / b) ,(▹ Bs ... / c) ,@d)))]
             [x x]))
         (update 'stx
                 (ctx ⋱ (('transform new-template) xs ... 
@@ -498,15 +560,15 @@
        ["\r"
         (define new-thing
           (f/match template
-            [(ctx2 ⋱ `(,a ... ,(▹ As ... / b) ,d ...))
-             (▹ As ... / b)]
+            [(ctx2 ⋱ `(menu (,a ... ,(▹ As ... / b) ,d ...)))
+             (ctx2 ⋱ (select-first-⊙ (▹ As ... / b)))]
             [x x]))
         (define select-first-in-new-thing
           (select-first-⊙ new-thing))
         (println `(new ,new-thing ,select-first-in-new-thing))
         (update 'mode 'nav
                 'stx
-                (ctx ⋱ select-first-in-new-thing))]
+                (ctx ⋱ new-thing))]
        )]))
 
 
