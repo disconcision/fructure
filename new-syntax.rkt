@@ -34,8 +34,9 @@
       [(/ (<ats> <pat>) ... <a/> <stx>)
        ; need to check that <a/> is a symbol
        ; but should be guarded by previous clause
-       #'(anno (and <a/> (hash-table ('<ats> <pat>) ...))
+       #'(anno (and <a/> (hash-table ('<ats> <pat>) ... r (... ...)))
                <stx>)]
+      ; HACK ABOVE WITH r!!! CHECK THIS!!!!
       
       [(/ <bare-ats> ... <a/> <stx>)
        ; need to check that all are symbols
@@ -67,6 +68,21 @@
 (module+ test
   (require rackunit)
 
+  (check-equal? (match (/ 0)
+                  [(/ anns/ 0)
+                   (/ anns/ 0)])
+                (/ 0))
+
+  (check-equal? (match (/ (in-scope '()) 0)
+                  [(/ anns/ 0)
+                   (/ anns/ 0)])
+                (/ (in-scope '()) 0))
+
+  ; this doesnt work... the ' does something but what
+  (check-equal? (match (/ ['sort: 'expr] '⊙)
+                  [(/ sort: a/ '⊙)
+                   (/ a/ 0)])
+                (/ [sort: 'expr] 0))
 
   (check-equal? (match (/ [sort: 'expr] '⊙)
                   [(/ [sort: 'expr] a/ '⊙)
@@ -99,15 +115,15 @@
 
 
 #;'([(/ [sort: expr] a/ ⊙)
-   (/ a/ 0)])
+     (/ a/ 0)])
 #;'([(/ [sort: expr] a/ ⊙)
-   (/ a/ (app (/ [sort: expr] ⊙)
-              (/ [sort: expr] ⊙)))])
+     (/ a/ (app (/ [sort: expr] ⊙)
+                (/ [sort: expr] ⊙)))])
 #;'([(/ [sort: expr] a/ ⊙)
-   (/ a/ (λ (/ [sort: params]
-               `(,(/ [sort: pat]
-                     `(id ,(/ [sort: char] ⊙)))))
-           (/ (sort: expr) ⊙)))])
+     (/ a/ (λ (/ [sort: params]
+                 `(,(/ [sort: pat]
+                       `(id ,(/ [sort: char] ⊙)))))
+             (/ (sort: expr) ⊙)))])
 
 #| need to codify selectability pattern
              to start: only selectables are sort: exprs|#

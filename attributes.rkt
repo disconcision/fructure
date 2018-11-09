@@ -5,6 +5,8 @@
 (provide augment) ; syntax -> attributed-syntax
 
 
+(define (augment stx)
+  (augment-internal stx))
 
 
 (module+ test
@@ -28,7 +30,7 @@
                        (app (p/ #hash((sort . expr) (▹ . ▹)) ⊙)
                             (p/ #hash((sort . expr)) ⊙)))))))))
   (check-equal?
-   (augment p2 )
+   (augment-internal p2 )
    '(◇ (p/
         #hash((in-scope . ()) (sort . expr))
         (λ (p/ #hash() ((p/ #hash((sort . pat) (▹ . ▹)) (var (p/ #hash((sort . char)) name)))))
@@ -42,8 +44,8 @@
 
 
 
-(define (augment stx)
-  (define W (curry augment))
+(define (augment-internal stx)
+  (define W (curry augment-internal))
   (f/match stx
     
     [`(◇ ,(anns ... / prog))
@@ -127,7 +129,6 @@
                       `(app ,(W (('in-scope env) a ... / f-expr))
                             ,(W (('in-scope env) b ... / a-expr))))]
 
-    [_ (error (~a `("attribute generation error on stx: ", stx)))]
+    [_ (error (~a `("attribute generation error on stx: ", stx))) 0]
     ))
-
 
