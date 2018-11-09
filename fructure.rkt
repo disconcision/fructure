@@ -160,20 +160,34 @@
               (symbol->string x)
               (-> 'runtime (set)
                   `([⋱
-                     (xs ... / (id as ... (▹ ys ... / b) bs ...))
-                     (xs ... / (id as ... ([sort char] / ',x) (▹ ys ... / b) bs ...))])))))
+                      (xs ... / (id as ... (▹ ys ... / b) bs ...))
+                      (xs ... / (id as ... ([sort char] / ',x) (▹ ys ... / b) bs ...))])))))
 
 
 (define raw-base-constructor-list
+  #;(list '([(/ [sort: expr] a/ ⊙)
+             (/ a/ 0)])
+          '([(/ [sort: expr] a/ ⊙)
+             (/ a/ (app (/ [sort: expr] ⊙)
+                        (/ [sort: expr] ⊙)))])
+          '([(/ [sort: expr] a/ ⊙)
+             (/ a/ (λ (/ [sort: params]
+                         `(,(/ [sort: pat]
+                               `(id ,(/ [sort: char] ⊙)))))
+                     (/ (sort: expr) ⊙)))])
+          #| need to codify selectability pattern
+             to start: only selectables are sort: exprs|# 
+          
+          )
   (list '([([sort expr] xs ... / ⊙)
            ([sort expr] xs ... / 0)])
         '([([sort expr] xs ... / ⊙)
            ([sort expr] xs ... / (app ([sort expr] / ⊙)
                                       ([sort expr] / ⊙)))])
         #;'([([sort expr] xs ... / ⊙)
-             ([sort expr] xs ... / (λ ( / (([sort pat] / (id ([sort char] / ⊙)))))
+             ([sort expr] xs ... / (λ ([cont params] / (([sort pat] / (id ([sort char] / ⊙)))))
                                      ([sort expr] / ⊙)))])
-        ; leaving sort off pat for now for smooth sort-based movement
+        ; leaving sort off pat, [container params] for now for smooth sort-based movement
         '([([sort expr] xs ... / ⊙)
            ([sort expr] xs ... / (λ ( / (( / (id ([sort char] / ⊙)))))
                                    ([sort expr] / ⊙)))])))
@@ -247,8 +261,8 @@
    
    "1" (make-constructor
         '([([sort expr] xs ... / ⊙)
-           ([sort expr] xs ... / 0)])
-        )
+           ([sort expr] xs ... / 0)]))
+   
    "2" (make-constructor
         '([([sort expr] xs ... / ⊙)
            ([sort expr] xs ... / (app ([sort expr] / ⊙)
@@ -262,14 +276,14 @@
    
    "\b" (-> 'runtime (set)
             '([⋱
-               (xs ... / (id as ... a (▹ ys ... / b) bs ...))
-               (xs ... / (id as ... (▹ ys ... / b) bs ...))]))
+                (xs ... / (id as ... a (▹ ys ... / b) bs ...))
+                (xs ... / (id as ... (▹ ys ... / b) bs ...))]))
 
    "\u007F" `(fallthrough->
               ,(-> 'runtime (set)
                    '([⋱
-                      (xs ... / (id as ... (▹ ys ... / a) (zs ... / b) bs ...))
-                      (xs ... / (id as ... (▹ zs ... / b) bs ...))]))
+                       (xs ... / (id as ... (▹ ys ... / a) (zs ... / b) bs ...))
+                       (xs ... / (id as ... (▹ zs ... / b) bs ...))]))
               ,(make-destructor
                 '([(xs ... / 0)
                    (xs ... / ⊙)]
@@ -289,59 +303,59 @@
          '([(◇ a ... (▹ As ... / b) c ...)
             (◇ a ... (▹ As ... / b) c ...)]
            [⋱
-            (As ... / (λ (Cs ... / ((▹ Bs ... / a))) b))
-            (▹ As ... / (λ (Cs ... / ((Bs ... / a))) b))]
+             (As ... / (λ (Cs ... / ((▹ Bs ... / a))) b))
+             (▹ As ... / (λ (Cs ... / ((Bs ... / a))) b))]
            #;[⋱
-              (As ... / (λ (Cs ... / ((▹ Bs ... / a))) b))
-              (▹ As ... / (λ (Cs ... / ((Bs ... / a))) b))]
+               (As ... / (λ (Cs ... / ((▹ Bs ... / a))) b))
+               (▹ As ... / (λ (Cs ... / ((Bs ... / a))) b))]
            [⋱
-            (As ... / (a ... (▹ Bs ... / b) c ...))
-            (▹ As ... / (a ... (Bs ... / b) c ...))]))
+             (As ... / (a ... (▹ Bs ... / b) c ...))
+             (▹ As ... / (a ... (Bs ... / b) c ...))]))
 
    "down" (make-movement
            '([⋱
-              (▹ As ... / ⊙)
-              (▹ As ... / ⊙)]
+               (▹ As ... / ⊙)
+               (▹ As ... / ⊙)]
              [⋱
-              (▹ As ... / 0)
-              (▹ As ... / 0)]
+               (▹ As ... / 0)
+               (▹ As ... / 0)]
              [⋱
-              (▹ As ... / (ctx ⋱ (sort Bs ... / b)))
-              (As ... / (ctx ⋱ (▹ sort Bs ... / b)))]
+               (▹ As ... / (ctx ⋱ (sort Bs ... / b)))
+               (As ... / (ctx ⋱ (▹ sort Bs ... / b)))]
              ; note this selects the next sorted expression
              ; notably, it descends into lambda params list
              ))
 
    #;#;"left" (make-movement
                '([⋱
-                  (◇ (▹ As ... / c))
-                  (◇ (▹ As ... / c))]
+                   (◇ (▹ As ... / c))
+                   (◇ (▹ As ... / c))]
                  [⋱
-                  (var (▹ As ... / c))
-                  (var (▹ As ... / c))]
+                   (var (▹ As ... / c))
+                   (var (▹ As ... / c))]
                  [⋱
-                  (app (▹ As ... / c) d ...)
-                  (app (▹ As ... / c) d ...)]
+                   (app (▹ As ... / c) d ...)
+                   (app (▹ As ... / c) d ...)]
                  [⋱
-                  (λ (Cs ... / ((▹ Bs ... / a))) b)
-                  (λ (Cs ... / ((▹ Bs ... / a))) b)]
+                   (λ (Cs ... / ((▹ Bs ... / a))) b)
+                   (λ (Cs ... / ((▹ Bs ... / a))) b)]
                  [⋱
-                  (λ (Cs ... / ((As ... / a))) (▹ Bs ... / b))
-                  (λ (Cs ... / ((▹ As ... / a))) (Bs ... / b))]
+                   (λ (Cs ... / ((As ... / a))) (▹ Bs ... / b))
+                   (λ (Cs ... / ((▹ As ... / a))) (Bs ... / b))]
                  [⋱
-                  ((▹ As ... / c) d ...)
-                  ((▹ As ... / c) d ...)]
+                   ((▹ As ... / c) d ...)
+                   ((▹ As ... / c) d ...)]
                  [⋱
-                  (a ... (As ... / b) (▹ Bs ... / c) d ...)
-                  (a ... (▹ As ... / b) (Bs ... / c) d ...)]))
+                   (a ... (As ... / b) (▹ Bs ... / c) d ...)
+                   (a ... (▹ As ... / b) (Bs ... / c) d ...)]))
 
    #;#;"right" (make-movement
                 '([⋱
-                   (λ (Cs ... / ((▹ As ... / a))) (Bs ... / b))
-                   (λ (Cs ... / ((As ... / a))) (▹ Bs ... / b))]
+                    (λ (Cs ... / ((▹ As ... / a))) (Bs ... / b))
+                    (λ (Cs ... / ((As ... / a))) (▹ Bs ... / b))]
                   [⋱
-                   (a ... (▹ As ... / b) (Bs ... / c) d ...)
-                   (a ... (As ... / b) (▹ Bs ... / c) d ...)]))
+                    (a ... (▹ As ... / b) (Bs ... / c) d ...)
+                    (a ... (As ... / b) (▹ Bs ... / c) d ...)]))
    
    ))
 
@@ -393,6 +407,18 @@
     [(c ⋱ (▹ in-scope As ... / a))
      (values (in-scope As ... / a)
              in-scope)]
+    #; [(c ⋱ (/ (a: in-scope ▹) a))
+        (values (/ (a: in-scope) a)
+                in-scope)]
+    ; sugar for ▹
+    ; just rewrite into the above
+    #; [(c ⋱ (/ (a: in-scope) (▹ a))) 
+        (values (/ (a: in-scope) a)
+                in-scope)]
+    #; [(c ⋱ (/ a: (▹ a))) ; if no patterns to check
+        (values (/ (a: in-scope) a)
+                in-scope)]
+    
     ; fallthrough case - current λ params list has no in-scope
     [(c ⋱ (▹ As ... / a))
      (values (As ... / a)
@@ -416,11 +442,29 @@
   (match key
     ["right"
      (define new-stx
+       #; (f/match stx
+            [(⋱ c⋱
+                (/ a/ (▹ (⋱ d⋱
+                            (/ sort b/ b)))))
+             (⋱ c⋱
+                (/ a/ (⋱ d⋱
+                         (/ sort b/ (▹ b)))))]
+            ; should we force explicit hash pairs?
+            [(⋱ c⋱ (capture-when
+                    (or (/ _/ (▹ _)) ; make sure dont bind ▹
+                        (/ (sort: _) _/
+                           (not (⋱ _
+                                   (/ (sort: _) _/
+                                      (▹ _)))))))
+                `(,xs ... ,(/ a: / (▹ a)) ,(/ b: / b) ,ys ...)) ; alternative :/ syntax
+             (c ⋱... 
+                `(,xs ... ,(/ a/ a) ,(/ b/ (▹ b)) ,ys ...))]
+            [x x])
        (f/match stx
          [(c ⋱ (▹ ys ... / (d ⋱ (sort xs ... / a))))
           (c ⋱ (ys ... / (d ⋱ (▹ sort xs ... / a))))]
-         [(c ⋱ (capture-when (or (and  (('▹ _) xs ... / _))
-                                 (and  (('sort _) xs ... / (not (⋱ (('▹ _) _ ... / _)))))))
+         [(c ⋱ (capture-when (or (('▹ _) _ ... / _)
+                                 (('sort _) _ ... / (not (⋱ (('▹ _) _ ... / _))))))
              `(,as ... ,(▹ ws ... / a) ,(zs ... / b) ,bs ...))
           (c ⋱... 
              `(,@as ,(ws ... / a) ,(▹ zs ... / b) ,@bs))]
@@ -499,7 +543,7 @@
     [(c ⋱ (▹ xs ... / ⊙))
      ; should menu retain hole properties?
      (c ⋱ (xs ... / `(menu ,(cons (my-select (first menu-stx))
-                            (rest menu-stx)))))]
+                                  (rest menu-stx)))))]
     [x x]))
 
 
@@ -517,6 +561,7 @@
        ["right"
         (define new-template
           (f/match template
+            #; (⋱ ctx2⋱ (/ m/ `(menu (,x ... ,(/ y/ (▹ y)) ,z ...))))
             [(ctx2 ⋱ (ws ... / `(menu (,a ... ,(▹ Bs ... / c) ,d ...))))
              (if (no-⊙? (Bs ... / c))
                  (let ([replacement (ctx2 ⋱ (Bs ... / c))])
@@ -531,6 +576,7 @@
        ["up"
         (define new-template
           (f/match template
+            #; (⋱ ctx2⋱ (/ m/ `(menu (,x ... ,(/ y/ y) ,(/ z/ (▹ z)) ,w ...))))
             [(ctx2 ⋱ (ws ... / `(menu (,a ... ,( As ... / b) ,(▹ Bs ... / c) ,d ...))))
              (ctx2 ⋱ (ws ... /  `(menu (,@a ,(▹ As ... / b) ,(Bs ... / c) ,@d))))]
             [x x]))
