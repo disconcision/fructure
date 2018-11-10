@@ -1,7 +1,10 @@
 #lang racket
 
 
-(provide / anno)
+(require (only-in racket/base
+                  (/ div)))
+
+(provide / anno div)
 
 
 (require racket/hash)
@@ -22,45 +25,58 @@
             `[,k ,v]))
         `(,nicer-attrs ,(anno-stx obj)))))])
 
+#;(define (helper stx)
+    (match stx
+      [(? anno?) stx]
+      [(? (negate list?)) stx]
+      [_ (map helper stx)]))
+
 (define-match-expander /
   (λ (stx)
     (syntax-case stx (▹)
       [(/ <whatever> ... (▹ <stx>))
-       #'(/ ('▹ _) <whatever> ... <stx>)]
+       #'(/ (▹ _) <whatever> ... <stx>)]
 
       [(/ (<ats> <pat>) ... <stx>)
        #'(/ (<ats> <pat>) ... _ <stx>)]
 
+      [(/ <a/> <stx>)
+       ; need to check that <a/> is a symbol
+       ; need this seperate case because empty hash-table
+       ; matches only empty hash-tables
+       #'`(p/ ,<a/> ,<stx>)]
+
       [(/ (<ats> <pat>) ... <a/> <stx>)
        ; need to check that <a/> is a symbol
        ; but should be guarded by previous clause
-       #'(anno (and <a/> (hash-table ('<ats> <pat>) ... r (... ...)))
-               <stx>)]
-      ; HACK ABOVE WITH r!!! CHECK THIS!!!!
+       #'`(p/ ,(and <a/> (hash-table ('<ats> <pat>) ...))
+              ,<stx>)]
       
       [(/ <bare-ats> ... <a/> <stx>)
        ; need to check that all are symbols
        ; but can initially self-enforce and rely on above to guard
        ; (this is probably a mistake)
-       #' (/ ('<bare-ats> <bare-ats>) ... <a/> <stx>)] 
+       ; don't need to quote attr, will get quoted in above clause
+       #' (/ (<bare-ats> <bare-ats>) ... <a/> <stx>)] 
       ))
   (λ (stx)
     (syntax-case stx (▹)
       [(/ <whatever> ... (▹ <stx>))
        ; 0 is dummy
-       #'(/ ('▹ 0) <whatever> ... <stx>)]
+       #'(/ (▹ 0) <whatever> ... <stx>)]
 
       [(/ (<atrs> <pat>) ... <stx>)
        #'(/ (<atrs> <pat>) ... (hash) <stx>)]
       
       [(/ (<ats> <pat>) ... <a/> <stx>)
 
-       #'(anno (hash-union <a/> (hash (~@ '<ats> <pat>) ...)
+       #'`(p/ ,(hash-union <a/> (hash (~@ '<ats> <pat>) ...)
                            #:combine/key (λ (k v v1) v1))
-               <stx>)]
+              ,<stx>)]
 
       [(/ <bare-ats> ... <a/> <stx>)
-       #'(/ ('<bare-ats> <bare-ats>) ... <a/> <stx>)] 
+       ; don't need to quote attr, will get quoted in above clause
+       #'(/ (<bare-ats> <bare-ats>) ... <a/> <stx>)] 
       )))
 
 
@@ -68,10 +84,17 @@
 (module+ test
   (require rackunit)
 
-  (check-equal? (match (/ 0)
-                  [(/ anns/ 0)
-                   (/ anns/ 0)])
-                (/ 0))
+  #;(check-equal? (match (/ 0)
+                    [(/ anns/ 0)
+                     (/ anns/ 0)])
+                  (/ 0))
+
+  (check-equal? (match (/ (in-scope '()) 0)
+                  [(/ in-scope top-rest/
+                      0)
+                   (/ in-scope top-rest/
+                      0)])
+                (/ (in-scope '()) 0))
 
   (check-equal? (match (/ (in-scope '()) 0)
                   [(/ anns/ 0)
@@ -79,7 +102,7 @@
                 (/ (in-scope '()) 0))
 
   ; this doesnt work... the ' does something but what
-  (check-equal? (match (/ ['sort: 'expr] '⊙)
+  (check-equal? (match (/ [sort: 'expr] '⊙)
                   [(/ sort: a/ '⊙)
                    (/ a/ 0)])
                 (/ [sort: 'expr] 0))
