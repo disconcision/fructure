@@ -4,11 +4,12 @@
 
 ; fructure uses some additional match syntax for rewriting
 (require "../fructerm/fructerm.rkt"
-         "../fructerm/f-match.rkt")
+         "../containment-patterns/containment-patterns.rkt"
+         #;"../fructerm/f-match.rkt"
+         "new-syntax.rkt")
 
 (require "attributes.rkt" ; syntax->attributed-syntax
          "layout.rkt") ; syntax->pixels
-
 
 ; -------------------------------------------------
 ; 👻👻 SPOOKY GHOST OO STUFF 👻👻
@@ -163,31 +164,6 @@
                       (xs ... / (id as ... (▹ ys ... / b) bs ...))
                       (xs ... / (id as ... ([sort char] / ',x) (▹ ys ... / b) bs ...))])))))
 
-(define raw-ish-base-constructor-list
-  (list '([⋱
-            (▹ [sort expr] xs ... / ⊙)
-            (▹ [sort expr] xs ... / 0)])
-        '([⋱
-            (▹ [sort expr] xs ... / ⊙)
-            (▹ [sort expr] xs ... / (app ([sort expr] / ⊙)
-                                         ([sort expr] / ⊙)))])
-        '([⋱
-            (▹ [sort expr] xs ... / ⊙)
-            (▹ [sort expr] xs ... / (λ ( / (( / (id ([sort char] / ⊙)))))
-                                      ([sort expr] / ⊙)))])))
-(define raw-ish-alpha-constructors
-  (list `([⋱
-            (xs ... / (id as ... (▹ ys ... / '⊙) bs ...))
-            (xs ... / (id as ... (▹ [sort char] / 'a) ( ys ... / '⊙) bs ...))])
-        `([⋱
-            (xs ... / (id as ... (▹ ys ... / '⊙) bs ...))
-            (xs ... / (id as ... (▹ [sort char] / 'b) ( ys ... / '⊙) bs ...))])
-        `([⋱
-            (xs ... / (id as ... (▹ ys ... / '⊙) bs ...))
-            (xs ... / (id as ... (▹ [sort char] / 'c) ( ys ... / '⊙) bs ...))])
-        `([⋱
-            (xs ... / (id as ... (▹ ys ... / y) bs ...))
-            (xs ... / (id as ... (▹ [sort char] / '⊙) bs ...))])))
 
 (define raw-base-constructor-list
   #;(list '([(/ [sort: expr] a/ ⊙)
@@ -221,15 +197,6 @@
   (map make-constructor
        raw-base-constructor-list))
 
-(define (better-base-menu raw-constructor-list stx)
-  (for/fold ([menu '()])
-            ([constructor raw-constructor-list])
-    (if (test-apply-single-> constructor stx)
-        `(,@menu (,constructor
-                  ,(f/match (runtime-match literals constructor stx)
-                     [(c ⋱ (▹ as ... / a))
-                      (as ... / a)])))
-        menu)))
 
 (define (base-menu raw-constructor-list stx)
   (for/fold ([menu '()])
@@ -242,16 +209,6 @@
   (base-menu (append raw-base-constructor-list
                      (map id->raw-ref-constructor in-scope))
              current-selection))
-
-(define (better-menu in-scope current-selection)
-  (better-base-menu (append raw-ish-base-constructor-list
-                            raw-ish-alpha-constructors
-                            (for/list ([id in-scope])
-                              `([⋱
-                                  (▹ [sort expr] xs ... / ⊙)
-                                  (▹ [sort expr] xs ... /
-                                     (ref ',id))])))
-                    current-selection))
 
 (module+ test
   (require rackunit)
@@ -288,8 +245,6 @@
      ([sort expr] xs ... /
                   (ref ',id))]))
 
-
-
 (define (make-ref-hash in-scope)
   (define in-scope-constructors
     (map id->ref-constructor in-scope))
@@ -315,7 +270,7 @@
                                       ([sort expr] / ⊙)))]))
    "3" (make-constructor
         '([([sort expr] xs ... / ⊙)
-           ([sort expr] xs ... / (λ ( / ((#;[sort pat] / (id ([sort char] / ⊙)))))
+           ([sort expr] xs ... / (λ ( / (([sort pat] / (id ([sort char] / ⊙)))))
                                    ([sort expr] / ⊙)))]))
 
    ; destructors
@@ -441,38 +396,30 @@
          )])]))
 
 (define (test-apply-single-> transform stx)
-  (match (runtime-match literals transform stx)
-    ['no-match #f]
-    [_ #t]
-    )
-  #;(match transform
-      [`([,pat ,tem])
-       (match (runtime-match literals `([,pat 'true]) stx)
-         ['no-match #f]
-         ['true #t]
-         [_ (error "test-apply-single")])]))
+  (match transform
+    [`([,pat ,tem])
+     (match (runtime-match literals `([,pat 'true]) stx)
+       ['no-match #f]
+       ['true #t]
+       [_ (error "test-apply-single")])]))
 
 (define (extract-selection-and-scope stx)
-  (f/match stx
-    [(c ⋱ (▹ in-scope As ... / a))
-     (values (in-scope As ... / a)
+  (match stx
+    [(⋱ c (/ (in-scope in-scope) as/ (▹ a))) ; fix this new-syntax issue
+     (values (/ in-scope as/ a)
              in-scope)]
-    #; [(c ⋱ (/ (a: in-scope ▹) a))
-        (values (/ (a: in-scope) a)
-                in-scope)]
-    ; sugar for ▹
-    ; just rewrite into the above
-    #; [(c ⋱ (/ (a: in-scope) (▹ a))) 
-        (values (/ (a: in-scope) a)
-                in-scope)]
-    #; [(c ⋱ (/ a: (▹ a))) ; if no patterns to check
-        (values (/ (a: in-scope) a)
-                in-scope)]
-    
     ; fallthrough case - current λ params list has no in-scope
-    [(c ⋱ (▹ As ... / a))
-     (values (As ... / a)
-             '())]))
+    [(⋱ c (/ as/ (▹ a)))
+     (values (/ as/ a)
+             '())])
+  #;(f/match stx
+      [(c ⋱ (▹ in-scope As ... / a))
+       (values (in-scope As ... / a)
+               in-scope)]
+      ; fallthrough case - current λ params list has no in-scope
+      [(c ⋱ (▹ As ... / a))
+       (values (As ... / a)
+               '())]))
 
 (define (my-select stx)
   (runtime-match literals
@@ -487,42 +434,71 @@
   
   (define-values (current-selection in-scope)
     (extract-selection-and-scope stx))
-
-  ; map second because better-menu currently returns (constructor resultant) pairs
-  (define menu-stx (better-menu in-scope stx #;current-selection))
-  (println `(menu-stx ,menu-stx))
+  (define menu-stx (menu in-scope current-selection))
   
   (match key
     ["right"
      (define new-stx
-       (f/match stx
-         [(c ⋱ (▹ ys ... / (d ⋱ (sort xs ... / a))))
-          (c ⋱ (ys ... / (d ⋱ (▹ sort xs ... / a))))]
-         [(c ⋱ (capture-when (or (('▹ _) _ ... / _)
-                                 (('sort _) _ ... / (not (⋱ (('▹ _) _ ... / _))))))
-             `(,as ... ,(▹ ws ... / a) ,(zs ... / b) ,bs ...))
-          (c ⋱... 
-             `(,@as ,(ws ... / a) ,(▹ zs ... / b) ,@bs))]
-         [x x]))
+       (match stx
+         [(⋱ c
+             (/ a/ (▹ (⋱ d
+                         (/ sort b/ b)))))
+          (⋱ c
+             (/ a/ (⋱ d
+                      (/ (sort sort) b/ (▹ b)))))] ;new-syntax bug
+         [(⋱+ c (capture-when
+                 (or (/ _/ (▹ _)) ; make sure dont bind ▹
+                     (/ (sort _) _/
+                        (not (⋱ _
+                                (/ (sort _) _/
+                                   (▹ _)))))))
+              `(,xs ... ,(/ a/ (▹ a)) ,(/ b/ b) ,ys ...))
+          (⋱+ c 
+              `(,@xs ,(/ a/ a) ,(/ b/ (▹ b)) ,@ys))]
+         [x x])
+       #;(f/match stx
+           [(c ⋱ (▹ ys ... / (d ⋱ (sort xs ... / a))))
+            (c ⋱ (ys ... / (d ⋱ (▹ sort xs ... / a))))]
+           [(c ⋱ (capture-when (or (('▹ _) _ ... / _)
+                                   (('sort _) _ ... / (not (⋱ (('▹ _) _ ... / _))))))
+               `(,as ... ,(▹ ws ... / a) ,(zs ... / b) ,bs ...))
+            (c ⋱... 
+               `(,@as ,(ws ... / a) ,(▹ zs ... / b) ,@bs))]
+           [x x]))
      (hash-set* state
                 'stx new-stx)]
     ["left"
      (define new-stx
-       (f/match stx
+       (match stx
          ; left logic not quite right
          ; if sibling to left, select rightmost child of that sibling
          ; otherwise, find nearest parent sort
-         [(c ⋱ (capture-when (or (('▹ _) xs ... / _)
-                                 (('sort _) xs ... / (not (⋱ (('▹ _) _ ... / _))))))
-             `(,as ... ,(ws ... / a) ,(▹ zs ... / b) ,bs ...))
-          (c ⋱... 
-             `(,@as ,(▹ ws ... / a) ,(zs ... / b) ,@bs))]
-         [(c ⋱ (and (sort ys ... / (d ⋱ (▹ xs ... / a)))
-                    ; does not contain another sort which contains a sort containing ▹  
-                    (not (sort _ ... / (_ ⋱ (sort _ ... / (_ ⋱ (▹ _ ... / _))))))))
-          (c ⋱ (▹ sort ys ... / (d ⋱ (xs ... / a))))]
+         [(⋱+ c (capture-when (or (/ _ (▹ _))
+                                  (/ (sort _) _ (not (⋱ (/ _ (▹ _)))))))
+              `(,xs ... ,(/ a/ a) ,(/ b/ (▹ b)) ,ys ...))
+          (⋱+ c
+              `(,@xs ,(/ a/ (▹ a)) ,(/ b/ b) ,@ys))]
+         [(⋱ c⋱ (and (/ sort ys/ (⋱ d⋱ (/ xs/ (▹ a))))
+                     ; does not contain another sort which contains a sort containing ▹  
+                     (not (/ sort t/ (⋱ _⋱ (/ sort q/ (⋱ _ (/ r/ (▹ _)))))))))
+          (⋱ c⋱ (/ (sort sort) ys/ (▹ (⋱ d⋱ (/ xs/ a)))))]
          
-         [x x]))
+         [x x])
+       #;(f/match stx
+           ; left logic not quite right
+           ; if sibling to left, select rightmost child of that sibling
+           ; otherwise, find nearest parent sort
+           [(c ⋱ (capture-when (or (('▹ _) xs ... / _)
+                                   (('sort _) xs ... / (not (⋱ (('▹ _) _ ... / _))))))
+               `(,as ... ,(ws ... / a) ,(▹ zs ... / b) ,bs ...))
+            (c ⋱... 
+               `(,@as ,(▹ ws ... / a) ,(zs ... / b) ,@bs))]
+           [(c ⋱ (and (sort ys ... / (d ⋱ (▹ xs ... / a)))
+                      ; does not contain another sort which contains a sort containing ▹  
+                      (not (sort _ ... / (_ ⋱ (sort _ ... / (_ ⋱ (▹ _ ... / _))))))))
+            (c ⋱ (▹ sort ys ... / (d ⋱ (xs ... / a))))]
+         
+           [x x]))
      (hash-set* state
                 'stx new-stx)]
     ; transform mode
@@ -530,19 +506,25 @@
      
      (update
       'mode 'menu
-      'stx (f/match stx
-             [(c ⋱ (▹ ('sort expr) as ... / a))
-              (c ⋱ (('transform (▹ ('sort expr)
+      'stx #;(f/match stx
+               [(c ⋱ (▹ ('sort expr) as ... / a))
+                (c ⋱ (('transform (('sort expr)
                                    ('menu (if (empty? menu-stx)
                                               (error "empty menu not implemented")
-                                              (match menu-stx
-                                                [`((,t ,r) ,xs ...)
-                                                 `((,t ,(my-select r)) ,@xs)])
-                                              #;(cons (my-select (first menu-stx))
-                                                      (rest menu-stx))))
+                                              (cons (my-select (first menu-stx))
+                                                    (rest menu-stx))))
                                    as ... / a))
-                    ('sort expr) as ... / a))]
-             ))]
+                      ('sort expr) as ... / a))])
+      (match stx
+        [(⋱ c (/ (sort 'expr) as/ (▹ a)))
+         (⋱ c (/ (transform (/ (sort 'expr)
+                               (menu (if (empty? menu-stx)
+                                         (error "empty menu not implemented")
+                                         (cons (my-select (first menu-stx))
+                                               (rest menu-stx))))
+                               as/ a))
+                 (sort 'expr) as/ a))])
+      )]
 
     ["f1" (update 'stx #;save-state-1)]
     ["/"  (update 'messages (cons transforms messages))]
@@ -581,37 +563,20 @@
   (define-values (current-selection in-scope)
     (extract-selection-and-scope new-candidate))
   (define menu-stx (menu in-scope current-selection))
-  (f/match new-candidate
-    [(c ⋱ (▹ xs ... / ⊙))
+  (match new-candidate
+    [(⋱ c (/ xs/ (▹ ⊙)))
      ; should menu retain hole properties?
-     (c ⋱ (('menu (if (empty? menu)
-                      (error "empty menu in replace first hole")
-                      (cons (my-select (first menu-stx))
-                            (rest menu-stx))))
-           xs ... / ⊙))]
-    [x x]))
-
-(define (better-replace-first-⊙-with-menu stx)
-  (println `(BETTER-REPLACE-STX ,stx))
-  (define new-candidate
-    (select-first-⊙ stx))
-  (println `(new-candidate ,new-candidate))
-  (define-values (current-selection in-scope)
-    (extract-selection-and-scope new-candidate))
-  (println `(current-selection ,current-selection))
-  (define menu-stx (better-menu in-scope new-candidate)) ; stx, NOT current-selection
-  (println `(menu-stx ,menu-stx))
-  (f/match new-candidate
-    [(c ⋱ (▹ xs ... / '⊙))
-     (println "HOOOOOOOOOLE")
-     ; should menu retain hole properties?
-     (c ⋱ (▹ ('menu (if (empty? menu-stx)
-                        (error "empty menu not implemented")
-                        (match menu-stx
-                          [`((,t ,r) ,xs ...)
-                           `((,t ,(my-select r)) ,@xs)])))
-             xs ... / '⊙))]
-    [x (println "NOOOO HOLE!!") x]))
+     (⋱ c (/ (menu (cons (my-select (first menu-stx))
+                         (rest menu-stx)))
+             xs/ ⊙))]
+    [x x])
+  #;(f/match new-candidate
+      [(c ⋱ (▹ xs ... / ⊙))
+       ; should menu retain hole properties?
+       (c ⋱ (('menu (cons (my-select (first menu-stx))
+                          (rest menu-stx)))
+             xs ... / ⊙))]
+      [x x]))
 
 
 (define (mode:menu key state)  
@@ -620,82 +585,67 @@
 
   #| this approach can't handle menus for chars
      also currently errors on non-hole patterns |#
-
- 
   
-  (f/match stx
-    [(ctx ⋱ (('transform template) xs ... / pattern))
+  (match stx
+    [(⋱ ctx (/ (transform template) xs/ pattern))
      
      (match key
-       ["escape"
-        (update 'mode 'nav
-                'stx
-                (ctx ⋱ (('▹ '▹) xs ... / pattern)))
-        ]
        ["right"
         (define new-template
-          (f/match template
-            [(ctx2 ⋱ (('menu `(,a ... (,transform ,(▹ Bs ... / c)) ,d ...)) wws ... / wwx))
-             (f/match (runtime-match literals transform template)
-               [(ctx2 ⋱ (▹ ('menu whatever) ws ... / x))
-                (if (no-⊙? x)
-                    (better-replace-first-⊙-with-menu (my-select (ctx2 ⋱ (ws ... / x))))
-                    #;(ctx2 ⋱ ( ws ... / x))
-                    (let ([candidate
-                           (better-replace-first-⊙-with-menu (▹ ws ... / x))])
-                      (if (equal? candidate (▹ ws ... / x)) ;ie didnt find a hole
-                          (begin (println "equal case")
-                                 (println `(ec ,(better-replace-first-⊙-with-menu (ctx2 ⋱ (▹ ws ... / x)))))
-                                 (better-replace-first-⊙-with-menu (ctx2 ⋱ (▹ ws ... / x))))
-                          (begin (println "not equa lcase")
-                                 (println `(nec ,(ctx2 ⋱ candidate)))
-                                 (ctx2 ⋱ candidate)))))
-                #;(ctx2 ⋱ (if (no-⊙? x)
-                              ( ws ... / x) #;(my-select ( ws ... / x))
-                              (let ([candidate
-                                     (better-replace-first-⊙-with-menu (ws ... / x))])
-                                (if (equal? candidate (ws ... / x)) ;ie didnt find a hole
-                                    (better-replace-first-⊙-with-menu (ws ... / x))
-                                    candidate))))]
-               [x x])]
+          (match template
+            [(⋱ ctx2 (/ (menu `(,x ... ,(/ ys/ (▹ y)) ,z ...)) a/ a))
+             (if (no-⊙? (/ ys/ y))
+                 (let ([replacement (⋱ ctx2 (/ ys/ y))])
+                   (if (no-⊙? replacement)
+                       (my-select replacement)
+                       (replace-first-⊙-with-menu replacement)))
+                 (⋱ ctx2  (replace-first-⊙-with-menu (/ ys/ y))))]
             [x x]))        
         (update 'stx
-                (ctx ⋱ (('transform new-template) xs ... / pattern)))]
+                (⋱ ctx  (/ (transform new-template) xs/
+                           pattern)))]
        ["up"
         (define new-template
-          (f/match template
-            [(ctx2 ⋱ (('menu `(,a ... (,t1 ,( As ... / b)) (,t2 ,(▹ Bs ... / c)) ,d ...)) ws ... / x))
-             (ctx2 ⋱ (('menu `(,@a (,t1 ,(▹ As ... / b)) (,t2 ,(Bs ... / c)) ,@d)) ws ... / x))]
-            [x x]))
+          (match template
+            [(⋱ ctx2 (/ (menu `(,x ... ,(/ y/ y) ,(/ z/ (▹ z)) ,w ...)) a/ a))
+             (⋱ ctx2 (/ (menu `(,@x ,(/ y/ (▹ y)) ,(/ z/ z) ,@w)) a/ a))]
+            [x x])
+          #;(f/match template
+              #; (⋱ ctx2⋱ (/ m/ `(menu (,x ... ,(/ y/ y) ,(/ z/ (▹ z)) ,w ...))))
+              [(ctx2 ⋱ (('menu `(,a ... ,( As ... / b) ,(▹ Bs ... / c) ,d ...)) ws ... / x))
+               (ctx2 ⋱ (('menu `(,@a ,(▹ As ... / b) ,(Bs ... / c) ,@d)) ws ... / x))]
+              [x x]))
         (update 'stx
-                (ctx ⋱ (('transform new-template) xs ... 
-                                                  / pattern)))]
+                (⋱ ctx (/ (transform new-template) xs/ 
+                                                  pattern)))]
        ["down"
         (define new-template
-          (f/match template
-            [(ctx2 ⋱ (('menu `(,a ... (,t1 ,(▹ As ... / b)) (,t2 ,(Bs ... / c)) ,d ...)) ws ... / x))
-             (ctx2 ⋱ (('menu `(,@a (,t1 ,(As ... / b)) (,t2 ,(▹ Bs ... / c)) ,@d)) ws ... / x))]
-            [x x]))
+          (match template
+            [(⋱ ctx2 (/ (menu `(,x ... ,(/ y/ (▹ y)) ,(/ z/ z) ,w ...)) a/ a))
+             (⋱ ctx2 (/ (menu `(,@x ,(/ y/ y) ,(/ z/ (▹ z)) ,@w)) a/ a))]
+            [x x])
+          #;(f/match template
+              [(ctx2 ⋱ (('menu `(,a ... ,(▹ As ... / b) ,(Bs ... / c) ,d ...)) ws ... / x))
+               (ctx2 ⋱ (('menu `(,@a ,(As ... / b) ,(▹ Bs ... / c) ,@d)) ws ... / x))]
+              [x x]))
         (update 'stx
-                (ctx ⋱ (('transform new-template) xs ... 
-                                                  / pattern)))]
+                (⋱ ctx (/ (transform new-template) xs/ pattern)))]
        ["\r"
-        (define new-template
-          (f/match template
-            [(ctx2 ⋱ (('menu `(,a ... (,transform ,(▹ Bs ... / c)) ,d ...)) ws ... / x))
-             (f/match (runtime-match literals transform template)
-               [(ctx3 ⋱ (('menu whatever) ws ... / x))
-                (ctx3 ⋱ (if (no-⊙? x)
-                            ( ws ... / x) #;(my-select ( ws ... / x)) ; this case tested?
-                            (select-first-⊙ (▹ ws ... / x))))]
-               [x (println "no menu left (no holes) case")x])]
-            [x (println "BULLSHIT FALLOUT, ENTER IS BROKEN") x]))
-        (println `(new-template ,new-template))
-        #;(update 'stx
-                  (ctx ⋱ (('transform new-template) xs ... / pattern)))
+        (define new-thing
+          (match template
+              [(⋱ ctx2 (/ (menu `(,x ... ,(/ y/ (▹ y)) ,z ...)) ws/ x))
+               (⋱ ctx2 (select-first-⊙ (/ y/ (▹ y))))]
+              [x x])
+          #;(f/match template
+            [(ctx2 ⋱ (('menu `(,a ... ,(▹ As ... / b) ,d ...)) ws ... / x))
+             (ctx2 ⋱ (select-first-⊙ (▹ As ... / b)))]
+            [x x]))
+        (define select-first-in-new-thing
+          (select-first-⊙ new-thing))
+        (println `(new ,new-thing ,select-first-in-new-thing))
         (update 'mode 'nav
                 'stx
-                (ctx ⋱ new-template))]
+                (⋱ ctx new-thing))]
        [_ (println "no programming for that key") state]
        )]))
 
@@ -768,7 +718,25 @@ create list of rhs templates
    projects cursor and sort info for holes|#
 (define (project stx)
   (define @ project)
-  (f/match stx
+  (match stx
+       ; transform mode
+       [(/ (template template) _/ (▹ stx))
+        `(▹ [,stx -> ,(project template)])]
+       ; label sorts of holes
+       [(/ (sort sort) _/ (▹ '⊙)) ;new-syntax bug
+        `(▹ (⊙ ,sort))]
+       [(/ sort _/ '⊙)
+        `(⊙ ,sort)]
+       ; embed cursor
+       [(/ _/ (▹ stx))
+        `(▹ ,(@ stx))]
+       #;[(♦ / stx)
+          `(♦ ,(@ stx))]
+       ; ditch attributes
+       [(/ _/ stx)
+        (@ stx)]
+       [(? list?) (map @ stx)] [x x])
+  #;(f/match stx
     ; transform mode
     [(▹ template / stx)
      `(▹ [,stx -> ,(project template)])]
@@ -794,6 +762,8 @@ create list of rhs templates
 (define (mode-loop key state)
   (define-from state mode)
   (match mode
+    #;['text-entry
+       (mode-text-entry key state)]
     ['menu
      (mode:menu key state)]
     ['nav
@@ -818,26 +788,16 @@ create list of rhs templates
 ; output : state -> image
 
 (define (output state)
-  (define real-layout-settings
-    (hash 'text-size 30
-          'form-color (color 0 130 214)
-          'literal-color (color 255 131 50)
-          'grey-one (color 200 200 200)
-          'grey-two (color 184 184 184)
-          'pattern-grey-one (color 84 84 84)
-          'identifier-color "black"
-          'selected-color (color 230 0 0)
-          'bkg-color (color 0 47 54)))
   (match state
     [(hash-table ('stx stx))
-     (fructure-layout (second stx) real-layout-settings) ; second to skip top
+     (render (second stx)) ; second to skip top
      #;(text (pretty-format (project stx) 100)
              24 "black")]))
 
 
+; MY LOVE FOR YOU IS LIKE A TRUCK
 (require 2htdp/image)
 (require 2htdp/universe)
-; MY LOVE FOR YOU IS LIKE A TRUCK
 (big-bang initial-state
   [on-key
    #| This is impure because of printing debug output.

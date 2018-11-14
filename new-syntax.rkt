@@ -49,7 +49,7 @@
       [(/ (<ats> <pat>) ... <a/> <stx>)
        ; need to check that <a/> is a symbol
        ; but should be guarded by previous clause
-       #'`(p/ ,(and <a/> (hash-table ('<ats> <pat>) ...))
+       #'`(p/ ,(and (hash-table ('<ats> <pat>) ... <a/> (... ...)))
               ,<stx>)]
       
       [(/ <bare-ats> ... <a/> <stx>)
@@ -70,7 +70,11 @@
       
       [(/ (<ats> <pat>) ... <a/> <stx>)
 
-       #'`(p/ ,(hash-union <a/> (hash (~@ '<ats> <pat>) ...)
+       #'`(p/ ,(hash-union (if (hash? <a/>) <a/>(for/fold ([acc #hash()]) ; RIDICULOUS HACK FIX THIS HOT GARBAGE
+                                     ([r <a/>])
+                             (match r
+                               [`(,k ,v) (hash-set acc k v)])))
+                           (hash (~@ '<ats> <pat>) ...)
                            #:combine/key (λ (k v v1) v1))
               ,<stx>)]
 
