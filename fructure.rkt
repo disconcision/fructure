@@ -176,17 +176,24 @@
             (▹ [sort expr] xs ... / ⊙)
             (▹ [sort expr] xs ... / (λ ( / (( / (id ([sort char] / ⊙)))))
                                       ([sort expr] / ⊙)))])))
+
+
 (define raw-ish-alpha-constructors
-  (list `([⋱
-            (xs ... / (id as ... (▹ [sort char] ys ... / '⊙) bs ...))
-            (xs ... / (id as ... (▹ [sort char] ys ... / 'a) ([sort char] / '⊙) bs ...))])
-        `([⋱
-            (xs ... / (id as ... (▹ [sort char] ys ... / '⊙) bs ...))
-            (xs ... / (id as ... (▹ [sort char] ys ... / 'b) ([sort char] / '⊙) bs ...))])
-        `([⋱
-            (xs ... / (id as ... (▹ [sort char] ys ... / '⊙) bs ...))
-            (xs ... / (id as ... (▹ [sort char] ys ... / 'c) ([sort char] / '⊙) bs ...))])
-        ))
+  (for/list ([x alphabet])
+    `([⋱
+        (xs ... / (id as ... (▹ [sort char] ys ... / '⊙) bs ...))
+        (xs ... / (id as ... (▹ [sort char] ys ... / ',x) ([sort char] / '⊙) bs ...))])))
+#;(define raw-ish-alpha-constructors
+    (list `([⋱
+              (xs ... / (id as ... (▹ [sort char] ys ... / '⊙) bs ...))
+              (xs ... / (id as ... (▹ [sort char] ys ... / 'a) ([sort char] / '⊙) bs ...))])
+          `([⋱
+              (xs ... / (id as ... (▹ [sort char] ys ... / '⊙) bs ...))
+              (xs ... / (id as ... (▹ [sort char] ys ... / 'b) ([sort char] / '⊙) bs ...))])
+          `([⋱
+              (xs ... / (id as ... (▹ [sort char] ys ... / '⊙) bs ...))
+              (xs ... / (id as ... (▹ [sort char] ys ... / 'c) ([sort char] / '⊙) bs ...))])
+          ))
 
 (define raw-base-constructor-list
   #;(list '([(/ [sort: expr] a/ ⊙)
@@ -489,7 +496,7 @@
 
   ; map second because better-menu currently returns (constructor resultant) pairs
   (define menu-stx (better-menu in-scope stx #;current-selection))
-  (println `(menu-stx ,menu-stx))
+  #;(println `(menu-stx ,menu-stx))
   
   (match key
     ["right"
@@ -591,18 +598,28 @@
       [x x]))
 
 (define (better-replace-first-⊙-with-menu stx)
-  (println `(BETTER-REPLACE-STX ,stx))
+  #;(println `(BETTER-REPLACE-STX ,stx))
   (define new-candidate
-    (select-first-⊙ stx))
-  (println `(new-candidate ,new-candidate))
+    (f/match stx
+      [(c ⋱ (▹ ys ... / (d ⋱ (xs ... / '⊙))))
+       (c ⋱ (ys ... / (d ⋱ (▹ xs ... / '⊙))))]
+      [(c ⋱ (capture-when (or (('▹ _) _ ... / _)
+                              (_ ... / '⊙)))
+          `(,as ... ,(▹ ws ... / a) ,(zs ... / b) ,bs ...))
+       (c ⋱... 
+          `(,@as ,(ws ... / a) ,(▹ zs ... / b) ,@bs))]
+      [x (println "bullshit no hitter") x]))
+  #;(define new-candidate
+      (select-first-⊙ stx))
+  #;(println `(new-candidate ,new-candidate))
   (define-values (current-selection in-scope)
     (extract-selection-and-scope new-candidate))
-  (println `(current-selection ,current-selection))
+  #;(println `(current-selection ,current-selection))
   (define menu-stx (better-menu in-scope new-candidate)) ; stx, NOT current-selection
-  (println `(menu-stx ,menu-stx))
+  #;(println `(menu-stx ,menu-stx))
   (f/match new-candidate
     [(c ⋱ (▹ xs ... / '⊙))
-     (println "HOOOOOOOOOLE")
+     #;(println "HOOOOOOOOOLE")
      ; should menu retain hole properties?
      (c ⋱ (▹ ('menu (if (empty? menu-stx)
                         (error "empty menu not implemented")
@@ -610,7 +627,7 @@
                           [`((,t ,r) ,xs ...)
                            `((,t ,(my-select r)) ,@xs)])))
              xs ... / '⊙))]
-    [x (println "NOOOO HOLE!!") x]))
+    [x #;(println "NOOOO HOLE!!") x]))
 
 
 (define-syntax-rule (a) 0)
@@ -655,11 +672,11 @@
             [(ctx2 ⋱ (('menu `(,a ... (,transform ,(▹ Bs ... / c)) ,d ...)) wws ... / wwx))
              (define post-transform-template
                (runtime-match literals transform template))
-             (println `(post-transform-template ,post-transform-template))
+             #;(println `(post-transform-template ,post-transform-template))
              (f/match post-transform-template
                [(ctx2 ⋱ (▹ ('menu whatever) ws ... / x))
                 (if (no-⊙? x)
-                    (better-replace-first-⊙-with-menu (my-select (ctx2 ⋱ (ws ... / x))))
+                    (better-replace-first-⊙-with-menu (ctx2 ⋱ (▹ ws ... / x)))
                     (let ([candidate
                            (better-replace-first-⊙-with-menu (▹ ws ... / x))])
                       (if (equal? candidate (▹ ws ... / x)) ;ie didnt find a hole
@@ -667,7 +684,7 @@
                           (ctx2 ⋱ candidate))))]
                [x x])]
             [x x]))
-        (println `(post-POST-transform-template ,new-template))
+        #;(println `(post-POST-transform-template ,new-template))
         (update 'stx
                 (ctx ⋱ (('transform new-template) xs ... / pattern)))]
        ["up"
@@ -697,9 +714,9 @@
                 (ctx3 ⋱ (if (no-⊙? x)
                             ( ws ... / x) #;(my-select ( ws ... / x)) ; this case tested?
                             (select-first-⊙ (▹ ws ... / x))))]
-               [x (println "no menu left (no holes) case")x])]
+               [x #;(println "no menu left (no holes) case")x])]
             [x (println "BULLSHIT FALLOUT, ENTER IS BROKEN") x]))
-        (println `(new-template ,new-template))
+        #;(println `(new-template ,new-template))
         (update 'mode 'nav
                 'stx
                 #;(ctx ⋱ (('transform new-template) xs ... / pattern))
@@ -816,9 +833,9 @@ create list of rhs templates
                 ('transforms transforms)
                 ('messages messages)) state)
   (displayln `(mode: ,mode  key: ,key))
-  (displayln (pretty-format (project stx)))
-  (displayln (pretty-format stx))
-  (displayln (project stx))
+  #;(displayln (pretty-format (project stx)))
+  #;(displayln (pretty-format stx))
+  (displayln `(projected: ,(project stx)))
   #;(displayln state))
 
 
