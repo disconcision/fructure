@@ -72,6 +72,8 @@
        (if (equal? '|| new-var)
            in-scope
            `(,new-var ,@in-scope)))
+     ; for now we leave duplicate things in scope
+     ; later we'll deal with this with unique identifier ids
      (/ in-scope λ/
         `(λ ,(/ params/ `(,(/ id/ my-stx)))
            ,(W (/ (in-scope new-in-scope) body/ body))))]
