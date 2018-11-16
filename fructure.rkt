@@ -20,7 +20,7 @@
 
 ; internal structure
 (require "attributes.rkt" ; syntax->attributed-syntax
-         "layout.rkt" ; syntax->pixels
+         "layout-rewrite.rkt" ; syntax->pixels
          "utility.rkt")
 
 
@@ -44,7 +44,9 @@
           'max-menu-length 2))
   (match state
     [(hash-table ('stx stx))
-     (fructure-layout (second stx) real-layout-settings)
+     (match-define (list new-fruct image-out)
+       (fructure-layout (second stx) real-layout-settings))
+     image-out
      ; second to pop top
      #;(text (pretty-format (project stx) 100) 24 "black")]))
 
@@ -91,6 +93,7 @@
 
 
 ; -------------------------------------------------
+; packaged constructors and their helpers
 
 
 (struct -> (class props payload) #:transparent)
@@ -147,6 +150,7 @@
 
 
 ; -------------------------------------------------
+; non-packaged constructors for transform mode
 
 
 (define raw-ish-base-constructor-list
@@ -496,7 +500,9 @@
     ; transform keys
     [_
      (define transform
-       (hash-ref (hash-union #;(make-ref-hash my-in-scope) alpha-constructors keymap #:combine/key (λ (k v v1) v)) key identity->))
+       (hash-ref (hash-union alpha-constructors keymap
+                             #:combine/key (λ (k v v1) v))
+                 key identity->))
      (apply-> transform state)]))
 
 
