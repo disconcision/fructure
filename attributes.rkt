@@ -1,13 +1,31 @@
 #lang racket
 
 #;(require "../fructerm/f-match.rkt")
-(require "new-syntax.rkt")
+(require "new-syntax.rkt"
+         "../containment-patterns/containment-patterns.rkt")
 
-(provide augment) ; syntax -> attributed-syntax
+(provide augment
+         augment-transform) ; syntax -> attributed-syntax
 
 
+; augment: stx -> stx
 (define (augment stx)
   (augment-internal stx))
+
+
+; augment-transform: stx -> stx
+; writes attributes into the the transform product
+(define (augment-transform stx)
+  (match stx
+    [(⋱ c⋱
+        (/ (transform (/ ts/ t))
+           (in-scope i)
+           as/ a))
+     (⋱ c⋱
+        (/ (transform (augment (/ (in-scope i) ts/ t)))
+           (in-scope i)
+           as/ a))]
+    [x x]))
 
 
 (module+ test
@@ -61,7 +79,7 @@
 
     [(/ in-scope λ/
         `(λ ,(/ params/ `(,(/ id/ (and my-stx
-                                   `(id ,(/ chars/ chars) ...)))))
+                                       `(id ,(/ chars/ chars) ...)))))
            ,(/ body/ body)))
      (define new-var
        (string->symbol

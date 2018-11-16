@@ -1,48 +1,58 @@
 #lang racket
 
-(require racket/hash)
+; andrew blinn 2018
+
+
+; bug if true
+(require racket/hash
+         2htdp/image
+         2htdp/universe)
 
 ; fructure uses some additional match syntax for rewriting
 (require "../fructerm/fructerm.rkt"
-         "../fructerm/f-match.rkt")
-
-(require "attributes.rkt" ; syntax->attributed-syntax
-         "layout.rkt" ; syntax->pixels
-         )
-
-(require "new-syntax.rkt"
+         "../fructerm/f-match.rkt"
+         "new-syntax.rkt"
          ; temporary renames so as not to intefere with f-match
          (only-in "../containment-patterns/containment-patterns.rkt"
                   (⋱ ⋱x)
                   (⋱1 ⋱1x)
                   (⋱+ ⋱+x)))
 
-; -------------------------------------------------
-; 👻👻 SPOOKY GHOST OO STUFF 👻👻
+; internal structure
+(require "attributes.rkt" ; syntax->attributed-syntax
+         "layout.rkt" ; syntax->pixels
+         "utility.rkt")
 
-; attribute accessors ooooooo
-#;(define-syntax-rule (transform-in state 'attr f)
-    (match state
-      [(hash-table ('attr attr))
-       (hash-set state 'attr (f attr))]))
-
-(define-syntax-rule (transform-in state ('attr f) ...)
-  ((compose
-    (match-lambda
-      [(hash-table ('attr attr))
-       (hash-set state 'attr (f attr))]) ...)
-   state))
-
-(define-syntax-rule (apply-in! object 'attr f)
-  (set! object (transform-in object ('attr f))))
-
-; bind a bunch of attributes oooooooo
-(define-syntax-rule (define-from state attrs ...)
-  (match-define (hash-table ('attrs attrs) ...) state))
 
 
 ; -------------------------------------------------
 
+; DISPLAY SETTINGS
+
+; output : state -> image
+(define (output state)
+  (define real-layout-settings
+    (hash 'text-size 30
+          'form-color (color 0 130 214)
+          'literal-color (color 255 131 50)
+          'grey-one (color 200 200 200)
+          'grey-two (color 184 184 184)
+          'pattern-grey-one (color 84 84 84)
+          'identifier-color "black"
+          'selected-color (color 230 0 0)
+          'bkg-color (color 0 47 54)
+          'max-menu-length 2))
+  (match state
+    [(hash-table ('stx stx))
+     (fructure-layout (second stx) real-layout-settings)
+     ; second to pop top
+     #;(text (pretty-format (project stx) 100) 24 "black")]))
+
+
+
+; -------------------------------------------------
+
+; DATA
 
 (define literals
   #hash((var . ())
@@ -66,38 +76,36 @@
         (pat . ())
         (char .())))
 
-(define my-desugar
-  (compose (curry restructure literals #hash()) desugar))
+
 
 (define initial-state
-  (hash 'stx (my-desugar '(◇ (▹ (sort expr) / ⊙)))
+  (hash 'stx ((desugar-fruct literals) '(◇ (▹ (sort expr) / ⊙)))
         'mode 'nav
         'transforms '()
         'messages '("hello world")))
 
 
+(define alphabet
+  '(a b c d e f g h i j k l m n o p q r s t u v w x y z))
+
+
+
+; -------------------------------------------------
+
+
 (struct -> (class props payload) #:transparent)
-
-(define (wrap⋱select mstx)
-  (for/list ([s mstx])
-    (match s
-      [`[,a ,b]
-       `[⋱ ,(select a) ,(select b)]])))
-
-(define (wrap⋱ mstx)
-  (match mstx
-    [`[,a ,b]
-     `[⋱ ,a ,b]]))
-
-; this is a select fn for sugared syntax
-; it won't work on raw p/
-(define (select mstx)
-  (match mstx
-    [`(,y ... / ,d ...)
-     `(▹ ,@y / ,@d)]))
 
 
 (define (make-constructor raw-rule)
+  (define (select mstx)
+    (match mstx
+      [`(,y ... / ,d ...)
+       `(▹ ,@y / ,@d)]))
+  (define (wrap⋱select mstx)
+    (for/list ([s mstx])
+      (match s
+        [`[,a ,b]
+         `[⋱ ,(select a) ,(select b)]])))
   `(compose->
     ,(-> 'runtime
          (set 'meta 'move-▹)
@@ -108,29 +116,21 @@
          (set 'object 'constructor)
          (wrap⋱select raw-rule))))
 
+
 (define make-destructor
   make-constructor)
+
 
 (define identity->
   (-> 'runtime
       (set 'object)
       '([A A])))
 
+
 (define (make-movement raw-rule)
   (-> 'runtime
       (set 'meta 'move-▹)
       raw-rule))
-
-(define select-first-⊙
-  (curry runtime-match literals
-         '([(c ⋱ (▹ ys ... / (d ⋱ (xs ... / ⊙))))
-            (c ⋱ (ys ... / (d ⋱ (▹ xs ... / ⊙))))]
-           [A A])))
-
-
-
-(define alphabet
-  '(a b c d e f g h i j k l m n o p q r s t u v w x y z))
 
 
 ; make constructors for each character
@@ -143,6 +143,10 @@
                   `([⋱
                       (xs ... / (id as ... (▹ ys ... / b) bs ...))
                       (xs ... / (id as ... ([sort char] / ',x) (▹ ys ... / b) bs ...))])))))
+
+
+
+; -------------------------------------------------
 
 
 (define raw-ish-base-constructor-list
@@ -195,6 +199,10 @@
 
 
 (define (transforms->menu raw-constructor-list stx)
+  (define (test-apply-single-> transform stx)
+    (match (runtime-match literals transform stx)
+      ['no-match #f]
+      [_ #t]))
   (for/fold ([menu '()])
             ([constructor raw-constructor-list])
     (if (test-apply-single-> constructor stx)
@@ -217,12 +225,7 @@
 
 
 
-
-#;(define base-constructor-list
-    (map make-constructor
-         raw-base-constructor-list))
-
-
+; -------------------------------------------------
 
 
 (module+ test
@@ -272,11 +275,7 @@
           (λ (p/ #hash() ((p/ #hash() (id (p/ #hash((sort . char)) ⊙)))))
             (p/ #hash((sort . expr)) ⊙)))))))
 
-(define (id->ref-constructor id)
-  (make-constructor
-   `([([sort expr] xs ... / ⊙)
-      ([sort expr] xs ... /
-                   (ref ',id))])))
+
 
 
 (define keymap
@@ -419,11 +418,6 @@
          )])]))
 
 
-(define (test-apply-single-> transform stx)
-  (match (runtime-match literals transform stx)
-    ['no-match #f]
-    [_ #t]))
-
 
 (define (extract-selection-and-scope stx)
   (f/match stx
@@ -437,10 +431,6 @@
              '())]))
 
 
-(define (my-select stx)
-  (runtime-match literals
-                 '([(y ... / a)
-                    (▹ y ... / a)]) stx))
 
 
 
@@ -511,13 +501,6 @@
 
 
 
-(define (select-first-⊙-in-unselected stx)
-  (runtime-match
-   literals
-   '([(c ⋱ (xs ... / ⊙))
-      (c ⋱ (▹ xs ... / ⊙))]
-     [A A])
-   stx))
 
 (define (no-⊙? stx)
   (f/match stx
@@ -546,7 +529,7 @@
      (define menu-with-selection
        (match menu-stx
          [`((,t ,r) ,xs ...)
-          `((,t ,(my-select r)) ,@xs)]))
+          `((,t ,(select-▹ r)) ,@xs)]))
      (c ⋱ (▹ ('menu menu-with-selection) xs ... / x))]
     [x (println "warning: no menu inserted")
        (when (empty? menu-stx)
@@ -563,7 +546,9 @@
   ((compose (λ (stx)
               (if (no-⊙? template) stx (insert-menu-at-cursor stx)))
             ; HACK: prevents hitting right on an atom from bringing up the delete menu
-            ; sort of... there might be a bug left here
+            ; BUG: NOPE stepping right into terminals is still borked
+            ; actually it's only for the last one in a transform
+            ; ie no holes left at all
             #;insert-menu-at-cursor
             local-augment
             advance-cursor-to-next-hole)
@@ -633,8 +618,8 @@
           (f/match (runtime-match literals transform template)
             [(ctx3 ⋱ (('menu whatever) ws ... / x))
              (ctx3 ⋱ (if (no-⊙? x)
-                         ( ws ... / x)
-                         (select-first-⊙ (▹ ws ... / x))))]
+                         (ws ... / x)
+                         ((select-first-⊙-under-▹ literals) (▹ ws ... / x))))]
             [x x])] ; no holes left
          [x x])) ; no menu
      (update 'mode 'nav
@@ -644,34 +629,13 @@
 
 
 
-#| project: stx -> s-expr
-   projects cursor and sort info for holes|#
-(define (project stx)
-  (define @ project)
-  (f/match stx
-    ; transform mode
-    [(▹ template / stx)
-     `(▹ [,stx -> ,(project template)])]
-    ; label sorts of holes
-    [(▹ sort / '⊙)
-     `(▹ (⊙ ,sort))]
-    [(sort / '⊙)
-     `(⊙ ,sort)]
-    ; embed cursor
-    [(▹ / stx)
-     `(▹ ,(@ stx))]
-    [(♦ / stx)
-     `(♦ ,(@ stx))]
-    ; ditch attributes
-    [(_ ... / stx)
-     (@ stx)]
-    [(? list?) (map @ stx)] [x x]))
+
 
 
 
 ; mode-loop : key x state -> state
-#| determines the effect of key based on mode|#
 (define (mode-loop key state)
+  ; determines the effect of key based on mode
   (define-from state mode)
   (match mode
     ['menu
@@ -683,40 +647,16 @@
 
 ; debug-output! : world x state x key -> world
 (define (debug-output! state key)
-  (match-define
-    (hash-table ('stx stx)
-                ('mode mode)
-                ('transforms transforms)
-                ('messages messages)) state)
+  (define-from state
+    stx mode transforms)
   (displayln `(mode: ,mode  key: ,key))
-  #;(displayln (pretty-format (project stx)))
   #;(displayln (pretty-format stx))
   (displayln `(projected: ,(project stx)))
   #;(displayln state))
 
 
-; output : state -> image
-(define (output state)
-  (define real-layout-settings
-    (hash 'text-size 30
-          'form-color (color 0 130 214)
-          'literal-color (color 255 131 50)
-          'grey-one (color 200 200 200)
-          'grey-two (color 184 184 184)
-          'pattern-grey-one (color 84 84 84)
-          'identifier-color "black"
-          'selected-color (color 230 0 0)
-          'bkg-color (color 0 47 54)))
-  (match state
-    [(hash-table ('stx stx))
-     (fructure-layout (second stx) real-layout-settings) ; second to skip top
-     #;(text (pretty-format (project stx) 100)
-             24 "black")]))
 
 
-(require 2htdp/image)
-; bug if true (lol)
-(require 2htdp/universe)
 ; MY LOVE FOR YOU IS LIKE A TRUCK
 (big-bang initial-state
   [on-key
@@ -725,14 +665,8 @@
    dirty things. |#
    (λ (state key)
      ; state pre-processors
-     (apply-in! state 'stx augment)
-     ; if there's a transform active, new-candidate
-     (apply-in! state
-                'stx (λ (stx)
-                       (f/match stx
-                         [(ctx ⋱ (('transform (ts ... / t)) in-scope as ... / a))
-                          (ctx ⋱ (('transform (augment (in-scope ts ... / t))) in-scope as ... / a))]
-                         [x x])))
+     (apply-in! state 'stx (compose augment-transform
+                                    augment))
      ; print debugging information
      (debug-output! state key)
      ; transform state based on input and mode
