@@ -33,6 +33,7 @@
 (define (output state)
   (define real-layout-settings
     (hash 'text-size 30
+          'max-menu-length 1
           'form-color (color 0 130 214)
           'literal-color (color 255 131 50)
           'grey-one (color 200 200 200)
@@ -40,8 +41,7 @@
           'pattern-grey-one (color 84 84 84)
           'identifier-color "black"
           'selected-color (color 230 0 0)
-          'bkg-color (color 0 47 54)
-          'max-menu-length 2))
+          'bkg-color (color 0 47 54)))
   (match state
     [(hash-table ('stx stx))
      (match-define (list new-fruct image-out)
