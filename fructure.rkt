@@ -33,7 +33,8 @@
 (define (output state)
   (define real-layout-settings
     (hash 'text-size 30
-          'max-menu-length 1
+          'max-menu-length 4
+          'max-menu-length-chars 1
           'form-color (color 0 130 214)
           'literal-color (color 255 131 50)
           'grey-one (color 200 200 200)
