@@ -35,6 +35,11 @@
     (hash 'text-size 30
           'max-menu-length 4
           'max-menu-length-chars 1
+          'popout-transform? #t
+          'popout-menu? #t
+          'custom-menu-selector? #t
+          'length-conditional-layout? #t
+          'length-conditional-cutoff 8
           'form-color (color 0 130 214)
           'literal-color (color 255 131 50)
           'grey-one (color 200 200 200)
@@ -42,9 +47,12 @@
           'pattern-grey-one (color 84 84 84)
           'identifier-color "black"
           'selected-color (color 230 0 0)
+          'hole-color (color 0 180 140)
+          'transform-arrow-color (color 255 255 255)
           'bkg-color (color 0 47 54)))
   (match state
     [(hash-table ('stx stx))
+     #;(println `(debug-stx ,(second stx)))
      (match-define (list new-fruct image-out)
        (fructure-layout (second stx) real-layout-settings))
      image-out
@@ -57,28 +65,20 @@
 
 ; DATA
 
+; literal for term-rewriting
 (define literals
   #hash((var . ())
         (ref . ())
         (id . ())
         (app . ())
-        (and . ())
-        (or . ())
-        (not . ())
         (lambda . ())
         (λ . ())
-        (let . ())
-        (|| . ()) ; hmmm....
-        (♦ . ())
         (◇ . ())
         (▹ . ())
-        (▹▹ . ())
         (⊙ . ())
-        (+ . ())
         (expr . ())
         (pat . ())
         (char .())))
-
 
 
 (define initial-state
@@ -206,8 +206,7 @@
 (define (transforms->menu raw-constructor-list stx)
   (define (test-apply-single-> transform stx)
     (match (runtime-match literals transform stx)
-      ['no-match #f]
-      [_ #t]))
+      ['no-match #f] [_ #t]))
   (for/fold ([menu '()])
             ([constructor raw-constructor-list])
     (if (test-apply-single-> constructor stx)
@@ -605,6 +604,8 @@
     ["up"
      (define new-template
        (f/match template
+         [(ctx2 ⋱ (('menu `((,t1 ,(▹ Bs ... / c)) ,a ... (,t2 ,(As ... / b)))) ws ... / x))
+          (ctx2 ⋱ (('menu `((,t1 ,(Bs ... / c)) ,@a (,t2 ,(▹ As ... / b)))) ws ... / x))]
          [(ctx2 ⋱ (('menu `(,a ... (,t1 ,( As ... / b)) (,t2 ,(▹ Bs ... / c)) ,d ...)) ws ... / x))
           (ctx2 ⋱ (('menu `(,@a (,t1 ,(▹ As ... / b)) (,t2 ,(Bs ... / c)) ,@d)) ws ... / x))]
          [x x]))
@@ -613,6 +614,8 @@
     ["down"
      (define new-template
        (f/match template
+         [(ctx2 ⋱ (('menu `((,t1 ,(Bs ... / c)) ,a ... (,t2 ,(▹ As ... / b)))) ws ... / x))
+          (ctx2 ⋱ (('menu `((,t1 ,(▹ Bs ... / c)) ,@a (,t2 ,(As ... / b)))) ws ... / x))]
          [(ctx2 ⋱ (('menu `(,a ... (,t1 ,(▹ As ... / b)) (,t2 ,(Bs ... / c)) ,d ...)) ws ... / x))
           (ctx2 ⋱ (('menu `(,@a (,t1 ,(As ... / b)) (,t2 ,(▹ Bs ... / c)) ,@d)) ws ... / x))]
          [x x]))

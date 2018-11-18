@@ -38,7 +38,16 @@
                 `(◇ ,(/ (in-scope '())
                         `(app ,(/ (in-scope '()) 0)
                               ,(/ (in-scope '()) 0)))))
+
+  ; id refactor
   (check-equal? (augment-internal
+                 `(◇ ,(/ `(λ ,(/ `(,(/ `(id ,(/ 'a) ,(/ 'b) ,(/ '⊙)))))
+                            ,(/ 0)))))
+                `(◇ ,(/ (in-scope '())
+                        `(λ ,(/ `(,(/ `(id ,(/ 'a) ,(/ 'b) ,(/ '⊙)))))
+                           ,(/ (in-scope `((id ,(/ 'a) ,(/ 'b) ,(/ '⊙))))
+                               0)))))
+  #;(check-equal? (augment-internal
                  `(◇ ,(/ `(λ ,(/ `(,(/ `(id ,(/ 'a) ,(/ 'b) ,(/ '⊙)))))
                             ,(/ 0)))))
                 `(◇ ,(/ (in-scope '())
@@ -82,6 +91,14 @@
                                        `(id ,(/ chars/ chars) ...)))))
            ,(/ body/ body)))
      (define new-var
+       ; trying to refactor to make identifiers handled generically
+       (match (/ id/ my-stx)
+         [(/ id/ `(id ,chars ... ,(/ hole/ '⊙)))
+          (if (empty? chars)
+              '||
+              (/ id/ `(id ,@chars )))])
+       #;(/ id/ my-stx)
+       #;
        (string->symbol
         (apply string-append
                (map symbol->string
