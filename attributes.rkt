@@ -48,12 +48,12 @@
                            ,(/ (in-scope `((id ,(/ 'a) ,(/ 'b) ,(/ '⊙))))
                                0)))))
   #;(check-equal? (augment-internal
-                 `(◇ ,(/ `(λ ,(/ `(,(/ `(id ,(/ 'a) ,(/ 'b) ,(/ '⊙)))))
-                            ,(/ 0)))))
-                `(◇ ,(/ (in-scope '())
-                        `(λ ,(/ `(,(/ `(id ,(/ 'a) ,(/ 'b) ,(/ '⊙)))))
-                           ,(/ (in-scope '(ab))
-                               0)))))
+                   `(◇ ,(/ `(λ ,(/ `(,(/ `(id ,(/ 'a) ,(/ 'b) ,(/ '⊙)))))
+                              ,(/ 0)))))
+                  `(◇ ,(/ (in-scope '())
+                          `(λ ,(/ `(,(/ `(id ,(/ 'a) ,(/ 'b) ,(/ '⊙)))))
+                             ,(/ (in-scope '(ab))
+                                 0)))))
   )
 
 
@@ -97,12 +97,10 @@
           (if (empty? chars)
               '||
               (/ id/ `(id ,@chars )))])
-       #;(/ id/ my-stx)
-       #;
-       (string->symbol
-        (apply string-append
-               (map symbol->string
-                    (drop-right chars 1)))))
+       #; (string->symbol
+           (apply string-append
+                  (map symbol->string
+                       (drop-right chars 1)))))
      (define new-in-scope
        (if (equal? '|| new-var)
            in-scope

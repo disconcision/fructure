@@ -12,10 +12,50 @@
          selected?
          select-▹
          desugar-fruct
-         select-first-⊙-under-▹)
+         select-first-⊙-under-▹
+         stx->fruct)
+
+(provide literals
+         if-like-id?
+         lambda-like-id?
+         form-id?)
+
+; -------------------------------------------------
+
+; LANGUAGE DATA
+
+
+; primary
+
+(define unary-ids '(ref id))
+(define if-like-ids '(and app))
+(define lambda-like-ids '(λ lambda))
+
+(define affordances '(▹ ⊙ ◇))
+(define sort-names '(expr char pat))
+
+
+
+; derived
+
+(define form-ids (append unary-ids if-like-ids lambda-like-ids))
+
+(define if-like-id? (curryr member if-like-ids))
+(define lambda-like-id? (curryr member lambda-like-ids))
+(define form-id? (curryr member form-ids))
+
+(define literals
+  (for/fold ([hs (hash)])
+            ([lit (append form-ids
+                          affordances
+                          sort-names
+                          )])
+    (hash-set hs lit '())))
+
 
 
 ; -------------------------------------------------
+
 
 ; 👻👻 SPOOKY GHOST OO STUFF 👻👻
 
@@ -57,6 +97,8 @@
     ; label sorts of holes
     [(/ (sort sort) _/ (▹ '⊙))
      `(▹ (⊙ ,sort))]
+    [(/ _ `(id ,(/ (sort 'char) _ c) ...))
+     (string->symbol (apply string-append (map symbol->string c)))]
     [(/ (sort sort) _/ '⊙)
      `(⊙ ,sort)]
     ; embed cursor
@@ -65,6 +107,24 @@
     [(/ _/ stx)
      (@ stx)]
     [(? list?) (map @ stx)] [x x]))
+
+
+
+(define (stx->fruct stx)
+  (define s2f stx->fruct)
+  (match stx
+    [(? (disjoin symbol? number?))
+     (/ stx)]
+    [`(▹ ,(? (disjoin symbol? number?) s))
+     (/ (▹ s))]
+    [`(▹ (,(? form-id? a) ,as ...))
+     (/ (▹ `(,a ,@(map s2f as))))]
+    [`(▹ ,a)
+     (/ (▹ (map s2f a)))]
+    [`(,(? form-id? a) ,as ...)
+     (/ `(,a ,@(map s2f as)))]
+    [(? list?)
+     (/ (map s2f stx))]))
 
 
 
@@ -100,3 +160,34 @@
            '([(c ⋱ (xs ... / ⊙))
               (c ⋱ (▹ xs ... / ⊙))]
              [A A])))
+
+
+
+
+; -------------------------------------------------
+
+; TESTS
+
+(module+ test
+  (require rackunit)
+  (check-equal? (stx->fruct
+                 'false)
+                '(p/ #hash() false))
+  (check-equal? (stx->fruct
+                 '(lambda (x)
+                    x
+                    (and x (and true false))))
+                '(p/
+                  #hash()
+                  (lambda
+                      (p/ #hash() ((p/ #hash() x)))
+                    (p/ #hash() x)
+                    (p/
+                     #hash()
+                     (and
+                      (p/ #hash() x)
+                      (p/
+                       #hash()
+                       (and
+                        (p/ #hash() true)
+                        (p/ #hash() false)))))))))

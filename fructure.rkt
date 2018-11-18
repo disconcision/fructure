@@ -20,7 +20,7 @@
 
 ; internal structure
 (require "attributes.rkt" ; syntax->attributed-syntax
-         "layout-rewrite.rkt" ; syntax->pixels
+         "layout.rkt" ; syntax->pixels
          "utility.rkt")
 
 
@@ -40,6 +40,8 @@
           'custom-menu-selector? #t
           'length-conditional-layout? #t
           'length-conditional-cutoff 8
+          'dodge-enabled? #t
+          'menu-bkg-color (color 80 80 80)
           'form-color (color 0 130 214)
           'literal-color (color 255 131 50)
           'grey-one (color 200 200 200)
@@ -64,21 +66,6 @@
 ; -------------------------------------------------
 
 ; DATA
-
-; literal for term-rewriting
-(define literals
-  #hash((var . ())
-        (ref . ())
-        (id . ())
-        (app . ())
-        (lambda . ())
-        (λ . ())
-        (◇ . ())
-        (▹ . ())
-        (⊙ . ())
-        (expr . ())
-        (pat . ())
-        (char .())))
 
 
 (define initial-state
