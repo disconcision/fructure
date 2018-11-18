@@ -30,7 +30,7 @@
         'custom-menu-selector? #t
         'length-conditional-layout? #t
         'length-conditional-cutoff 8
-        'dodge-enabled? #f
+        'dodge-enabled? #t
         'menu-bkg-color (color 80 80 80)
         'form-color (color 0 130 214)
         'literal-color (color 255 131 50)
@@ -571,28 +571,26 @@
     (second (render '→ layout-settings)))
 
   (match-define (list template-fruct template-image)
-    (render template layout-settings))
+    (if dodge-enabled?
+        ; debtably a hack:
+        ; apply a color tint to every color in layout-settings
+        (render template
+                (for/hash ([(k v) layout-settings])
+                  (match v
+                    [(color _ _ _ _)
+                     (values k ((per-color-linear-dodge-tint
+                                 selected-color 0.3) v))]
+                    [_ (values k v)])))
+        (render template layout-settings)))
+
   (define template-holder-image
-    
     (overlay
-     ; tint. this is uglier but MUCH faster
-     ; either way there's a couple magic numbers here
-     (if dodge-enabled?
-         (linear-dodge-tint template-image selected-color 0.3)
-         ; note i am using new rectangles below
-         ; TODO: fix new rectangles. it's slightly bugged
-         (overlay (rounded-rectangle-new (image-width template-image)
-                                         (image-height template-image)
-                                         radius
-                                         (match selected-color
-                                           [(color r g b _)
-                                            (color r g b 25)]))
-                  template-image)
-         )
+     template-image
      (rounded-rectangle (+ margin (image-width template-image))
                         (+ 0 (image-height template-image))
                         radius
                         selected-color)))
+  
   (define new-template
     (match template-fruct
       [(? (disjoin symbol? number?)) template]

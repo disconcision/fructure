@@ -646,9 +646,9 @@
 (define (debug-output! state key)
   (define-from state
     stx mode transforms)
-  (displayln `(mode: ,mode  key: ,key))
-  #;(displayln (pretty-format stx))
-  (displayln `(projected: ,(project stx)))
+  0
+  #;(displayln `(mode: ,mode  key: ,key))
+  #;(displayln `(projected: ,(project stx)))
   #;(displayln state))
 
 
