@@ -519,16 +519,13 @@
     (extract-selection-and-scope stx))
   (define menu-stx (make-menu in-scope stx))
   (f/match stx
-    ; changed from x to '⊙ ; only insert menu if its a hole
-    ; that's what we want when walking in transform mode
-    ; but not if we are starting a transform on a non-hole...
-    [(c ⋱ (▹ xs ... / #;'⊙ x))
+    [(c ⋱ (▹ xs ... / x))
      #:when (not (empty? menu-stx))
      (define menu-with-selection
        (match menu-stx
          [`((,t ,r) ,xs ...)
           `((,t ,(select-▹ r)) ,@xs)]))
-     (c ⋱ (▹ ('menu menu-with-selection) xs ... / #;'⊙ x))]
+     (c ⋱ (▹ ('menu menu-with-selection) xs ... / x))]
     [x (println "warning: no menu inserted")
        (when (empty? menu-stx)
          (println "warning: menu was empty; not handled"))
@@ -536,24 +533,28 @@
 
 
 (define (strip-menu stx)
+  ; removes up to one menu from stx
   (f/match stx
     [(ctx ⋱ (menu xs ... / x))
      (ctx ⋱ (xs ... / x))]
     [x x]))
 
 
-(define (move-menu-to-next-hole template)
+(define (move-menu-to-next-hole stx)
+  ; removes existing menu, advances cursor to next hole,
+  ; and inserts a menu at that hole. if there is no such
+  ; hole, the returned stx will have no menu
   (define (local-augment stx)
     (f/match stx
       [(ctx ⋱ (in-scope ts ... / t))
        (ctx ⋱ (augment (in-scope ts ... / t)))]
       [x (println "warning: local-augment no-match") x]))
-  ((if (equal? template (advance-cursor-to-next-hole template))
+  ((if (equal? stx (advance-cursor-to-next-hole stx))
        identity
        (compose insert-menu-at-cursor
                 local-augment
                 advance-cursor-to-next-hole))  
-   (strip-menu template)))
+   (strip-menu stx)))
 
 
 
@@ -567,8 +568,8 @@
   (define (perform-selected-transform template)
     ; find the transform corresponding to the selected menu item
     ; and apply that transform to the WHOLE template
-    (f/match template
-      [(ctx2 ⋱ (('menu `(,_ ... (,transform ,(▹ _ ... / _)) ,_ ...)) _ ... / _))
+    (match template
+      [(⋱x (/ [menu `(,_ ... (,transform ,(/ _ (▹ _))) ,_ ...)] _ _))
        (runtime-match literals transform template)]
       [x (println "warning: no transform selected") x]))
   
@@ -590,35 +591,36 @@
      (update 'stx (⋱x ctx (/ (transform (move-menu-to-next-hole
                                          (perform-selected-transform template)))
                              xs/ pattern)))]
-    
-    ["up"
-     ; cycle the cursor to the previous menu item
-     (define new-template
-       (f/match template
-         [(ctx2 ⋱ (('menu `((,t1 ,(▹ Bs ... / c)) ,a ... (,t2 ,(As ... / b)))) ws ... / x))
-          (ctx2 ⋱ (('menu `((,t1 ,(Bs ... / c)) ,@a (,t2 ,(▹ As ... / b)))) ws ... / x))]
-         [(ctx2 ⋱ (('menu `(,a ... (,t1 ,( As ... / b)) (,t2 ,(▹ Bs ... / c)) ,d ...)) ws ... / x))
-          (ctx2 ⋱ (('menu `(,@a (,t1 ,(▹ As ... / b)) (,t2 ,(Bs ... / c)) ,@d)) ws ... / x))]
-         [x x]))
-     (update 'stx (⋱x ctx (/ (transform new-template) xs/ pattern)))]
-
-    ["down"
-     ; cycle the cursor to the next menu item
-     (define new-template
-       (f/match template
-         [(ctx2 ⋱ (('menu `((,t1 ,(Bs ... / c)) ,a ... (,t2 ,(▹ As ... / b)))) ws ... / x))
-          (ctx2 ⋱ (('menu `((,t1 ,(▹ Bs ... / c)) ,@a (,t2 ,(As ... / b)))) ws ... / x))]
-         [(ctx2 ⋱ (('menu `(,a ... (,t1 ,(▹ As ... / b)) (,t2 ,(Bs ... / c)) ,d ...)) ws ... / x))
-          (ctx2 ⋱ (('menu `(,@a (,t1 ,(As ... / b)) (,t2 ,(▹ Bs ... / c)) ,@d)) ws ... / x))]
-         [x x]))
-     (update 'stx (⋱x ctx (/ (transform new-template) xs/ pattern)))]
 
     ["\r"
      ; perform selected transform, remove menu, and switch to nav mode
      (update 'mode 'nav
              'stx (⋱x ctx (strip-menu (perform-selected-transform template))))]
     
-    [_ (println "no programming for that key") state]))
+    ["up"
+     ; cycle the cursor to the previous menu item
+     (define new-template
+       (match template
+         [(⋱x c⋱ (/ [menu `((,t1 ,(/ a/ (▹ a))) ,bs ... (,t2 ,(/ c/ c)))] t/ t))
+          (⋱x c⋱ (/ [menu `((,t1 ,(/ a/ a)) ,@bs (,t2 ,(/ c/ (▹ c))))] t/ t))]
+         [(⋱x c⋱ (/ [menu `(,a ... (,t1 ,(/ b/ b)) (,t2 ,(/ c/ (▹ c))) ,d ...)] t/ t))
+          (⋱x c⋱ (/ [menu `(,@a (,t1 ,(/ b/ (▹ b))) (,t2 ,(/ c/ c)) ,@d)] t/ t))]
+         [x (println "warning: couldn't find menu cursor") x]))
+     (update 'stx (⋱x ctx (/ (transform new-template) xs/ pattern)))]
+
+    ["down"
+     ; cycle the cursor to the next menu item
+     (define new-template
+       (match template
+         [(⋱x c⋱ (/ [menu `((,t1 ,(/ a/ a)) ,bs ... (,t2 ,(/ c/ (▹ c))))] t/ t))
+          (⋱x c⋱ (/ [menu `((,t1 ,(/ a/ (▹ a))) ,@bs (,t2 ,(/ c/ c)))] t/ t))]
+         [(⋱x c⋱ (/ [menu `(,a ... (,t1 ,(/ b/ (▹ b))) (,t2 ,(/ c/ c)) ,d ...)] t/ t))
+          (⋱x c⋱ (/ [menu `(,@a (,t1 ,(/ b/ b)) (,t2 ,(/ c/ (▹ c))) ,@d)] t/ t))]
+         [x (println "warning: couldn't find menu cursor") x]))
+     (update 'stx (⋱x ctx (/ (transform new-template) xs/ pattern)))]
+
+    
+    [_ (println "warning: transform-mode: no programming for that key") state]))
 
 
 
