@@ -496,10 +496,11 @@
 
 
 
-(define (no-⊙? stx)
-  (f/match stx
-    [(c ⋱ '⊙) #f]
-    [_ #t]))
+#; (define (no-⊙? stx)
+     (f/match stx
+       [(c ⋱ '⊙) #f]
+       [_ #t]))
+
 
 (define (advance-cursor-to-next-hole stx)
   (f/match stx
@@ -510,7 +511,7 @@
         `(,as ... ,(▹ ws ... / a) ,(zs ... / b) ,bs ...))
      (c ⋱... 
         `(,@as ,(ws ... / a) ,(▹ zs ... / b) ,@bs))]
-    [x (println "bullshit no hitter") x]))
+    [x (println "warning: no hole after cursor") x]))
 
 
 (define (insert-menu-at-cursor stx)
@@ -518,35 +519,42 @@
     (extract-selection-and-scope stx))
   (define menu-stx (make-menu in-scope stx))
   (f/match stx
-    [(c ⋱ (▹ xs ... / x))
+    ; changed from x to '⊙ ; only insert menu if its a hole
+    ; that's what we want when walking in transform mode
+    ; but not if we are starting a transform on a non-hole...
+    [(c ⋱ (▹ xs ... / #;'⊙ x))
      #:when (not (empty? menu-stx))
      (define menu-with-selection
        (match menu-stx
          [`((,t ,r) ,xs ...)
           `((,t ,(select-▹ r)) ,@xs)]))
-     (c ⋱ (▹ ('menu menu-with-selection) xs ... / x))]
+     (c ⋱ (▹ ('menu menu-with-selection) xs ... / #;'⊙ x))]
     [x (println "warning: no menu inserted")
        (when (empty? menu-stx)
          (println "warning: menu was empty; not handled"))
        x]))
 
 
-(define (move-menu template)
+(define (strip-menu stx)
+  (f/match stx
+    [(ctx ⋱ (menu xs ... / x))
+     (ctx ⋱ (xs ... / x))]
+    [x x]))
+
+
+(define (move-menu-to-next-hole template)
   (define (local-augment stx)
     (f/match stx
       [(ctx ⋱ (in-scope ts ... / t))
        (ctx ⋱ (augment (in-scope ts ... / t)))]
       [x (println "warning: local-augment no-match") x]))
-  ((compose (λ (stx)
-              (if (no-⊙? template) stx (insert-menu-at-cursor stx)))
-            ; HACK: prevents hitting right on an atom from bringing up the delete menu
-            ; BUG: NOPE stepping right into terminals is still borked
-            ; actually it's only for the last one in a transform
-            ; ie no holes left at all
-            #;insert-menu-at-cursor
-            local-augment
-            advance-cursor-to-next-hole)
-   template))
+  ((if (equal? template (advance-cursor-to-next-hole template))
+       identity
+       (compose insert-menu-at-cursor
+                local-augment
+                advance-cursor-to-next-hole))  
+   (strip-menu template)))
+
 
 
 (define (mode:transform key state)
@@ -555,42 +563,36 @@
   (define-from state stx)
   (define update (curry hash-set* state))
   (match-define (⋱x ctx (/ [transform template] xs/ pattern)) stx)
+
+  (define (perform-selected-transform template)
+    ; find the transform corresponding to the selected menu item
+    ; and apply that transform to the WHOLE template
+    (f/match template
+      [(ctx2 ⋱ (('menu `(,_ ... (,transform ,(▹ _ ... / _)) ,_ ...)) _ ... / _))
+       (runtime-match literals transform template)]
+      [x (println "warning: no transform selected") x]))
   
   (match key
     
-    ["escape" 
+    ["escape"
+     ; cancel current transform, restore original syntax
      (update 'mode 'nav
              'stx (⋱x ctx (/ [▹ '▹] xs/ pattern)))]
     
     [" "
-     ; todo: if no-holes, space should maybe exit transform mode
-     (define new-template
-       (f/match template
-         [(c ⋱ (capture-when (or (('▹ _) ('menu _) _ ... / _)
-                                 (_ ... / '⊙)))
-             `(,as ... ,(▹ menu ws ... / a) ,(zs ... / '⊙) ,bs ...))
-          (c ⋱... 
-             `(,@as ,(ws ... / a) ,(move-menu (▹ zs ... / '⊙)) ,@bs))]
-         [x x]))
-     (update 'stx (⋱x ctx (/ [transform new-template] xs/ pattern)))]
+     ; if there's a hole after the cursor, advance the cursor+menu to it
+     ; BUG? : think about behavior when press space at first-level menu
+     (update 'stx (⋱x ctx (/ [transform (move-menu-to-next-hole template)] xs/
+                             pattern)))]
     
     ["right"
-     (define new-template
-       ; we get the transform corresponding to the selected menu item
-       ; then apply that transform to the WHOLE template
-       ; we then move the cursor and menu the next hole after* the cursor
-       (f/match template
-         [(ctx2 ⋱ (('menu `(,a ... (,transform ,(▹ Bs ... / c)) ,d ...)) wws ... / wwx))
-          (define post-transform-template
-            (runtime-match literals transform template))
-          (f/match post-transform-template
-            [(ctx2 ⋱ (▹ ('menu whatever) ws ... / x))
-             (move-menu (ctx2 ⋱ (▹ ws ... / x)))]
-            [x x])]
-         [x x]))
-     (update 'stx (⋱x ctx (/ (transform new-template) xs/ pattern)))]
+     ; apply selected transform and advance the cursor+menu the next hole     
+     (update 'stx (⋱x ctx (/ (transform (move-menu-to-next-hole
+                                         (perform-selected-transform template)))
+                             xs/ pattern)))]
     
     ["up"
+     ; cycle the cursor to the previous menu item
      (define new-template
        (f/match template
          [(ctx2 ⋱ (('menu `((,t1 ,(▹ Bs ... / c)) ,a ... (,t2 ,(As ... / b)))) ws ... / x))
@@ -601,6 +603,7 @@
      (update 'stx (⋱x ctx (/ (transform new-template) xs/ pattern)))]
 
     ["down"
+     ; cycle the cursor to the next menu item
      (define new-template
        (f/match template
          [(ctx2 ⋱ (('menu `((,t1 ,(Bs ... / c)) ,a ... (,t2 ,(▹ As ... / b)))) ws ... / x))
@@ -611,23 +614,11 @@
      (update 'stx (⋱x ctx (/ (transform new-template) xs/ pattern)))]
 
     ["\r"
-     (define new-template
-       (f/match template
-         [(ctx2 ⋱ (('menu `(,a ... (,transform ,(▹ Bs ... / c)) ,d ...)) ws ... / x))
-          (f/match (runtime-match literals transform template)
-            [(ctx3 ⋱ (('menu whatever) ws ... / x))
-             (ctx3 ⋱ (if (no-⊙? x)
-                         (ws ... / x)
-                         ((select-first-⊙-under-▹ literals) (▹ ws ... / x))))]
-            [x x])] ; no holes left
-         [x x])) ; no menu
+     ; perform selected transform, remove menu, and switch to nav mode
      (update 'mode 'nav
-             'stx (⋱x ctx new-template))]
+             'stx (⋱x ctx (strip-menu (perform-selected-transform template))))]
     
     [_ (println "no programming for that key") state]))
-
-
-
 
 
 
@@ -671,5 +662,5 @@
      ; transform state based on input and mode
      (mode-loop key state))]
   [to-draw output 800 800]
-  [record? "gif-recordings"])
+  #;[record? "gif-recordings"])
 

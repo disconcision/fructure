@@ -220,14 +220,15 @@
                  ; TODO: refactor render-atom and relocate this there
                  [(and (equal? a '⊙)
                        (match (/ a/ a) [(/ (sort 'char) _/ _) #t][_ #f]))
-                  (overlay
-                   (text/font (string-append (~a '+))
-                              text-size
-                              hole-color
-                              #f 'modern 'normal 'normal #f)
-                   (rectangle (image-width (space text-size))
-                              (+ 5 (image-height (space text-size)))
-                              "solid" invisible))]
+                  (render-atom '+ (selected? fruct) layout-settings)
+                  #;(overlay
+                     (text/font (string-append (~a '+))
+                                text-size
+                                hole-color
+                                #f 'modern 'normal 'normal #f)
+                     (rectangle (image-width (space text-size))
+                                (+ 5 (image-height (space text-size)))
+                                "solid" invisible))]
                  [else (render-atom a (selected? fruct) layout-settings)])
                ))]
     [(? (disjoin form-id? symbol?) a)
@@ -740,6 +741,7 @@
          (cond
            [(equal? s '→) transform-arrow-color]
            [(equal? s '⊙) hole-color]
+           [(equal? s '+) hole-color]
            [(equal? s '▹) selected-color]
            [(literal? s) literal-color]
            [(form-id? s) form-color]
@@ -822,14 +824,9 @@
     [`(id ,xs ...)
      ; id itself is not drawn
      ; draw the letters xs with no spaces
-
-     (define override-layout-settings
-       ; our holes look different
-       (hash-set layout-settings
-                 'holes-look-like '+))
      
      (match-define `((,child-fructs ,child-images) ...)
-       (map (curryr render override-layout-settings) xs))
+       (map (curryr render layout-settings) xs))
      (define-values (new-frs throwaway-offset)
        (layout-row (list 0 0) 0 xs child-images))
      (define my-new-image
