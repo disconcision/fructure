@@ -41,7 +41,7 @@
           'length-conditional-layout? #t
           'length-conditional-cutoff 8
           'dodge-enabled? #t
-          'menu-bkg-color (color 80 80 80)
+          'menu-bkg-color (color 112 112 112)
           'form-color (color 0 130 214)
           'literal-color (color 255 131 50)
           'grey-one (color 200 200 200)
@@ -142,24 +142,24 @@
 
 
 (define raw-ish-base-constructor-list
-  (list '([⋱
-            (▹ [sort expr] xs ... / ⊙)
-            (▹ [sort expr] xs ... / 0)])
+  (list '(#;[⋱
+              (▹ [sort expr] xs ... / ⊙)
+              (▹ [sort expr] xs ... / 0)])
         '([⋱
             (▹ [sort expr] xs ... / ⊙)
             (▹ [sort expr] xs ... / (app ([sort expr] / ⊙)
                                          ([sort expr] / ⊙)))])
         '([⋱
             (▹ [sort expr] xs ... / ⊙)
-            (▹ [sort expr] xs ... / (λ ( / (( / (id ([sort char] / ⊙)))))
+            (▹ [sort expr] xs ... / (λ (/ ((/ (id ([sort char] / ⊙)))))
                                       ([sort expr] / ⊙)))])))
 
 
 (define raw-ish-base-destructor-list
   (list
-   '([⋱
-       (▹ xs ... / 0)
-       (▹ xs ... / ⊙)]
+   '(#;[⋱
+         (▹ xs ... / 0)
+         (▹ xs ... / ⊙)]
      [⋱
        (▹ xs ... / (ref a))
        (▹ xs ... / ⊙)]
@@ -447,19 +447,20 @@
     
     ["left" ; moves cursor left in preorder traversal
      (define new-stx
+       
        (f/match stx
          ; if there is a left-sibling (⋱c2) to the cursor which contains-or-is a sort
+         ; find its rightmost sort not containing another sort (c)
+         ; and move the cursor there
+         ; otherwise, find the most immediate containing sort
+         ; that is, a containing sort not containing a sort containing ▹
          [(⋱c1 ⋱ `(,as ...
-                   ; find its rightmost sort not containing another sort (c) 
                    ,(⋱c2 ⋱ (capture-when (sort _ ... / (not (_ ⋱ (sort _ ... / _)))))
                          `(,bs ... ,(cs ... / c)))
                    ,ds ... ,(▹ es ... / e) ,fs ...))
-          ; and move the cursor there
           (⋱c1 ⋱ `(,@as ,(⋱c2 ⋱... `(,@bs ,(▹ cs ... / c)))
                         ,@ds ,(es ... / e) ,@fs))]
-         ; otherwise, find the most immediate containing sort
          [(⋱c1 ⋱ (and (sort as ... / (⋱c2 ⋱ (▹ bs ... / b)))
-                      ; that is, a containing sort not containing a sort containing ▹ 
                       (not (sort _ ... / (_ ⋱ (sort _ ... / (_ ⋱ (▹ _ ... / _))))))))
           (⋱c1 ⋱ (▹ sort as ... / (⋱c2 ⋱ (bs ... / b))))]
          
@@ -562,6 +563,7 @@
              'stx (⋱x ctx (/ [▹ '▹] xs/ pattern)))]
     
     [" "
+     ; todo: if no-holes, space should maybe exit transform mode
      (define new-template
        (f/match template
          [(c ⋱ (capture-when (or (('▹ _) ('menu _) _ ... / _)
@@ -668,5 +670,6 @@
      (debug-output! state key)
      ; transform state based on input and mode
      (mode-loop key state))]
-  [to-draw output 800 800])
+  [to-draw output 800 800]
+  [record? "gif-recordings"])
 

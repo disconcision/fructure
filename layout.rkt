@@ -24,14 +24,14 @@
 (define test-settings
   (hash 'text-size 30
         'max-menu-length 3
-        'max-menu-length-chars 2
+        'max-menu-length-chars 1
         'popout-transform? #t
         'popout-menu? #t
         'custom-menu-selector? #t
         'length-conditional-layout? #t
-        'length-conditional-cutoff 8
+        'length-conditional-cutoff 10
         'dodge-enabled? #t
-        'menu-bkg-color (color 80 80 80)
+        'menu-bkg-color (color 112 112 112)
         'form-color (color 0 130 214)
         'literal-color (color 255 131 50)
         'grey-one (color 200 200 200)
@@ -71,11 +71,13 @@
   ; lets consider the -20 -20 offset from the canvas to define our (0,0) point
   ; so what we return here will have a 0 0 offset
 
+  (match-define (list x-offset y-offset) '(20 20))
+  #;(match-define (list pane-width pane-height) '(800 800))
 
   (match-define (list new-fruct scene-image)
     (render (match fruct
               [(/ fr/ stx)
-               (/ [display-offset '(20 20)]
+               (/ [display-offset `(,x-offset ,y-offset)]
                   [display-box '(800 800)]
                   fr/ stx)])
             layout-settings))
@@ -88,7 +90,7 @@
   (define new-image
     (overlay/align/offset "left" "top"
                           scene-image
-                          -20 -20
+                          (- x-offset) (- y-offset)
                           (rectangle 800 800 "solid" bkg-color)))
 
   ; write in transform
@@ -96,20 +98,29 @@
     (cond
       [popout-transform?
        (match newest-fruct
+         
+         ; this case copied from below but special-cased
+         ; to stop top-level transforms from losing the
+         ; initial pane offset (HACK)
+         [(and this-transform
+               (/ [transform _]
+                  [display-absolute-offset `(,x ,y)]
+                  t/ _))
+          (match-define (list transform-fr transform-image)
+            (render-transform this-transform #t layout-settings))
+          (place-image/align transform-image
+                             (+ x-offset (- x (* 2 margin)))
+                             (+ y-offset y) "left" "top" new-image)]
+         
          [(⋱ c⋱ (and this-transform
                      (/ [transform _]
                         [display-absolute-offset `(,x ,y)]
                         t/ _)))
-          ; this has a positioning issue where a tranform at
-          ; the top level renders without the above 20 20 offset
-          ; should be fixedc automatically when we add top
           (match-define (list transform-fr transform-image)
             (render-transform this-transform #t layout-settings))
           (place-image/align transform-image
                              (- x (* 2 margin)) ; to make up for red bracketting
-                             y
-                             "left" "top"
-                             new-image)]
+                             y "left" "top" new-image)]
          [_ new-image])]
       [else new-image]))
 
@@ -118,7 +129,24 @@
   (define post-post-procd-image
     (cond
       [popout-menu?
+       (define expander-height
+         (round (* 1/4 text-size)))
        (match newest-fruct
+
+         ; HACK, see above
+         [(/ [transform
+              (⋱ d⋱ (and this-menu
+                         (/ [menu _]
+                            [display-absolute-offset `(,x ,y)]
+                            m/ _)))] t/ _)
+          (match-define (list menu-fr menu-image)
+            (render-menu this-menu layout-settings))
+          ;todo: factor out to property
+          (place-image/align menu-image
+                             (+ x x-offset (- (* 3 margin))) ;MAGIC NUMBER 3
+                             (+ y y-offset (- expander-height)) "left" "top"
+                             post-procd-image)]
+         
          [(⋱ c⋱ (/ [transform
                     (⋱ d⋱ (and this-menu
                                (/ [menu _]
@@ -127,19 +155,17 @@
           (match-define (list menu-fr menu-image)
             (render-menu this-menu layout-settings))
           (place-image/align menu-image
-                             (- x (* 3 margin)) ;MAGIC NUMBER 3
+                             (+ x (- (* 3 margin))) ;MAGIC NUMBER 3
                              ; this magic adjument works, except for chars
                              ; where it doesn't leave enough space
                              ; had to increase it from 2 to 3 when
                              ; i increased the above offset
-                             y
-                             "left" "top"
+                             (+ y (- expander-height)) "left" "top"
                              post-procd-image)]
          [_ post-procd-image])]
-      [else post-procd-image]))
+      [else post-procd-image]))  
 
   
-
   (list newest-fruct
         post-post-procd-image))
 
@@ -147,7 +173,7 @@
 
 (define (render fruct layout-settings (depth #t) (bkg 0))
   (define-from layout-settings
-    text-size selected-color
+    text-size selected-color hole-color
     popout-transform? popout-menu?)
   
   ; here we don't need to do anything; all render fns
@@ -170,8 +196,7 @@
                (let ([temp-image (render '? layout-settings)])
                  (rectangle (image-width (second temp-image))
                             (image-height (second temp-image))
-                            "solid"
-                            selected-color)))
+                            "solid" invisible)))
          (list new-fruct new-image))]
     
     [(/ [transform template] t/ target)
@@ -190,7 +215,21 @@
      (if (list? a)
          (render-list (/ a/ a) depth bkg layout-settings (selected? fruct))
          (list fruct
-               (render-atom a (selected? fruct) layout-settings)))]
+               (cond
+                 ; char holes look different
+                 ; TODO: refactor render-atom and relocate this there
+                 [(and (equal? a '⊙)
+                       (match (/ a/ a) [(/ (sort 'char) _/ _) #t][_ #f]))
+                  (overlay
+                   (text/font (string-append (~a '+))
+                              text-size
+                              hole-color
+                              #f 'modern 'normal 'normal #f)
+                   (rectangle (image-width (space text-size))
+                              (+ 5 (image-height (space text-size)))
+                              "solid" invisible))]
+                 [else (render-atom a (selected? fruct) layout-settings)])
+               ))]
     [(? (disjoin form-id? symbol?) a)
      ; TODO: MAGIC symbol include, investigate this
      ; this case SHOULD be only for form headers
@@ -204,7 +243,12 @@
 
 
 
-
+(define (ellipses expander-height color)
+  (beside (circle 3/2 "solid" color)
+          (rectangle 1 expander-height "solid" invisible)
+          (circle 3/2 "solid" color)
+          (rectangle 1 expander-height "solid" invisible)
+          (circle 3/2 "solid" color)))
 
 
 (define (space text-size)
@@ -246,21 +290,35 @@
 (define (render-symbol s my-color layout-settings)
   (define-from layout-settings
     text-size)
-  (overlay (text/font (string-append (~a s))
-                      ; HACK: hole char is slightly weird
-                      ; at least on windows?
-                      (if (equal? s '⊙)
-                          (round (* 0.8 text-size))
-                          text-size)
-                      my-color
-                      #f 'modern 'normal 'normal #f)
-           ; padding
-           (rectangle (image-width (space text-size))
-                      ; MAGIC NUMBER!! 5
-                      ; additional headroom for chars
-                      ; aka default line spacing in pixels
-                      (+ 5 (image-height (space text-size)))
-                      "solid" invisible)))
+
+  (overlay
+   (cond
+     [(equal? s '⊙)
+      (define my-radius
+        ; MAGIC number
+        (min (* #;3/10 3/11 text-size)
+             (* 1/2 (image-width (space text-size))))) 
+      (overlay
+       (circle my-radius "outline"
+               (color 74 241 237))
+       (circle my-radius "solid"
+               "white"))]
+     [else
+      (text/font (string-append (~a s))
+                 ; HACK: hole char is slightly weird
+                 ; at least on windows?
+                 (if (equal? s '⊙)
+                     (round (* 0.8 text-size))
+                     text-size)
+                 my-color
+                 #f 'modern 'normal 'normal #f)])
+   ; padding
+   (rectangle (image-width (space text-size))
+              ; MAGIC NUMBER!! 5
+              ; additional headroom for chars
+              ; aka default line spacing in pixels
+              (+ 5 (image-height (space text-size)))
+              "solid" invisible)))
 
 
 (define (layout-row intial-offset space-width stx images)
@@ -424,12 +482,14 @@
   #| this function currently renders ALL menu items
      not just the ones displated.
      tagged: performance, optimization |#
- 
+
+  (define char-menu?
+    (match resultants
+      [`(,(/ (sort 'char) _/ _) ...) #t] [_ #f]))
 
   #;(println `(resultants ,resultants))
   (define local-max-menu-length
-    (if (match resultants
-          [`(,(/ (sort 'char) _/ _) ...) #t] [_ #f])
+    (if char-menu?
         max-menu-length-chars
         max-menu-length))
 
@@ -445,47 +505,85 @@
   
   (match-define `((,child-fructs ,child-images) ...)
     (for/list ([item truncated-menu])
+      (define override-layout-settings
+        ; slight hack to remove form backings
+        (hash-set* layout-settings
+                   'grey-one invisible
+                   'form-color "white")) ; MAGIC color
       (cond
         [custom-menu-selector?
          (match item
            [(/ b/ (▹ b))
-            (match-define (list fr-res img-res)
-              (render (/ b/ b) layout-settings))
-            (list (first (render (/ b/ (▹ b)) layout-settings))
-                  ;HACK to get (wrong) positioning data
-                  (beside/align* "top"
-                                 (second (render '▹ layout-settings))
-                                 img-res))]
-           [_
-            (match-define (list fr-res img-res)
-              (render item layout-settings))
-            (list fr-res
-                  (beside (space text-size)
-                          img-res))])]
-        [else (render item layout-settings)])))
+            (list (first (render (/ b/ (▹ b)) override-layout-settings))
+                  ; HACK, BUG: get (wrong) positioning data
+                  ; also special-cases char menus
+                  (if char-menu?
+                      ; hacky color change... is it even working?
+                      ; it's interpreting chars as identifiers for some reason?
+                      (second (render (/ b/ b) (hash-set override-layout-settings
+                                                         'identifier-color "white")))
+                      (overlay/align "left" "top"
+                                     (second (render '▹ override-layout-settings))
+                                     (second (render (/ b/ b) override-layout-settings)))))]
+           [_ (match-define (list fr-res img-res)
+                (render item override-layout-settings))
+              (list fr-res
+                    (beside* #;(space text-size)
+                             img-res))])]
+        [else (render item override-layout-settings)])))
   
   (define truncated-menu-image
     (apply above/align* "left"
            child-images))
+
+  (define expander-height
+    (round (* 1/4 text-size)))
+  (define expander-color
+    (color 125 125 125))
+  (define expander-ellipses-color
+    (color 200 200 200))
   
-  (define truncated-menu-image-backing
+  (define truncated-menu-backed
     (overlay/align/offset "right" "top"
-                          (rounded-rectangle
-                           (+ 0 (image-width truncated-menu-image))
-                           (+ 0 (image-height truncated-menu-image))
-                           radius
-                           menu-bkg-color)
+                          (overlay
+                           (above (ellipses expander-height expander-ellipses-color)
+                                  truncated-menu-image
+                                  (ellipses expander-height expander-ellipses-color))
+                           (rounded-rectangle
+                            (+ 0 (image-width truncated-menu-image))
+                            (+ 0
+                               (image-height truncated-menu-image))
+                            radius
+                            menu-bkg-color)
+                           (rounded-rectangle
+                            (+ 0 (image-width truncated-menu-image))
+                            (+ (* 2 expander-height)
+                               (image-height truncated-menu-image))
+                            radius
+                            (color 125 125 125)))
+                          
                           (- (div-integer margin 2)) 0
                           ; slighly magic number
                           (rounded-rectangle
                            (+ 0 (image-width truncated-menu-image))
-                           (+ 0 (image-height truncated-menu-image))
+                           (+ (* 2 expander-height)
+                              (image-height truncated-menu-image))
                            radius
                            selected-color)))
+
+  ; hackish. crops menu in char case to alleviate overlap
   (define new-image
-    (overlay
-     truncated-menu-image
-     truncated-menu-image-backing))
+    (if (not char-menu?)
+        truncated-menu-backed
+        (overlay/align/offset
+         "left" "top"
+         (crop (div-integer margin 2)
+               0
+               (image-width (space text-size))
+               (image-height truncated-menu-backed)
+               truncated-menu-backed)
+         (- (* 2 margin)) 0 
+         empty-image)))
 
 
   (define-values (new-truncated-fructs throwaway-offset)
@@ -632,6 +730,7 @@
     form-color hole-color transform-arrow-color 
     identifier-color grey-one)
   (define radius (sub1 (div-integer text-size 2)))
+  (define margin (div-integer text-size 5))
   (define literal? (disjoin boolean? number? string?))
   (define candidate
     (render-symbol
@@ -649,18 +748,29 @@
   
   (cond
     [selected?
-     (overlay/align
-      "middle" "middle"
-      (render-symbol
-       s
-       "white"
-       layout-settings)
-      (rounded-rectangle
-       (image-width candidate)
-       (image-height candidate)
-       radius
-       selected-color)
-      )
+     (define selected-candidate
+       (overlay/align
+        "middle" "middle"
+        (render-symbol
+         s
+         "white"
+         layout-settings)
+        (rounded-rectangle
+         (image-width candidate)
+         (image-height candidate)
+         radius
+         selected-color)
+        ))
+     ; special-case the size of single-character selections
+     (if (and (symbol? s) (equal? 1 (string-length (symbol->string s))))
+         (crop 0
+               0
+               (image-width (space text-size))
+               (image-height candidate)
+               selected-candidate)
+         selected-candidate)
+     
+     
      #;(beside* #;(second (render '▹ layout-settings)) candidate)]
     [else candidate]))
 
@@ -706,22 +816,28 @@
       [else (match-define `((,_ ,child-images) ...) children)
             (define total-length (div-integer (apply + (map image-width child-images))
                                               (image-width (space text-size))))
-            #;(println `(total-length ,total-length))
             (total-length . < . length-conditional-cutoff)]))
      
   (match stx
     [`(id ,xs ...)
      ; id itself is not drawn
-     ; draw the letters xs with no spaces    
+     ; draw the letters xs with no spaces
+
+     (define override-layout-settings
+       ; our holes look different
+       (hash-set layout-settings
+                 'holes-look-like '+))
      
      (match-define `((,child-fructs ,child-images) ...)
-       (map (curryr render layout-settings) xs))
+       (map (curryr render override-layout-settings) xs))
      (define-values (new-frs throwaway-offset)
        (layout-row (list 0 0) 0 xs child-images))
      (define my-new-image
        (apply beside* child-images))
 
      (list (/ a/ `(id ,@new-frs)) my-new-image)]
+
+    ; TODO: refactor duplication below by spliting out render-this-horizontally?
       
     [`(,(? lambda-like-id?) ,xs ...)
      (match-define (list new-kids-local new-layout-local)
@@ -1067,6 +1183,8 @@
 (second
  (fructure-layout data-8 test-settings))
 
+(second
+ (fructure-layout data-9 test-settings))
 
 
 
