@@ -29,8 +29,8 @@
 
 ; DISPLAY SETTINGS
 
-; output : state -> image
 (define (output state)
+  ; output : state -> image
   (define real-layout-settings
     (hash 'text-size 30
           'max-menu-length 4
@@ -54,19 +54,16 @@
           'bkg-color (color 0 47 54)))
   (match state
     [(hash-table ('stx stx))
-     #;(println `(debug-stx ,(second stx)))
      (match-define (list new-fruct image-out)
        (fructure-layout (second stx) real-layout-settings))
      image-out
-     ; second to pop top
-     #;(text (pretty-format (project stx) 100) 24 "black")]))
+     #;(text (pretty-format (project new-fruct) 100) 24 "black")]))
 
 
 
 ; -------------------------------------------------
 
 ; DATA
-
 
 (define initial-state
   (hash 'stx ((desugar-fruct literals) '(◇ (▹ (sort expr) / ⊙)))
@@ -125,7 +122,7 @@
 
 
 ; make constructors for each character
-(define alpha-constructors
+(define packaged-alpha-constructors
   (for/fold ([alpha (hash)])
             ([x alphabet])
     (hash-set alpha
@@ -140,12 +137,10 @@
 ; -------------------------------------------------
 ; non-packaged constructors for transform mode
 
-
-(define raw-ish-base-constructor-list
-  (list '(#;[⋱
-              (▹ [sort expr] xs ... / ⊙)
-              (▹ [sort expr] xs ... / 0)])
-        '([⋱
+(define base-constructors
+  ; constructors for app and λ
+  ; constructors for variable references are introduced dynamically
+  (list '([⋱
             (▹ [sort expr] xs ... / ⊙)
             (▹ [sort expr] xs ... / (app ([sort expr] / ⊙)
                                          ([sort expr] / ⊙)))])
@@ -155,12 +150,10 @@
                                       ([sort expr] / ⊙)))])))
 
 
-(define raw-ish-base-destructor-list
+(define base-destructors
+  ; destructors for all syntactic forms
   (list
-   '(#;[⋱
-         (▹ xs ... / 0)
-         (▹ xs ... / ⊙)]
-     [⋱
+   '([⋱
        (▹ xs ... / (ref a))
        (▹ xs ... / ⊙)]
      [⋱
@@ -172,7 +165,8 @@
      )))
 
 
-(define raw-ish-alpha-constructors
+(define alpha-constructors
+  ; char constructors for each letter in the alphabet
   (cons
    ; identity
    `([⋱
@@ -185,20 +179,21 @@
 
 
 (define base-transforms
-  (append raw-ish-base-constructor-list
-          raw-ish-base-destructor-list
-          raw-ish-alpha-constructors))
+  (append base-constructors
+          alpha-constructors
+          base-destructors))
 
 
-(define (transforms->menu raw-constructor-list stx)
-  (define (test-apply-single-> transform stx)
+(define (transforms->menu transforms reagent)
+  ; 
+  (define (test-match transform stx)
     (match (runtime-match literals transform stx)
       ['no-match #f] [_ #t]))
   (for/fold ([menu '()])
-            ([constructor raw-constructor-list])
-    (if (test-apply-single-> constructor stx)
-        `(,@menu (,constructor
-                  ,(f/match (runtime-match literals constructor stx)
+            ([transform transforms])
+    (if (test-match transform reagent)
+        `(,@menu (,transform
+                  ,(f/match (runtime-match literals transform reagent)
                      [(c ⋱ (▹ as ... / a))
                       (as ... / a)])))
         menu)))
@@ -223,27 +218,16 @@
   (require rackunit)
   (define raw-base-constructor-list
     #;(list '([(/ [sort: expr] a/ ⊙)
-               (/ a/ 0)])
-            '([(/ [sort: expr] a/ ⊙)
                (/ a/ (app (/ [sort: expr] ⊙)
                           (/ [sort: expr] ⊙)))])
             '([(/ [sort: expr] a/ ⊙)
                (/ a/ (λ (/ [sort: params]
                            `(,(/ [sort: pat]
                                  `(id ,(/ [sort: char] ⊙)))))
-                       (/ (sort: expr) ⊙)))])
-            #| need to codify selectability pattern
-             to start: only selectables are sort: exprs|# 
-            )
+                       (/ (sort: expr) ⊙)))]))
     (list '([([sort expr] xs ... / ⊙)
-             ([sort expr] xs ... / 0)])
-          '([([sort expr] xs ... / ⊙)
              ([sort expr] xs ... / (app ([sort expr] / ⊙)
                                         ([sort expr] / ⊙)))])
-          #;'([([sort expr] xs ... / ⊙)
-               ([sort expr] xs ... / (λ ([cont params] / (([sort pat] / (id ([sort char] / ⊙)))))
-                                       ([sort expr] / ⊙)))])
-          ; leaving sort off pat, [container params] for now for smooth sort-based movement
           '([([sort expr] xs ... / ⊙)
              ([sort expr] xs ... / (λ ( / (( / (id ([sort char] / ⊙)))))
                                      ([sort expr] / ⊙)))])))
@@ -251,9 +235,7 @@
    (transforms->menu
     raw-base-constructor-list
     '(p/  #hash((sort . expr) (▹ . ▹)) ⊙))
-   '((((((sort expr) xs ... / ⊙) ((sort expr) xs ... / 0)))
-      (p/ #hash((sort . expr)) 0))
-     (((((sort expr) xs ... / ⊙)
+   '((((((sort expr) xs ... / ⊙)
         ((sort expr) xs ... / (app ((sort expr) / ⊙)
                                    ((sort expr) / ⊙)))))
       (p/ #hash((sort . expr))
@@ -271,6 +253,9 @@
 
 (define keymap
   ; map from keys to functions
+  ; this is mostly deprecated by transform mode
+  ; but is still useful for editing identifers
+  ; pending a more structure solution
   (hash
 
    ; constructors
@@ -316,30 +301,20 @@
    ; movements
    
    "up" (make-movement
-         '(#;[(◇ a ... (▹ As ... / b) c ...)
-              (◇ a ... (▹ As ... / b) c ...)]
-           [⋱
+         '([⋱
              (a ... / (λ (b ... / ((c ... / (id x ... (▹ ys ... / y) z ...)))) e))
              (▹ a ... / (λ (b ... / ((c ... / (id x ... (ys ... / y) z ...)))) e))]
            [⋱
              (As ... / (a ... (▹ Bs ... / b) c ...))
-             (▹ As ... / (a ... (Bs ... / b) c ...))]
-           ))
+             (▹ As ... / (a ... (Bs ... / b) c ...))]))
 
    "down" (make-movement
-           '(#;[⋱
-                 (▹ As ... / ⊙)
-                 (▹ As ... / ⊙)]
-             #;[⋱
-                 (▹ As ... / 0)
-                 (▹ As ... / 0)]
-             [⋱
+           '([⋱
                (▹ a ... / (λ (b ... / ((c ... / (id (ys ... / y) z ...)))) e))
                (a ... / (λ (b ... / ((c ... / (id (▹ ys ... / y) z ...)))) e))]
              [⋱
                (▹ As ... / (ctx ⋱ (sort Bs ... / b)))
-               (As ... / (ctx ⋱ (▹ sort Bs ... / b)))]
-             ))
+               (As ... / (ctx ⋱ (▹ sort Bs ... / b)))]))
 
    #;#;"left" (make-movement
                '([⋱
@@ -410,16 +385,15 @@
 
 
 
-(define (extract-selection-and-scope stx)
+(define (extract-scope stx)
+  ; extract the variables in scope under the cursor
   (f/match stx
     [(c ⋱ (▹ in-scope As ... / a))
-     (values (in-scope As ... / a)
-             in-scope)]    
+     in-scope]    
     ; fallthrough case - current λ params list has no in-scope
-    ; do/should i actually need this case?
+    ; TODO: decide if i do/should actually need this case
     [(c ⋱ (▹ As ... / a))
-     (values (As ... / a)
-             '())]))
+     '()]))
 
 
 
@@ -427,12 +401,17 @@
 
 (define (mode:navigate key state)
   ; navigation major mode
+  
   (define-from state
     stx mode transforms messages)
   (define update (curry hash-set* state))
   
   (match key
-    ["right" ; moves cursor right in preorder traversal
+    ["right"
+     ; moves the cursor right in a preorder traversal
+     ; 1. if there is a sorted fruct under the cursor, select it
+     ; 2. otherwise, gather all sorted subfructs which don't contain the cursor,
+     ;    as well as the current selection, and therein advance the cursor
      (define new-stx
        (f/match stx
          [(c ⋱ (▹ ys ... / (d ⋱ (sort xs ... / a))))
@@ -445,15 +424,14 @@
          [x x]))
      (update 'stx new-stx)]
     
-    ["left" ; moves cursor left in preorder traversal
-     (define new-stx
-       
+    ["left"
+     ; moves the cursor left in a preorder traversal
+     ; 1. if there is a left-sibling to the cursor which contains-or-is a sort,
+     ;    select its rightmost sort not containing another sort
+     ; 2. otherwise, find the most immediate containing sort;
+     ;    that is, a containing sort not containing a sort containing ▹
+     (define new-stx    
        (f/match stx
-         ; if there is a left-sibling (⋱c2) to the cursor which contains-or-is a sort
-         ; find its rightmost sort not containing another sort (c)
-         ; and move the cursor there
-         ; otherwise, find the most immediate containing sort
-         ; that is, a containing sort not containing a sort containing ▹
          [(⋱c1 ⋱ `(,as ...
                    ,(⋱c2 ⋱ (capture-when (sort _ ... / (not (_ ⋱ (sort _ ... / _)))))
                          `(,bs ... ,(cs ... / c)))
@@ -467,7 +445,8 @@
          [x x]))
      (update 'stx new-stx)]
 
-    ["\r" ; ENTER: switch to transform mode
+    ["\r"
+     ; ENTER: insert a menu and switch to transform mode
      (update
       'mode 'menu
       'stx (f/match stx
@@ -475,20 +454,22 @@
               (c ⋱ (('transform (insert-menu-at-cursor (▹ as ... / a)))
                     as ... / a))]))]
 
-    ["/"  (update 'messages (cons transforms messages))]
+        
+    [","
+     ; COMMA: undo (BUG: currently completely broken)
+     (match transforms
+       ['() (update 'messages
+                    `("no undo states" ,messages))]
+       [_ (update 'messages `("reverting to previous state" ,@messages)
+                  'stx (do-seq (hash-ref initial-state 'stx)
+                               (reverse (rest transforms)))
+                  'transforms (rest transforms))])]
     
-    ; undo (currently broken)
-    [","  (match transforms
-            ['() (update 'messages
-                         `("no undo states" ,messages))]
-            [_ (update 'messages `("reverting to previous state" ,@messages)
-                       'stx (do-seq (hash-ref initial-state 'stx)
-                                    (reverse (rest transforms)))
-                       'transforms (rest transforms))])]
-    ; transform keys
     [_
+     ; otherwise, apply a transformation from the keymap hash,
+     ; applying the identity if there is no binding for that key
      (define transform
-       (hash-ref (hash-union alpha-constructors keymap
+       (hash-ref (hash-union packaged-alpha-constructors keymap
                              #:combine/key (λ (k v v1) v))
                  key identity->))
      (apply-> transform state)]))
@@ -515,13 +496,15 @@
 
 
 (define (insert-menu-at-cursor stx)
-  (define-values (current-selection in-scope)
-    (extract-selection-and-scope stx))
+  (define in-scope
+    (extract-scope stx))
   (define menu-stx (make-menu in-scope stx))
   (f/match stx
     [(c ⋱ (▹ xs ... / x))
      #:when (not (empty? menu-stx))
      (define menu-with-selection
+       ; recall that each menu item is a pairing
+       ; of a transformation and its result
        (match menu-stx
          [`((,t ,r) ,xs ...)
           `((,t ,(select-▹ r)) ,@xs)]))
@@ -563,7 +546,7 @@
   
   (define-from state stx)
   (define update (curry hash-set* state))
-  (match-define (⋱x ctx (/ [transform template] xs/ pattern)) stx)
+  (match-define (⋱x ctx (/ [transform template] r/ reagent)) stx)
 
   (define (perform-selected-transform template)
     ; find the transform corresponding to the selected menu item
@@ -576,29 +559,32 @@
   (match key
     
     ["escape"
-     ; cancel current transform, restore original syntax
+     ; cancel current transform and restore original syntax
+     ; TODO: decide if cursor is conceptually necessary here
      (update 'mode 'nav
-             'stx (⋱x ctx (/ [▹ '▹] xs/ pattern)))]
-    
-    [" "
-     ; if there's a hole after the cursor, advance the cursor+menu to it
-     ; BUG? : think about behavior when press space at first-level menu
-     (update 'stx (⋱x ctx (/ [transform (move-menu-to-next-hole template)] xs/
-                             pattern)))]
-    
-    ["right"
-     ; apply selected transform and advance the cursor+menu the next hole     
-     (update 'stx (⋱x ctx (/ (transform (move-menu-to-next-hole
-                                         (perform-selected-transform template)))
-                             xs/ pattern)))]
+             'stx (⋱x ctx (/ r/ (▹ reagent))))]
 
     ["\r"
      ; perform selected transform, remove menu, and switch to nav mode
      (update 'mode 'nav
              'stx (⋱x ctx (strip-menu (perform-selected-transform template))))]
     
+    [" "
+     ; if there's a hole after the cursor, advance the cursor+menu to it
+     ; BUG? : think about behavior when press space at first-level menu
+     (update 'stx (⋱x ctx (/ [transform (move-menu-to-next-hole template)]
+                             r/ reagent)))]
+    
+    ["right"
+     ; apply selected transform and advance the cursor+menu the next hole     
+     (update 'stx (⋱x ctx (/ [transform (move-menu-to-next-hole
+                                         (perform-selected-transform template))]
+                             r/ reagent)))]
+    
     ["up"
      ; cycle the cursor to the previous menu item
+     ; it looks a bit noisy because each menu item is actually
+     ; a pair of a (hidden) transformation and its (displayed) result
      (define new-template
        (match template
          [(⋱x c⋱ (/ [menu `((,t1 ,(/ a/ (▹ a))) ,bs ... (,t2 ,(/ c/ c)))] t/ t))
@@ -606,7 +592,7 @@
          [(⋱x c⋱ (/ [menu `(,a ... (,t1 ,(/ b/ b)) (,t2 ,(/ c/ (▹ c))) ,d ...)] t/ t))
           (⋱x c⋱ (/ [menu `(,@a (,t1 ,(/ b/ (▹ b))) (,t2 ,(/ c/ c)) ,@d)] t/ t))]
          [x (println "warning: couldn't find menu cursor") x]))
-     (update 'stx (⋱x ctx (/ (transform new-template) xs/ pattern)))]
+     (update 'stx (⋱x ctx (/ (transform new-template) r/ reagent)))]
 
     ["down"
      ; cycle the cursor to the next menu item
@@ -617,7 +603,7 @@
          [(⋱x c⋱ (/ [menu `(,a ... (,t1 ,(/ b/ (▹ b))) (,t2 ,(/ c/ c)) ,d ...)] t/ t))
           (⋱x c⋱ (/ [menu `(,@a (,t1 ,(/ b/ b)) (,t2 ,(/ c/ (▹ c))) ,@d)] t/ t))]
          [x (println "warning: couldn't find menu cursor") x]))
-     (update 'stx (⋱x ctx (/ (transform new-template) xs/ pattern)))]
+     (update 'stx (⋱x ctx (/ (transform new-template) r/ reagent)))]
 
     
     [_ (println "warning: transform-mode: no programming for that key") state]))
@@ -625,27 +611,25 @@
 
 
 
-; mode-loop : key x state -> state
+
 (define (mode-loop key state)
+  ; mode-loop : key x state -> state
   ; determines the effect of key based on mode
   (define-from state mode)
   (match mode
-    ['menu
-     (mode:transform key state)]
-    ['nav
-     (mode:navigate key state)]))
+    ['menu (mode:transform key state)]
+    ['nav  (mode:navigate key state)]))
 
 
 
-; debug-output! : world x state x key -> world
 (define (debug-output! state key)
+  ; debug-output! : world x state x key -> world
   (define-from state
     stx mode transforms)
-  0
   #;(displayln `(mode: ,mode  key: ,key))
   #;(displayln `(projected: ,(project stx)))
-  #;(displayln state))
-
+  #;(displayln state)
+  (void))
 
 
 

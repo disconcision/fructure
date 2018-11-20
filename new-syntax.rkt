@@ -62,8 +62,8 @@
   (λ (stx)
     (syntax-case stx (▹)
       [(/ <whatever> ... (▹ <stx>))
-       ; 0 is dummy
-       #'(/ (▹ 0) <whatever> ... <stx>)]
+       ; '▹ SHOULD just be dummy but for some reason runtime transforms are looking for its value
+       #'(/ (▹ '▹) <whatever> ... <stx>)]
 
       [(/ (<atrs> <pat>) ... <stx>)
        #'(/ (<atrs> <pat>) ... (hash) <stx>)]
