@@ -21,13 +21,13 @@
 ; internal structure
 (require "attributes.rkt" ; syntax->attributed-syntax
          "layout.rkt" ; syntax->pixels
-         "utility.rkt")
+         "utility.rkt") ; defines literals
 
 
 
 ; -------------------------------------------------
 
-; DISPLAY SETTINGS
+; OUTPUT & DISPLAY SETTINGS
 
 (define (output state)
   ; output : state -> image
@@ -52,20 +52,23 @@
           'hole-color (color 0 180 140)
           'transform-arrow-color (color 255 255 255)
           'bkg-color (color 0 47 54)))
-  (match state
-    [(hash-table ('stx stx))
-     (match-define (list new-fruct image-out)
+  (define-from state stx)
+  (match-define (list new-fruct image-out)
        (fructure-layout (second stx) real-layout-settings))
-     image-out
-     #;(text (pretty-format (project new-fruct) 100) 24 "black")]))
+  #;(text (pretty-format (project new-fruct) 100) 24 "black")
+  image-out)
 
 
 
 ; -------------------------------------------------
 
-; DATA
+; INITIAL DATA
 
 (define initial-state
+  ; we begin in navigation mode,
+  ; with a single selected hole of sort 'expression
+  ; transforms: undo history; currently broken
+  ; messages: a messages log, currently disused
   (hash 'stx ((desugar-fruct literals) '(◇ (▹ (sort expr) / ⊙)))
         'mode 'nav
         'transforms '()
@@ -73,6 +76,7 @@
 
 
 (define alphabet
+  ; character set for identifiers
   '(a b c d e f g h i j k l m n o p q r s t u v w x y z))
 
 
@@ -81,6 +85,7 @@
 ; packaged constructors and their helpers
 
 
+; structure for annotating transformation rules
 (struct -> (class props payload) #:transparent)
 
 
@@ -611,42 +616,38 @@
 
 
 
+; -------------------------------------------------
 
-(define (mode-loop key state)
+; FRUCTURE CORE
+
+(define (mode-loop old-state key)
   ; mode-loop : key x state -> state
   ; determines the effect of key based on mode
-  (define-from state mode)
+
+  ; augment syntax with attributes
+  (define state
+    (transform-in
+     old-state
+     [stx (compose augment-transform
+                   augment)]))
+  (define-from state stx mode)
+  
+  ; print debugging information
+  #;(displayln `(mode: ,mode  key: ,key))
+  #;(displayln `(projected: ,(project stx)))
+  #;(displayln state)
+
+  ; dispatch based on current mode
   (match mode
     ['menu (mode:transform key state)]
     ['nav  (mode:navigate key state)]))
 
 
-
-(define (debug-output! state key)
-  ; debug-output! : world x state x key -> world
-  (define-from state
-    stx mode transforms)
-  #;(displayln `(mode: ,mode  key: ,key))
-  #;(displayln `(projected: ,(project stx)))
-  #;(displayln state)
-  (void))
-
-
-
-; MY LOVE FOR YOU IS LIKE A TRUCK
 (big-bang initial-state
-  [on-key
-   #| This is impure because of printing debug output.
-   and ad-hoc pre-processing. This is where we do
-   dirty things. |#
-   (λ (state key)
-     ; state pre-processors
-     (apply-in! state 'stx (compose augment-transform
-                                    augment))
-     ; print debugging information
-     (debug-output! state key)
-     ; transform state based on input and mode
-     (mode-loop key state))]
+  ; MY LOVE FOR YOU IS LIKE A TRUCK
+  [name 'fructure]
+  [on-key mode-loop]
   [to-draw output 800 800]
+  #;[display-mode 'fullscreen]
   #;[record? "gif-recordings"])
 

@@ -61,12 +61,12 @@
 
 
 ; attribute accessors ooooooo
-#;(define-syntax-rule (transform-in state 'attr f)
+#;(define-syntax-rule (transform-in state attr f)
     (match state
       [(hash-table ('attr attr))
        (hash-set state 'attr (f attr))]))
 
-(define-syntax-rule (transform-in state ('attr f) ...)
+(define-syntax-rule (transform-in state (attr f) ...)
   ((compose
     (match-lambda
       [(hash-table ('attr attr))
@@ -74,7 +74,7 @@
    state))
 
 (define-syntax-rule (apply-in! object 'attr f)
-  (set! object (transform-in object ('attr f))))
+  (set! object (transform-in object (attr f))))
 
 ; bind a bunch of attributes oooooooo
 (define-syntax-rule (define-from state attrs ...)
