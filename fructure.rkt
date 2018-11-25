@@ -24,6 +24,24 @@
          "utility.rkt") ; defines literals
 
 
+(define (paint-handle fr)
+  (match fr   
+    ; slight hack? with proper order of application
+    ; i prob shouldn't have to recurse on tempalte here
+    ; note below fails to paint selectable on target
+    #;[(/ [transform template] a/ a)
+       (/ [transform (new-aug template)] a/ (new-aug a))]
+    [(/ [sort (and my-sort (or 'expr 'char))] a/ a)
+     (/ [sort my-sort] [handle #t] a/ (paint-handle a))]
+    [(/ a/ a)
+     (/ a/ (paint-handle a))]
+    [(? list?) (map paint-handle fr)]
+    [_ fr]))
+
+(define fruct-augment
+  (compose augment-transform
+           augment
+           paint-handle))
 
 ; -------------------------------------------------
 
@@ -69,7 +87,8 @@
   ; with a single selected hole of sort 'expression
   ; transforms: undo history; currently broken
   ; messages: a messages log, currently disused
-  (hash 'stx ((desugar-fruct literals) '(◇ (▹ (sort expr) / ⊙)))
+  (hash 'stx (fruct-augment
+              ((desugar-fruct literals) '(◇ (▹ (sort expr) / ⊙))))
         'mode 'nav
         'transforms '()
         'messages '("hello world")))
@@ -416,15 +435,15 @@
   (match key
     ["right"
      ; moves the cursor right in a preorder traversal
-     ; 1. if there is a sorted fruct under the cursor, select it
-     ; 2. otherwise, gather all sorted subfructs which don't contain the cursor,
+     ; 1. if there is a handled fruct under the cursor, select it
+     ; 2. otherwise, gather all handled subfructs which don't contain the cursor,
      ;    as well as the current selection, and therein advance the cursor
      (define new-stx
        (f/match stx
-         [(c ⋱ (▹ ys ... / (d ⋱ (sort xs ... / a))))
-          (c ⋱ (ys ... / (d ⋱ (▹ sort xs ... / a))))]
+         [(c ⋱ (▹ ys ... / (d ⋱ (handle xs ... / a))))
+          (c ⋱ (ys ... / (d ⋱ (▹ handle xs ... / a))))]
          [(c ⋱ (capture-when (or (('▹ _) _ ... / _)
-                                 (('sort _) _ ... / (not (⋱ (('▹ _) _ ... / _))))))
+                                 (('handle _) _ ... / (not (⋱ (('▹ _) _ ... / _))))))
              `(,as ... ,(▹ ws ... / a) ,(zs ... / b) ,bs ...))
           (c ⋱... 
              `(,@as ,(ws ... / a) ,(▹ zs ... / b) ,@bs))]
@@ -433,21 +452,21 @@
     
     ["left"
      ; moves the cursor left in a preorder traversal
-     ; 1. if there is a left-sibling to the cursor which contains-or-is a sort,
-     ;    select its rightmost sort not containing another sort
-     ; 2. otherwise, find the most immediate containing sort;
-     ;    that is, a containing sort not containing a sort containing ▹
+     ; 1. if there is a left-sibling to the cursor which contains-or-is a handle,
+     ;    select its rightmost handle not containing another handle
+     ; 2. otherwise, find the most immediate containing handle;
+     ;    that is, a containing handle not containing a handle containing ▹
      (define new-stx    
        (f/match stx
          [(⋱c1 ⋱ `(,as ...
-                   ,(⋱c2 ⋱ (capture-when (sort _ ... / (not (_ ⋱ (sort _ ... / _)))))
+                   ,(⋱c2 ⋱ (capture-when (handle _ ... / (not (_ ⋱ (handle _ ... / _)))))
                          `(,bs ... ,(cs ... / c)))
                    ,ds ... ,(▹ es ... / e) ,fs ...))
           (⋱c1 ⋱ `(,@as ,(⋱c2 ⋱... `(,@bs ,(▹ cs ... / c)))
                         ,@ds ,(es ... / e) ,@fs))]
-         [(⋱c1 ⋱ (and (sort as ... / (⋱c2 ⋱ (▹ bs ... / b)))
-                      (not (sort _ ... / (_ ⋱ (sort _ ... / (_ ⋱ (▹ _ ... / _))))))))
-          (⋱c1 ⋱ (▹ sort as ... / (⋱c2 ⋱ (bs ... / b))))]
+         [(⋱c1 ⋱ (and (handle as ... / (⋱c2 ⋱ (▹ bs ... / b)))
+                      (not (handle _ ... / (_ ⋱ (handle _ ... / (_ ⋱ (▹ _ ... / _))))))))
+          (⋱c1 ⋱ (▹ handle as ... / (⋱c2 ⋱ (bs ... / b))))]
          
          [x x]))
      (update 'stx new-stx)]
@@ -622,16 +641,9 @@
 
 ; FRUCTURE CORE
 
-(define (mode-loop old-state key)
+(define (mode-loop state key)
   ; mode-loop : key x state -> state
   ; determines the effect of key based on mode
-
-  ; augment syntax with attributes
-  (define state
-    (transform-in
-     old-state
-     [stx (compose augment-transform
-                   augment)]))
   (define-from state stx mode)
   
   ; print debugging information
@@ -640,9 +652,14 @@
   #;(displayln state)
 
   ; dispatch based on current mode
-  (match mode
-    ['menu (mode:transform key state)]
-    ['nav  (mode:navigate key state)]))
+  (define new-state
+    (match mode
+      ['menu (mode:transform key state)]
+      ['nav  (mode:navigate key state)]))
+  
+  ; augment syntax with attributes
+  (transform-in new-state
+                [stx fruct-augment]))
 
 
 (big-bang initial-state
