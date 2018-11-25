@@ -95,7 +95,12 @@
 
 
 
-(define (rounded-rectangle width height radius my-color)
+(define (rounded-rectangle width height init-radius my-color)
+  (define radius
+    (if (width . < . (* 2 init-radius))
+        (/ width 2) ; note possible syntax issue
+        init-radius))
+  
   (define pen
     (make-pen my-color (* 2 radius) "solid" "round" "round"))
   (underlay/align

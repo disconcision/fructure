@@ -109,7 +109,7 @@
           (match-define (list transform-fr transform-image)
             (render-transform this-transform #t layout-settings))
           (place-image/align transform-image
-                             (+ x-offset (- x (* 2 margin)))
+                             (+ x-offset (- x margin))
                              (+ y-offset y) "left" "top" new-image)]
          
          [(⋱ c⋱ (and this-transform
@@ -119,7 +119,7 @@
           (match-define (list transform-fr transform-image)
             (render-transform this-transform #t layout-settings))
           (place-image/align transform-image
-                             (- x (* 2 margin)) ; to make up for red bracketting
+                             (- x margin)
                              y "left" "top" new-image)]
          [_ new-image])]
       [else new-image]))
@@ -130,7 +130,7 @@
     (cond
       [popout-menu?
        (define expander-height
-         (round (* 1/4 text-size)))
+         (round (* 1/4 text-size))) ; magic af
        (match newest-fruct
 
          ; HACK, see above
@@ -143,7 +143,7 @@
             (render-menu this-menu layout-settings))
           ;todo: factor out to property
           (place-image/align menu-image
-                             (+ x x-offset (- (* 3 margin))) ;MAGIC NUMBER 3
+                             (+ x x-offset (- (* 2 margin))) ;only slightly magic
                              (+ y y-offset (- expander-height)) "left" "top"
                              post-procd-image)]
          
@@ -155,7 +155,7 @@
           (match-define (list menu-fr menu-image)
             (render-menu this-menu layout-settings))
           (place-image/align menu-image
-                             (+ x (- (* 3 margin))) ;MAGIC NUMBER 3
+                             (+ x (- (* 2 margin))) ;only slightly magic
                              ; this magic adjument works, except for chars
                              ; where it doesn't leave enough space
                              ; had to increase it from 2 to 3 when
@@ -212,15 +212,28 @@
                             invisible)))
          (list new-fruct new-image))]
     [(/ a/ a)
+     (define local-layout-settings
+       (match (/ a/ a)
+         [(/ (sort 'params) _/ _)
+          (println "clackitavet")
+          (hash-set* layout-settings
+                     'identifier-color (color 230 230 230)
+                     'grey-one (color 110 110 110)
+                     'grey-two (color 76 76 76))]
+         [_ layout-settings]))
      (if (list? a)
-         (render-list (/ a/ a) depth bkg layout-settings (selected? fruct))
+         (render-list (/ a/ a)
+                      ; hack to reset depth for params-list
+                      (match (/ a/ a)
+                        [(/ (sort 'params) _/ _)  #t] [_ depth])
+                      bkg local-layout-settings (selected? fruct))
          (list fruct
                (cond
                  ; char holes look different
                  ; TODO: refactor render-atom and relocate this there
                  [(and (equal? a '⊙)
                        (match (/ a/ a) [(/ (sort 'char) _/ _) #t][_ #f]))
-                  (render-atom '+ (selected? fruct) layout-settings)
+                  (render-atom '+ (selected? fruct) local-layout-settings)
                   #;(overlay
                      (text/font (string-append (~a '+))
                                 text-size
@@ -376,12 +389,21 @@
   (define new-image
     (apply beside/align
            "top"
-           (if selected? (second (render '▹ layout-settings)) (space text-size))
+           (space text-size)
+           ; cursor display disabled for the moment
+           #;(if selected? (second (render '▹ layout-settings)) (space text-size))
+           (first child-images)
            (for/fold ([acc '()])
-                     ([a child-images])
-             `(,@acc ,a ,(space text-size)))))
+                     ([a (rest child-images)])
+             `(,@acc ,(space text-size) ,a))))
   
-  (list new-children new-image))
+  (list new-children
+        ; note special case
+        ; if last child is atom, we leave a space on the right
+        (beside new-image
+                (match (last children)
+                  [(/ _/ (? list?)) empty-image]
+                  [_ (space text-size)]))))
 
 
 
@@ -414,14 +436,15 @@
   (define new-image
     (beside/align
      "top"
-     (if selected? (second (render '▹ layout-settings)) (space text-size))
+     (space text-size)
+     #;(if selected? (second (render '▹ layout-settings)) (space text-size))
      (first child-images)
      (space text-size)
      (apply above/align* "left"
             (for/fold ([acc '()])
                       ([i (rest child-images)])
               `(,@acc ,i ,1px)))
-     (space text-size)))
+     #;(space text-size)))
   
   (list (cons new-first-children new-rest-children) new-image))
 
@@ -440,7 +463,8 @@
 
   (define header-image
     (beside/align "top"
-                  (if selected? (second (render '▹ layout-settings)) (space text-size))
+                  (space text-size)
+                  #;(if selected? (second (render '▹ layout-settings)) (space text-size))
                   (first child-images)
                   (space text-size)
                   (second child-images)))
@@ -525,7 +549,12 @@
                                                          'identifier-color "white")))
                       (overlay/align "left" "top"
                                      (second (render '▹ override-layout-settings))
-                                     (second (render (/ b/ b) override-layout-settings)))))]
+                                     (if (not (list? b))
+                                         ; hacky extra spacing for atoms
+                                         (beside (space text-size)
+                                                 (second (render (/ b/ b) override-layout-settings))
+                                                 (space text-size))
+                                         (second (render (/ b/ b) override-layout-settings))))))]
            [_ (match-define (list fr-res img-res)
                 (render item override-layout-settings))
               (list fr-res
@@ -641,29 +670,14 @@
   
   (match-define (list target-fruct target-image)
     (render (/ t/ target) layout-settings))
-  (define target-holder-image 
-    (overlay/align
-     "right" "top" target-image
-     (rounded-rectangle (image-width target-image)
-                        (image-height target-image)
-                        radius
-                        pat-tem-bkg-color)
-     ; TODO: should be drawing this over to
-     ; unfuck the alignment. needs pict masking
-     ; below shouldn'y have to be TWICE margin
-     ; figure out what's going on here
-     ; remember to fix it at top as well
-     (rounded-rectangle (+ (* 2 margin) (image-width target-image))
-                        (+ 0 (image-height target-image))
-                        radius
-                        selected-color)))
+  
   (match-define (/ new-t/ new-target)
     (match target-fruct
       [(? (disjoin symbol? number?)) template]
       [(/ a/ a)
        (/ [display-offset (list 0 0)]
-          [display-box (list (image-width target-holder-image)
-                             (image-height target-holder-image))]
+          [display-box (list (image-width target-image)
+                             (image-height target-image))]
           a/ a) ]))
   
   (define arrow-image
@@ -682,42 +696,51 @@
                     [_ (values k v)])))
         (render template layout-settings)))
 
-  (define template-holder-image
-    (overlay
-     template-image
-     (rounded-rectangle (+ margin (image-width template-image))
-                        (+ 0 (image-height template-image))
-                        radius
-                        selected-color)))
-  
+ 
   (define new-template
     (match template-fruct
       [(? (disjoin symbol? number?)) template]
       [(/ a/ a)
        (/ [display-offset (list (apply + (map image-width
-                                              (list target-holder-image
+                                              (list target-image
                                                     (space text-size)
                                                     arrow-image
                                                     (space text-size))))
                                 0)]
-          [display-box (list (image-width template-holder-image)
-                             (image-height template-holder-image))]
+          [display-box (list (image-width template-image)
+                             (image-height template-image))]
           a/ a) ]))
 
   (define new-layout
-    (beside/align "top" target-holder-image
-                  (space text-size)
-                  arrow-image 
-                  (space text-size)
-                  template-holder-image))
+    (beside/align
+     "top"
+     (overlay/align "right" "top"
+                    target-image
+                    (rounded-rectangle
+                     (+ margin (image-width target-image))
+                     (image-height target-image)
+                     radius
+                     selected-color))
+     (space text-size)
+     arrow-image 
+     (space text-size)
+     (overlay/align "left" "top"
+                    template-image
+                    (rounded-rectangle
+                     (+ margin (image-width template-image))
+                     (image-height template-image)
+                     radius
+                     selected-color))))
+  
   (define new-backing
     (rounded-rectangle
-     (+ 0 (image-width new-layout))
-     (+ 0 (image-height target-holder-image))
+     (image-width new-layout)
+     (min (image-height target-image)
+          (image-height template-image))
      radius
      selected-color))  
   (define new-image
-    (overlay/align "left" "top"
+    (overlay/align "middle" "top"
                    new-layout
                    new-backing))
   
@@ -885,22 +908,11 @@
        (get-non-atomic-children (rest stx) (rest child-images)))
           
      (rounded-rectangle
-      (+ (+ (image-width (first child-images))
-            ; below logic doesn't quite work
-            ; if we're the same color as bkg,
-            ;extending does no good
-            ;need to overlay or something
-            #;(match stx
-                [(or `(,(? lambda-like-id?) ,xs ...) `(,(? and-like-id?) ,xs ...))
-                 (cond [(equal? 0 bkg) 0]
-                       [(not (equal? depth bkg)) (image-width (space text-size))]
-                       [(equal? depth bkg) 0])]
-                [_ 0]
-                )) 
+      (+ (image-width (first child-images)) 
          ; width of form-name e.g. 'and'
          (* 2 (image-width (space text-size)))
-         ; add pixels for each row
-         (length (rest child-images))
+         ; add pixels for each row (what? this is width...)
+         #;(length (rest child-images))
          ; spaces before/after above form-name
          (max (+ (longest atomic-children)
                  (image-width (space text-size)))
@@ -986,7 +998,8 @@
    (if selected?
        (overlay (overlay
                  (rounded-rectangle
-                  (+ (- 0 margin) (image-width new-backing))
+                  (max 0 (+ (- margin)
+                            (image-width new-backing)))
                   (image-height new-layout)
                   radius
                   (if depth grey-one grey-two))

@@ -32,7 +32,7 @@
 (define lambda-like-ids '(λ lambda))
 
 (define affordances '(▹ ⊙ ◇))
-(define sort-names '(expr char pat))
+(define sort-names '(expr char pat params))
 
 
 
@@ -91,19 +91,26 @@
 (define (project stx)
   (define @ project)
   (match stx
+    ; strip top
+    [`(◇ ,x)
+     (@ x)]
     ; transform mode
-    [(/ (template template) _/ (▹ stx))
+    #;[(/ (transform template) _/ (▹ stx))
      `(▹ [,stx -> ,(project template)])]
     ; label sorts of holes
     [(/ (sort sort) _/ (▹ '⊙))
      `(▹ (⊙ ,sort))]
-    [(/ _ `(id ,(/ (sort 'char) _ c) ...))
+    ; flatten symbols
+    [(/ _ `(id ,(/ [sort 'char] _ (and c (not '⊙))) ... ,(/ [sort 'char] _ '⊙) ...))
      (string->symbol (apply string-append (map symbol->string c)))]
     [(/ (sort sort) _/ '⊙)
      `(⊙ ,sort)]
     ; embed cursor
-    [(/ _/ (▹ stx))
+    #;[(/ _/ (▹ stx))
      `(▹ ,(@ stx))]
+    ; or nor
+    [(/ _/ (▹ stx))
+     (@ stx)]
     [(/ _/ stx)
      (@ stx)]
     [(? list?) (map @ stx)] [x x]))

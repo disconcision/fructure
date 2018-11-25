@@ -54,7 +54,7 @@
           'bkg-color (color 0 47 54)))
   (define-from state stx)
   (match-define (list new-fruct image-out)
-       (fructure-layout (second stx) real-layout-settings))
+    (fructure-layout (second stx) real-layout-settings))
   #;(text (pretty-format (project new-fruct) 100) 24 "black")
   image-out)
 
@@ -151,7 +151,9 @@
                                          ([sort expr] / ⊙)))])
         '([⋱
             (▹ [sort expr] xs ... / ⊙)
-            (▹ [sort expr] xs ... / (λ (/ ((/ (id ([sort char] / ⊙)))))
+            (▹ [sort expr] xs ... / (λ ([sort params]
+                                        / (([sort pat]
+                                            / (id ([sort char] / ⊙)))))
                                       ([sort expr] / ⊙)))])))
 
 
