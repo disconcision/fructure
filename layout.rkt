@@ -31,6 +31,7 @@
         'length-conditional-layout? #t
         'length-conditional-cutoff 10
         'dodge-enabled? #t
+        
         'menu-bkg-color (color 112 112 112)
         'form-color (color 0 130 214)
         'literal-color (color 255 131 50)
@@ -42,6 +43,9 @@
         'hole-color (color 0 180 140)
         'transform-arrow-color (color 255 255 255)
         'bkg-color (color 0 47 54)
+
+        #;#;'radius (λ (text-size) (sub1 (div-integer text-size 2)))
+        #;#;'margin (λ (text-size) (div-integer text-size 5))
         ))
 
 ; fructure-layout : syntax -> pixels
@@ -54,34 +58,18 @@
   (match fruct
     [`(◇ ,x) (error "strip top before calling")] [_ 0])
 
+  (match-define `(,x-offset ,y-offset) '(20 20))
 
-  ; for each fruct, we want to write in some new attributes:
-  ; (display-offset (x y)) (from parent top-right corner)
-  ; (display-box (width height))
-  ; seperately calculate: (display-absolute-offset (x y)) in another traversal
-  ; so we need to keep the fruct arg around,
-  ; augment it, and return pairs of images and fructs
+  (match-define `(,new-fruct ,scene-image)
+    (render
+     (match fruct
+       [(/ fr/ stx)
+        (/ [display-offset `(,x-offset ,y-offset)]
+           [display-box '(800 800)]
+           fr/ stx)])
+     layout-settings))
 
-  ; fructure-layout: stx -> (stx image)
-  ; in main, we run it twice
-  ; once as an augment pass
-  ; and again to display
-  ; (should manually cache or memoize)
-
-  ; lets consider the -20 -20 offset from the canvas to define our (0,0) point
-  ; so what we return here will have a 0 0 offset
-
-  (match-define (list x-offset y-offset) '(20 20))
-  #;(match-define (list pane-width pane-height) '(800 800))
-
-  (match-define (list new-fruct scene-image)
-    (render (match fruct
-              [(/ fr/ stx)
-               (/ [display-offset `(,x-offset ,y-offset)]
-                  [display-box '(800 800)]
-                  fr/ stx)])
-            layout-settings))
-
+  ; calculate absolute positioning from relative
   (define newest-fruct
     (augment-absolute-offsets
      new-fruct))
@@ -93,15 +81,15 @@
                           (- x-offset) (- y-offset)
                           (rectangle 800 800 "solid" bkg-color)))
 
-  ; write in transform
+  ; overlay transform if in popout mode
   (define post-procd-image
     (cond
       [popout-transform?
        (match newest-fruct
          
-         ; this case copied from below but special-cased
-         ; to stop top-level transforms from losing the
-         ; initial pane offset (HACK)
+         ; HACK: case copied from below but special-cased
+         ; to stop TOP-LEVEL transforms from losing the
+         ; initial pane offset
          [(and this-transform
                (/ [transform _]
                   [display-absolute-offset `(,x ,y)]
@@ -125,7 +113,7 @@
       [else new-image]))
 
 
-  ; write in menu
+  ; overlay menu if in popout mode
   (define post-post-procd-image
     (cond
       [popout-menu?
@@ -156,10 +144,6 @@
             (render-menu this-menu layout-settings))
           (place-image/align menu-image
                              (+ x (- (* 2 margin))) ;only slightly magic
-                             ; this magic adjument works, except for chars
-                             ; where it doesn't leave enough space
-                             ; had to increase it from 2 to 3 when
-                             ; i increased the above offset
                              (+ y (- expander-height)) "left" "top"
                              post-procd-image)]
          [_ post-procd-image])]
@@ -171,55 +155,61 @@
 
 
 
+
+
 (define (render fruct layout-settings (depth #t) (bkg 0))
   (define-from layout-settings
     text-size selected-color hole-color
     popout-transform? popout-menu?)
-  
-  ; here we don't need to do anything; all render fns
-  ; below should return the appropriate pair
-
-  ; actually do we need separate render-wrapped-atom fn?
-  ; maybe not... we are only writing thing in in composite cases
-  ; ie the parents are responsible for their children's info
-  
+    
   (match fruct
    
     [(and this-menu
           (/ [menu `((,transforms ,resultants) ...)] m/ _))
-     (match-define (list new-fruct new-image)
+     (match-define (list fruct-with-positions new-image)
        (render-menu this-menu
                     layout-settings))
-     (if popout-menu?
-         (list new-fruct
-               ; what should the dummy here be?
+     (list fruct-with-positions
+           (if popout-menu?
+               ; fill in dummy placeholder
                (let ([temp-image (render '? layout-settings)])
                  (rectangle (image-width (second temp-image))
                             (image-height (second temp-image))
-                            "solid" invisible)))
-         (list new-fruct new-image))]
+                            "solid" invisible))
+               new-image))]
     
     [(/ [transform template] t/ target)
      (match-define (list new-fruct new-image)
        (render-transform (/ [transform template] t/ target)
                          depth layout-settings))
-     (if popout-transform?
-         (list new-fruct
+     (list new-fruct
+           (if popout-transform?
                (let ([temp-image (render (/ t/ target) layout-settings)])
                  (rectangle (image-width (second temp-image))
                             (image-height (second temp-image))
                             "solid"
-                            invisible)))
-         (list new-fruct new-image))]
+                            invisible))
+               new-image))]
+    
+    [(/ id/ `(id ,xs ...))
+     ; id itself is not drawn
+     ; draw the letters xs with no spaces
+     
+     (match-define `((,child-fructs ,child-images) ...)
+       (map (curryr render layout-settings) xs))
+     (define-values (new-frs _)
+       (layout-row (list 0 0) 0 xs child-images))
+     (define my-new-image
+       (apply beside* child-images))
+     (list (/ id/ `(id ,@new-frs)) my-new-image)]
     [(/ a/ a)
      (define local-layout-settings
        (match (/ a/ a)
          [(/ (sort 'params) _/ _)
-          (println "clackitavet")
           (hash-set* layout-settings
                      'identifier-color (color 230 230 230)
-                     'grey-one (color 110 110 110)
-                     'grey-two (color 76 76 76))]
+                     'grey-one (color 76 76 76)
+                     'grey-two (color 110 110 110))]
          [_ layout-settings]))
      (if (list? a)
          (render-list (/ a/ a)
@@ -233,17 +223,9 @@
                  ; TODO: refactor render-atom and relocate this there
                  [(and (equal? a '⊙)
                        (match (/ a/ a) [(/ (sort 'char) _/ _) #t][_ #f]))
-                  (render-atom '+ (selected? fruct) local-layout-settings)
-                  #;(overlay
-                     (text/font (string-append (~a '+))
-                                text-size
-                                hole-color
-                                #f 'modern 'normal 'normal #f)
-                     (rectangle (image-width (space text-size))
-                                (+ 5 (image-height (space text-size)))
-                                "solid" invisible))]
-                 [else (render-atom a (selected? fruct) layout-settings)])
-               ))]
+                  (render-atom '+ (selected? fruct) local-layout-settings)]
+                 [else (render-atom a (selected? fruct) layout-settings)])))]
+    
     [(? (disjoin form-id? symbol?) a)
      ; TODO: MAGIC symbol include, investigate this
      ; this case SHOULD be only for form headers
@@ -309,8 +291,8 @@
    (cond
      [(equal? s '⊙)
       (define my-radius
-        ; MAGIC number
-        (min (* #;3/10 3/11 text-size)
+        ; TODO: magic numbers
+        (min (* 3/11 text-size)
              (* 1/2 (image-width (space text-size))))) 
       (overlay
        (circle my-radius "outline"
@@ -328,7 +310,7 @@
                  #f 'modern 'normal 'normal #f)])
    ; padding
    (rectangle (image-width (space text-size))
-              ; MAGIC NUMBER!! 5
+              ; TODO: magic number 5
               ; additional headroom for chars
               ; aka default line spacing in pixels
               (+ 5 (image-height (space text-size)))
@@ -512,7 +494,6 @@
     (match resultants
       [`(,(/ (sort 'char) _/ _) ...) #t] [_ #f]))
 
-  #;(println `(resultants ,resultants))
   (define local-max-menu-length
     (if char-menu?
         max-menu-length-chars
@@ -534,7 +515,7 @@
         ; slight hack to remove form backings
         (hash-set* layout-settings
                    'grey-one invisible
-                   'form-color "white")) ; MAGIC color
+                   'form-color "white")) ; magic color
       (cond
         [custom-menu-selector?
          (match item
@@ -555,17 +536,14 @@
                                                  (second (render (/ b/ b) override-layout-settings))
                                                  (space text-size))
                                          (second (render (/ b/ b) override-layout-settings))))))]
-           [_ (match-define (list fr-res img-res)
-                (render item override-layout-settings))
-              (list fr-res
-                    (beside* #;(space text-size)
-                             img-res))])]
+           [_ (render item override-layout-settings)])]
         [else (render item override-layout-settings)])))
   
   (define truncated-menu-image
     (apply above/align* "left"
            child-images))
 
+  ; magic number, colors
   (define expander-height
     (round (* 1/4 text-size)))
   (define expander-color
@@ -580,9 +558,8 @@
                                   truncated-menu-image
                                   (ellipses expander-height expander-ellipses-color))
                            (rounded-rectangle
-                            (+ 0 (image-width truncated-menu-image))
-                            (+ 0
-                               (image-height truncated-menu-image))
+                            (image-width truncated-menu-image)
+                            (image-height truncated-menu-image)
                             radius
                             menu-bkg-color)
                            (rounded-rectangle
@@ -615,12 +592,29 @@
          (- (* 2 margin)) 0 
          empty-image)))
 
-
-  (define-values (new-truncated-fructs throwaway-offset)
-    (layout-column (list (div-integer margin 2) 0) 0 child-fructs child-images))
-
-
-
+  ; calculate REAL position data
+  (define-values (post-new-fruct _)
+    (for/fold ([output '()]
+               [running-offset `(,(- margin) 0)])
+              ; BUG, HACK: dubious initial offset above!
+              ; alignment not quite right AND conceptually suspect
+              ([s child-fructs] [i child-images])
+      (match-define (list offset-x offset-y) running-offset)
+      (define new-child
+        (match s
+          [(? (disjoin symbol? number?)) s]
+          [(/ a/ a)
+           (/ [display-offset (list offset-x offset-y)]
+              [display-box (list (image-width i) (image-height i))]
+              a/ a) ]))
+      (define new-running-offset
+        (list offset-x
+              (+ offset-y
+                 0 #;line-spacing
+                 (image-height i))))
+      (values `(,@output ,new-child)
+              new-running-offset)))
+  
   ; all this is just to put the rewritten fructs back in the right place
   ; TODO: check to make sure the data is going in the right place!!
   ; It's not... at least, the outlines don't render
@@ -635,19 +629,16 @@
   (define num-items-from-cursor-to-end
     (length menu-from-cursor))
   (define replace-in-wrapparound
-    (append child-fructs
+    (append post-new-fruct
             (list-tail resultants-wraparound
-                       (length child-fructs))))
+                       (length post-new-fruct))))
   
   (define new-fruct
     (append (list-tail replace-in-wrapparound num-items-from-cursor-to-end)
             (take replace-in-wrapparound num-items-from-cursor-to-end)))
-  
-  
 
-  #;(println `(truncated-frcuts ,new-truncated-fructs))
-  #;(println `(lenfths ,(length transforms) ,(length new-fruct)))
-  #;(println `(lifths ,transforms ,resultants ,new-fruct))
+  
+  
   
   (list (/ [menu `(,@(map list transforms new-fruct))] p/ place)
         new-image))
@@ -834,7 +825,8 @@
                 layout-settings)) ,@(rest candidate))]
           [_ candidate])
         candidate))
-
+  
+  ; decide if we're rendering horizontally or vertically
   (define render-this-horizontally?
     (cond
       [(not length-conditional-layout?) #f]
@@ -844,18 +836,7 @@
             (total-length . < . length-conditional-cutoff)]))
      
   (match stx
-    [`(id ,xs ...)
-     ; id itself is not drawn
-     ; draw the letters xs with no spaces
-     
-     (match-define `((,child-fructs ,child-images) ...)
-       (map (curryr render layout-settings) xs))
-     (define-values (new-frs throwaway-offset)
-       (layout-row (list 0 0) 0 xs child-images))
-     (define my-new-image
-       (apply beside* child-images))
-
-     (list (/ a/ `(id ,@new-frs)) my-new-image)]
+    
 
     ; TODO: refactor duplication below by spliting out render-this-horizontally?
       
@@ -951,17 +932,7 @@
      (define backing-candidate
        (overlay/align
         "left" "top" 
-        (rounded-rectangle (+ header-length
-                              ; see above overlay or something comments
-                              #;(match stx
-                                  [(or `(,(? lambda-like-id?) ,xs ...)
-                                       `(,(? and-like-id?) ,xs ...))
-                                   (cond [(equal? 0 bkg) 0]
-                                         [(not (equal? depth bkg)) (image-width (space text-size))]
-                                         [(equal? depth bkg) 0])]
-                                  [_ 0]
-                                  )
-                              #;(if #t (image-width (space text-size)) 0))
+        (rounded-rectangle header-length
                            header-height
                            radius (if depth grey-one grey-two))
         (rounded-rectangle (+ (* 2 (image-width (space text-size))) ; indentation                              
@@ -992,6 +963,7 @@
     selected-color text-size grey-one grey-two)
   (define radius (sub1 (div-integer text-size 2)))
   (define margin (div-integer text-size 5))
+  
   (overlay/align
    "left" "middle"
    new-layout
