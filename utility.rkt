@@ -18,7 +18,8 @@
 (provide literals
          if-like-id?
          lambda-like-id?
-         form-id?)
+         form-id?
+         affo-id?)
 
 ; -------------------------------------------------
 
@@ -31,7 +32,7 @@
 (define if-like-ids '(and app))
 (define lambda-like-ids '(λ lambda))
 
-(define affordances '(▹ ⊙ ◇))
+(define affordances '(▹ ⊙ ◇ →))
 (define sort-names '(expr char pat params))
 
 
@@ -43,6 +44,7 @@
 (define if-like-id? (curryr member if-like-ids))
 (define lambda-like-id? (curryr member lambda-like-ids))
 (define form-id? (curryr member form-ids))
+(define affo-id? (curryr member affordances))
 
 (define literals
   (for/fold ([hs (hash)])

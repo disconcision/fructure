@@ -59,6 +59,8 @@
           'length-conditional-layout? #t
           'length-conditional-cutoff 8
           'dodge-enabled? #t
+          'implicit-forms '(ref #;app)
+          'selected-atom-color "white"
           'menu-bkg-color (color 112 112 112)
           'form-color (color 0 130 214)
           'literal-color (color 255 131 50)

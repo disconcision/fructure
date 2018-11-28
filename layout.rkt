@@ -31,7 +31,9 @@
         'length-conditional-layout? #t
         'length-conditional-cutoff 10
         'dodge-enabled? #t
-        
+        'implicit-forms '(ref #;app)
+
+        'selected-atom-color "white"
         'menu-bkg-color (color 112 112 112)
         'form-color (color 0 130 214)
         'literal-color (color 255 131 50)
@@ -165,14 +167,14 @@
   (match fruct
    
     [(and this-menu
-          (/ [menu `((,transforms ,resultants) ...)] m/ _))
+          (/ [menu `((,transforms ,resultants) ...)] m/ m))
      (match-define (list fruct-with-positions new-image)
        (render-menu this-menu
                     layout-settings))
      (list fruct-with-positions
            (if popout-menu?
-               ; fill in dummy placeholder
-               (let ([temp-image (render '? layout-settings)])
+               ; whatever is supposed to be there as placeholder
+               (let ([temp-image (render (/ m/ m) layout-settings)])
                  (rectangle (image-width (second temp-image))
                             (image-height (second temp-image))
                             "solid" invisible))
@@ -194,7 +196,6 @@
     [(/ id/ `(id ,xs ...))
      ; id itself is not drawn
      ; draw the letters xs with no spaces
-     
      (match-define `((,child-fructs ,child-images) ...)
        (map (curryr render layout-settings) xs))
      (define-values (new-frs _)
@@ -202,35 +203,36 @@
      (define my-new-image
        (apply beside* child-images))
      (list (/ id/ `(id ,@new-frs)) my-new-image)]
-    [(/ a/ a)
+    
+    [(/ a/ (? list? a))
      (define local-layout-settings
        (match (/ a/ a)
          [(/ (sort 'params) _/ _)
           (hash-set* layout-settings
+                     ; TODO magic colors
                      'identifier-color (color 230 230 230)
                      'grey-one (color 76 76 76)
                      'grey-two (color 110 110 110))]
          [_ layout-settings]))
-     (if (list? a)
-         (render-list (/ a/ a)
-                      ; hack to reset depth for params-list
-                      (match (/ a/ a)
-                        [(/ (sort 'params) _/ _)  #t] [_ depth])
-                      bkg local-layout-settings (selected? fruct))
-         (list fruct
-               (cond
-                 ; char holes look different
-                 ; TODO: refactor render-atom and relocate this there
-                 [(and (equal? a '⊙)
-                       (match (/ a/ a) [(/ (sort 'char) _/ _) #t][_ #f]))
-                  (render-atom '+ (selected? fruct) local-layout-settings)]
-                 [else (render-atom a (selected? fruct) layout-settings)])))]
+     (render-list (/ a/ a)
+                  ; hack to reset depth for params-list
+                  (match (/ a/ a)
+                    [(/ (sort 'params) _/ _) #t] [_ depth])
+                  bkg local-layout-settings (selected? fruct))]
+
+    [(/ a/ a)
+     (render-atom (/ a/ a) (selected? fruct) layout-settings)]
     
     [(? (disjoin form-id? symbol?) a)
      ; TODO: MAGIC symbol include, investigate this
      ; this case SHOULD be only for form headers
-     (list fruct
-           (render-atom a (selected? fruct) layout-settings))]
+     #; (println `(fallthru ,a))
+     ; but actually catching at least:
+     #; (? → ▹ λ app)
+     ; TODO: factor out all these cases
+     ; slight hack; adding blank attributes to a
+     (render-atom (/ a) (selected? fruct) layout-settings)]
+    
     [_ (error (~v `(,fruct "error: layout: render: not a fruct")))]))
 
 
@@ -358,15 +360,22 @@
 
 
 (define (render-horizontal-default selected? layout-settings children)
-  (match-define `((,stx ,child-images) ...) children)
+  (match-define `((,possibly-truncated-stx ,possibly-truncated-child-images) ...) children)
   (define-from layout-settings
-    text-size)
+    text-size implicit-forms)
+  
+  #;(define-values (possibly-truncated-stx possibly-truncated-child-images)
+      (match* (stx child-images)
+        [(`(,(? (curryr member implicit-forms)) ,xs ...)
+          `(,c ,cs ...))
+         (values xs cs)]
+        [(_ _) (values stx child-images)]))
 
   (define-values (new-children final-offset)
     (layout-row (list (image-width (space text-size)) 0)
                 (image-width (space text-size))
-                stx
-                child-images))
+                possibly-truncated-stx
+                possibly-truncated-child-images))
   
   (define new-image
     (apply beside/align
@@ -374,9 +383,9 @@
            (space text-size)
            ; cursor display disabled for the moment
            #;(if selected? (second (render '▹ layout-settings)) (space text-size))
-           (first child-images)
+           (first possibly-truncated-child-images)
            (for/fold ([acc '()])
-                     ([a (rest child-images)])
+                     ([a (rest possibly-truncated-child-images)])
              `(,@acc ,(space text-size) ,a))))
   
   (list new-children
@@ -550,47 +559,43 @@
     (color 125 125 125))
   (define expander-ellipses-color
     (color 200 200 200))
-  
-  (define truncated-menu-backed
-    (overlay/align/offset "right" "top"
-                          (overlay
-                           (above (ellipses expander-height expander-ellipses-color)
-                                  truncated-menu-image
-                                  (ellipses expander-height expander-ellipses-color))
-                           (rounded-rectangle
-                            (image-width truncated-menu-image)
-                            (image-height truncated-menu-image)
-                            radius
-                            menu-bkg-color)
-                           (rounded-rectangle
-                            (+ 0 (image-width truncated-menu-image))
-                            (+ (* 2 expander-height)
-                               (image-height truncated-menu-image))
-                            radius
-                            (color 125 125 125)))
-                          
-                          (- (div-integer margin 2)) 0
-                          ; slighly magic number
-                          (rounded-rectangle
-                           (+ 0 (image-width truncated-menu-image))
-                           (+ (* 2 expander-height)
-                              (image-height truncated-menu-image))
-                           radius
-                           selected-color)))
 
-  ; hackish. crops menu in char case to alleviate overlap
+  (define cool-menu
+    (overlay
+     (above (ellipses expander-height expander-ellipses-color)
+            truncated-menu-image
+            (ellipses expander-height expander-ellipses-color))
+     (rounded-rectangle
+      (image-width truncated-menu-image)
+      (image-height truncated-menu-image)
+      radius
+      menu-bkg-color)
+     (rounded-rectangle
+      (+ 0 (image-width truncated-menu-image))
+      (+ (* 2 expander-height)
+         (image-height truncated-menu-image))
+      radius
+      (color 125 125 125))))
+  
   (define new-image
-    (if (not char-menu?)
-        truncated-menu-backed
+    ; if char menu, supress drawing of left-side
+    ; highlight 'cause jankiness.
+    (if char-menu?
         (overlay/align/offset
          "left" "top"
-         (crop (div-integer margin 2)
-               0
-               (image-width (space text-size))
-               (image-height truncated-menu-backed)
-               truncated-menu-backed)
+         cool-menu
          (- (* 2 margin)) 0 
-         empty-image)))
+         empty-image)
+        (overlay/align/offset
+         "right" "top"
+         cool-menu             
+         (- (div-integer margin 2)) 0 ; slighly magic number
+         (rounded-rectangle
+          (+ 0 (image-width truncated-menu-image))
+          (+ (* 2 expander-height)
+             (image-height truncated-menu-image))
+          radius
+          selected-color))))
 
   ; calculate REAL position data
   (define-values (post-new-fruct _)
@@ -739,56 +744,48 @@
         new-image))
 
 
-(define (render-atom s selected? layout-settings)
+(define (render-atom a selected? layout-settings)
+  
+  (match-define (/ s/ s) a)
   (define-from layout-settings
     text-size selected-color literal-color
     form-color hole-color transform-arrow-color 
-    identifier-color grey-one)
+    identifier-color selected-atom-color)
   (define radius (sub1 (div-integer text-size 2)))
   (define margin (div-integer text-size 5))
   (define literal? (disjoin boolean? number? string?))
+  
   (define candidate
     (render-symbol
-     s
+     (match (/ s/ s) [(/ (sort 'char) _/ '⊙) '+] [_ s])
      (if selected?
-         selected-color
+         (if (form-id? s)
+             selected-color
+             selected-atom-color)
          (cond
            [(equal? s '→) transform-arrow-color]
            [(equal? s '⊙) hole-color]
            [(equal? s '+) hole-color]
-           [(equal? s '▹) selected-color]
            [(literal? s) literal-color]
            [(form-id? s) form-color]
+           [(equal? s '▹) selected-color]
            [else identifier-color]))
      layout-settings))
   
-  (cond
-    [selected?
-     (define selected-candidate
-       (overlay/align
-        "middle" "middle"
-        (render-symbol
-         s
-         "white"
-         layout-settings)
+  (define new-image
+    (cond
+      [(and selected? (not (form-id? s)))
+       (overlay
+        candidate
         (rounded-rectangle
          (image-width candidate)
          (image-height candidate)
          radius
-         selected-color)
-        ))
-     ; special-case the size of single-character selections
-     (if (and (symbol? s) (equal? 1 (string-length (symbol->string s))))
-         (crop 0
-               0
-               (image-width (space text-size))
-               (image-height candidate)
-               selected-candidate)
-         selected-candidate)
-     
-     
-     #;(beside* #;(second (render '▹ layout-settings)) candidate)]
-    [else candidate]))
+         selected-color))]
+      [else candidate]))
+  
+  (list (/ s/ s)
+        new-image))
 
 
 
@@ -796,81 +793,64 @@
 
 (define (render-list fruct depth bkg layout-settings selected?)
   (define-from layout-settings
-    selected-color text-size grey-one grey-two
+    selected-color text-size implicit-forms
     length-conditional-layout? length-conditional-cutoff)
-  (define radius (sub1 (div-integer text-size 2)))
-  (match-define (/ a/ stx) fruct)
   
-  (define candidate
-    (for/list ([s stx])
-      (render
-       s
-       layout-settings
-       (not depth)
-       (match stx
-         [(or `(,(? lambda-like-id?) ,xs ...)
-              `(,(? if-like-id?) ,xs ...))
-          bkg]
-         [_ depth]
-         ))))
-     
+  (match-define (/ a/ `(,first-stx ,rest-stx ...)) fruct)
+
+  ; figure this out here in case we truncate the names below
+  (define if-like? (if-like-id? first-stx))
+  (define lambda-like? (lambda-like-id? first-stx))
+
+  ; forms may lose their identities here
+  (define possibly-truncated-stx
+    (if (member first-stx implicit-forms)
+        rest-stx
+        (cons first-stx rest-stx)))
+
+  ; render the children
   (define children
-    (if selected?
-        (match stx
-          [`(,(? symbol? x) ,xs ...)
-           `((,(first (first candidate))
-              ,(render-symbol
-                x
-                selected-color
-                layout-settings)) ,@(rest candidate))]
-          [_ candidate])
-        candidate))
+    (for/list ([s possibly-truncated-stx])
+      (if (and selected? (form-id? s))
+          ; if selected highlight form-name; hacky
+          ; todo: refactor render-symbol to dehack
+          `(,(first (render s layout-settings (not depth) bkg))
+            ,(render-symbol s selected-color layout-settings))
+          (render s layout-settings (not depth) bkg)))) 
   
-  ; decide if we're rendering horizontally or vertically
+  ; decide if we're laying this out horizontally or vertically
   (define render-this-horizontally?
     (cond
+      [(not (or if-like? lambda-like?)) #t]
       [(not length-conditional-layout?) #f]
       [else (match-define `((,_ ,child-images) ...) children)
             (define total-length (div-integer (apply + (map image-width child-images))
                                               (image-width (space text-size))))
             (total-length . < . length-conditional-cutoff)]))
-     
-  (match stx
-    
 
-    ; TODO: refactor duplication below by spliting out render-this-horizontally?
-      
-    [`(,(? lambda-like-id?) ,xs ...)
-     (match-define (list new-kids-local new-layout-local)
-       (if render-this-horizontally?
-           (render-horizontal-default selected? layout-settings children)
-           (render-vertical-lambda-like selected? layout-settings children)))
-     (list (/ a/ new-kids-local)
-           (if render-this-horizontally?
-               (add-simple-horizontal-backing new-layout-local selected?
-                                              depth layout-settings)
-               (add-backing stx selected? depth children
-                            new-layout-local layout-settings)))
-     ]         
-    [`(,(? if-like-id?) ,xs ...)
-     (match-define (list new-kids-local new-layout-local)
-       (if render-this-horizontally?
-           (render-horizontal-default selected? layout-settings children)
-           (render-vertical-if-like selected? layout-settings children)))
-     (list (/ a/ new-kids-local)
-           (if render-this-horizontally?
-               (add-simple-horizontal-backing new-layout-local selected?
-                                              depth layout-settings)
-               (add-backing stx selected? depth children
-                            new-layout-local layout-settings)))
-     ]
-    [_
-     (match-define (list new-kids-local new-layout-local)
-       (render-horizontal-default selected? layout-settings children))
-     (list (/ a/ new-kids-local)
-           (add-simple-horizontal-backing new-layout-local selected?
-                                          depth layout-settings))])
-  )
+  ; choose an algorithm to layout the children
+  (define layout-renderer
+    (cond
+      [(and lambda-like? (not render-this-horizontally?))
+       render-vertical-lambda-like]         
+      [(and if-like? (not render-this-horizontally?))
+       render-vertical-if-like]
+      [else render-horizontal-default]))
+
+  ; choose an algorithm to back the layout
+  (define backer
+    (cond
+      [render-this-horizontally?
+       (λ (x) (add-horizontal-backing x selected? depth layout-settings))]
+      [else
+       (λ (x) (add-vertical-backing possibly-truncated-stx selected? depth
+                                    children x layout-settings))]))
+
+  (match-define (list new-kids-local new-layout-local)
+    (layout-renderer selected? layout-settings children))
+  
+  (list (/ a/ new-kids-local)
+        (backer new-layout-local)))
 
 
 
@@ -956,7 +936,7 @@
 
 
 
-(define (add-backing stx selected? depth children new-layout layout-settings)
+(define (add-vertical-backing stx selected? depth children new-layout layout-settings)
   (define new-backing
     (render-backing stx new-layout depth (map second children) layout-settings))
   (define-from layout-settings
@@ -985,7 +965,7 @@
        new-backing)))
 
 
-(define (add-simple-horizontal-backing new-layout selected? depth layout-settings)
+(define (add-horizontal-backing new-layout selected? depth layout-settings)
   (define-from layout-settings
     selected-color text-size grey-one grey-two)
   (define radius (sub1 (div-integer text-size 2)))
@@ -1168,6 +1148,95 @@
 (second
  (fructure-layout data-9 test-settings))
 
+
+(second
+ (fructure-layout '(p/
+          #hash((handle . #t)
+                (in-scope . ())
+                (sort . expr)
+                (transform
+                 .
+                 (p/
+                  #hash((handle . #t)
+                        (in-scope . ())
+                        (sort . expr))
+                  (app
+                   (p/
+                    #hash((in-scope . ()) (sort . expr))
+                    (app
+                     (p/
+                      #hash((in-scope . ()) (sort . expr))
+                      (app
+                       (p/
+                        #hash((▹ . ▹)
+                              (in-scope . ())
+                              (menu
+                               .
+                               ((((⋱
+                                   (▹ (sort expr) xs ... / ⊙)
+                                   (▹
+                                    (sort expr)
+                                    xs
+                                    ...
+                                    /
+                                    (app
+                                     ((sort expr) / ⊙)
+                                     ((sort expr) / ⊙)))))
+                                 (p/
+                                  #hash((▹ . ▹)
+                                        (in-scope . ())
+                                        (sort . expr))
+                                  (app
+                                   (p/
+                                    #hash((sort . expr))
+                                    ⊙)
+                                   (p/
+                                    #hash((sort . expr))
+                                    ⊙))))
+                                (((⋱
+                                   (▹ (sort expr) xs ... / ⊙)
+                                   (▹
+                                    (sort expr)
+                                    xs
+                                    ...
+                                    /
+                                    (λ ((sort params)
+                                        /
+                                        (((sort pat)
+                                          /
+                                          (id
+                                           ((sort char)
+                                            /
+                                            ⊙)))))
+                                      ((sort expr) / ⊙)))))
+                                 (p/
+                                  #hash((in-scope . ())
+                                        (sort . expr))
+                                  (λ (p/
+                                      #hash((sort . params))
+                                      ((p/
+                                        #hash((sort . pat))
+                                        (id
+                                         (p/
+                                          #hash((sort
+                                                 .
+                                                 char))
+                                          ⊙)))))
+                                    (p/
+                                     #hash((sort . expr))
+                                     ⊙))))))
+                              (sort . expr))
+                        ⊙)
+                       (p/
+                        #hash((in-scope . ()) (sort . expr))
+                        ⊙)))
+                     (p/
+                      #hash((in-scope . ()) (sort . expr))
+                      ⊙)))
+                   (p/
+                    #hash((in-scope . ()) (sort . expr))
+                    ⊙)))))
+          ⊙) test-settings))
 
 
 ; temp work on search
