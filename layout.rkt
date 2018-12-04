@@ -5,9 +5,10 @@
 (require rackunit
          "layout-tests.rkt"
          "new-syntax.rkt"
-         "utility.rkt"
+         "language.rkt"
+         "common.rkt"
          "../containment-patterns/containment-patterns.rkt"
-         "utility-graphics.rkt")
+         "common-graphics.rkt")
 
 (provide fructure-layout)
 
@@ -174,7 +175,7 @@
      (list fruct-with-positions
            (if popout-menu?
                ; whatever is supposed to be there as placeholder
-               (let ([temp-image (render (/ m/ m) layout-settings)])
+               (let ([temp-image (render '? #;(/ m/ m) layout-settings)])
                  (rectangle (image-width (second temp-image))
                             (image-height (second temp-image))
                             "solid" invisible))
@@ -231,7 +232,11 @@
      #; (? → ▹ λ app)
      ; TODO: factor out all these cases
      ; slight hack; adding blank attributes to a
-     (render-atom (/ a) (selected? fruct) layout-settings)]
+     ; WARNING: DO NOT REPLACE THE LIST WITH JUST THE RENDER CALL
+     ; form-ids will get wrapped and layout will get screwy
+     (list
+      a
+      (second (render-atom (/ a) (selected? fruct) layout-settings)))]
     
     [_ (error (~v `(,fruct "error: layout: render: not a fruct")))]))
 
@@ -691,7 +696,6 @@
                                  selected-color 0.3) v))]
                     [_ (values k v)])))
         (render template layout-settings)))
-
  
   (define new-template
     (match template-fruct
@@ -1148,95 +1152,8 @@
 (second
  (fructure-layout data-9 test-settings))
 
-
 (second
- (fructure-layout '(p/
-          #hash((handle . #t)
-                (in-scope . ())
-                (sort . expr)
-                (transform
-                 .
-                 (p/
-                  #hash((handle . #t)
-                        (in-scope . ())
-                        (sort . expr))
-                  (app
-                   (p/
-                    #hash((in-scope . ()) (sort . expr))
-                    (app
-                     (p/
-                      #hash((in-scope . ()) (sort . expr))
-                      (app
-                       (p/
-                        #hash((▹ . ▹)
-                              (in-scope . ())
-                              (menu
-                               .
-                               ((((⋱
-                                   (▹ (sort expr) xs ... / ⊙)
-                                   (▹
-                                    (sort expr)
-                                    xs
-                                    ...
-                                    /
-                                    (app
-                                     ((sort expr) / ⊙)
-                                     ((sort expr) / ⊙)))))
-                                 (p/
-                                  #hash((▹ . ▹)
-                                        (in-scope . ())
-                                        (sort . expr))
-                                  (app
-                                   (p/
-                                    #hash((sort . expr))
-                                    ⊙)
-                                   (p/
-                                    #hash((sort . expr))
-                                    ⊙))))
-                                (((⋱
-                                   (▹ (sort expr) xs ... / ⊙)
-                                   (▹
-                                    (sort expr)
-                                    xs
-                                    ...
-                                    /
-                                    (λ ((sort params)
-                                        /
-                                        (((sort pat)
-                                          /
-                                          (id
-                                           ((sort char)
-                                            /
-                                            ⊙)))))
-                                      ((sort expr) / ⊙)))))
-                                 (p/
-                                  #hash((in-scope . ())
-                                        (sort . expr))
-                                  (λ (p/
-                                      #hash((sort . params))
-                                      ((p/
-                                        #hash((sort . pat))
-                                        (id
-                                         (p/
-                                          #hash((sort
-                                                 .
-                                                 char))
-                                          ⊙)))))
-                                    (p/
-                                     #hash((sort . expr))
-                                     ⊙))))))
-                              (sort . expr))
-                        ⊙)
-                       (p/
-                        #hash((in-scope . ()) (sort . expr))
-                        ⊙)))
-                     (p/
-                      #hash((in-scope . ()) (sort . expr))
-                      ⊙)))
-                   (p/
-                    #hash((in-scope . ()) (sort . expr))
-                    ⊙)))))
-          ⊙) test-settings))
+ (fructure-layout data-10 test-settings))
 
 
 ; temp work on search

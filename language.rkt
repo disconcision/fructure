@@ -1,19 +1,13 @@
 #lang racket
 
-(require "../fructerm/fructerm.rkt"
-         #;"../fructerm/f-match.rkt"
+(require "common.rkt"
          "new-syntax.rkt")
 
-(provide define-from
-         transform-in
-         apply-in!
-         project
-         atomic?
-         selected?
-         select-▹
-         desugar-fruct
-         select-first-⊙-under-▹
-         stx->fruct)
+(provide base-transforms
+         initial-stx)
+
+(provide stx->fruct
+         project)
 
 (provide literals
          if-like-id?
@@ -21,7 +15,66 @@
          form-id?
          affo-id?)
 
+
+
+
 ; -------------------------------------------------
+; non-packaged constructors for transform mode
+
+(define base-constructors
+  ; constructors for app and λ
+  ; constructors for variable references are introduced dynamically
+  (list '([⋱
+            (▹ [sort expr] xs ... / ⊙)
+            (▹ [sort expr] xs ... / (app ([sort expr] / ⊙)
+                                         ([sort expr] / ⊙)))])
+        '([⋱
+            (▹ [sort expr] xs ... / ⊙)
+            (▹ [sort expr] xs ... / (λ ([sort params]
+                                        / (([sort pat]
+                                            / (id ([sort char] / ⊙)))))
+                                      ([sort expr] / ⊙)))])))
+
+
+(define base-destructors
+  ; destructors for all syntactic forms
+  (list
+   '([⋱
+       (▹ xs ... / (ref a))
+       (▹ xs ... / ⊙)]
+     [⋱
+       (▹ xs ... / (app a b))
+       (▹ xs ... / ⊙)]
+     [⋱
+       (▹ xs ... / (λ a b))
+       (▹ xs ... / ⊙)]
+     )))
+
+
+(define alphabet
+  ; character set for identifiers
+  '(a b c d e f g h i j k l m n o p q r s t u v w x y z))
+
+
+(define alpha-constructors
+  ; char constructors for each letter in the alphabet
+  (cons
+   ; identity
+   `([⋱
+       (xs ... / (id as ... (▹ [sort char] ys ... / ⊙) bs ...))
+       (xs ... / (id as ... (▹ [sort char] ys ... / ⊙) bs ...))])
+   (for/list ([x alphabet])
+     `([⋱
+         (xs ... / (id as ... (▹ [sort char] ys ... / ⊙) bs ...))
+         (xs ... / (id as ... (▹ [sort char] ys ... / ',x) ([sort char] / ⊙) bs ...))]))))
+
+
+(define base-transforms
+  (append base-constructors
+          alpha-constructors
+          base-destructors))
+
+
 
 ; LANGUAGE DATA
 
@@ -55,36 +108,12 @@
     (hash-set hs lit '())))
 
 
+; INITIAL SYNTAX
 
-; -------------------------------------------------
+(define initial-stx
+  ; initial syntax for this language
+  ((desugar-fruct literals) '(◇ (▹ (sort expr) / ⊙))))
 
-
-; 👻👻 SPOOKY GHOST OO STUFF 👻👻
-
-
-; attribute accessors ooooooo
-#;(define-syntax-rule (transform-in state attr f)
-    (match state
-      [(hash-table ('attr attr))
-       (hash-set state 'attr (f attr))]))
-
-(define-syntax-rule (transform-in state (attr f) ...)
-  ((compose
-    (match-lambda
-      [(hash-table ('attr attr))
-       (hash-set state 'attr (f attr))]) ...)
-   state))
-
-(define-syntax-rule (apply-in! object 'attr f)
-  (set! object (transform-in object (attr f))))
-
-; bind a bunch of attributes oooooooo
-(define-syntax-rule (define-from state attrs ...)
-  (match-define (hash-table ('attrs attrs) ...) state))
-
-
-
-; -------------------------------------------------
 
 ; SEX PROJECTION LIBRARY
 
@@ -98,7 +127,7 @@
      (@ x)]
     ; transform mode
     #;[(/ (transform template) _/ (▹ stx))
-     `(▹ [,stx -> ,(project template)])]
+       `(▹ [,stx -> ,(project template)])]
     ; label sorts of holes
     [(/ (sort sort) _/ (▹ '⊙))
      `(▹ (⊙ ,sort))]
@@ -109,7 +138,7 @@
      `(⊙ ,sort)]
     ; embed cursor
     #;[(/ _/ (▹ stx))
-     `(▹ ,(@ stx))]
+       `(▹ ,(@ stx))]
     ; or nor
     [(/ _/ (▹ stx))
      (@ stx)]
@@ -134,43 +163,6 @@
      (/ `(,a ,@(map s2f as)))]
     [(? list?)
      (/ (map s2f stx))]))
-
-
-
-; -------------------------------------------------
-
-; FRUCT WRANGLING
-
-(define (desugar-fruct literals)
-  (compose (curry restructure literals #hash()) desugar))
-
-(define (atomic? fr)
-  (match fr
-    [(/ c/ (? (negate list?))) #t]
-    [_ #f]))
-
-;  check if the current node is selected
-(define (selected? fr)
-  (match fr
-    [(/ c/ (▹ a)) #t] [_ #f]))
-
-(define (select-▹ fr)
-  (match fr
-    [(/ a/ a) (/ (▹ '▹) a/ a)]))
-
-(define (select-first-⊙-under-▹ literals)
-  (curry runtime-match literals
-         '([(c ⋱ (▹ ys ... / (d ⋱ (xs ... / ⊙))))
-            (c ⋱ (ys ... / (d ⋱ (▹ xs ... / ⊙))))]
-           [A A])))
-
-#;(define (select-first-⊙-in-unselected literals)
-    (curry runtime-match literals
-           '([(c ⋱ (xs ... / ⊙))
-              (c ⋱ (▹ xs ... / ⊙))]
-             [A A])))
-
-
 
 
 ; -------------------------------------------------
@@ -200,3 +192,4 @@
                        (and
                         (p/ #hash() true)
                         (p/ #hash() false)))))))))
+

@@ -1,21 +1,39 @@
 #lang racket
 
-#;(require "../fructerm/f-match.rkt")
+(provide augment
+         augment-transform
+         paint-handle)
+
 (require "new-syntax.rkt"
          "../containment-patterns/containment-patterns.rkt")
 
-(provide augment
-         augment-transform) ; syntax -> attributed-syntax
 
 
-; augment: stx -> stx
+(define (paint-handle fr)
+  ; paint-handle: stx -> stx
+  ; add selectability handles
+  (match fr   
+    ; slight hack? with proper order of application
+    ; i prob shouldn't have to recurse on tempalte here
+    ; note below fails to paint selectable on target
+    #;[(/ [transform template] a/ a)
+       (/ [transform (new-aug template)] a/ (new-aug a))]
+    [(/ [sort (and my-sort (or 'expr 'char))] a/ a)
+     (/ [sort my-sort] [handle #t] a/ (paint-handle a))]
+    [(/ a/ a)
+     (/ a/ (paint-handle a))]
+    [(? list?) (map paint-handle fr)]
+    [_ fr]))
+
+
 (define (augment stx)
+  ; augment: stx -> stx
   (augment-internal stx))
 
 
-; augment-transform: stx -> stx
-; writes attributes into the the transform product
 (define (augment-transform stx)
+  ; augment-transform: stx -> stx
+  ; writes attributes into the the transform product
   (match stx
     [(⋱ c⋱
         (/ (transform (/ ts/ t))
@@ -46,16 +64,7 @@
                 `(◇ ,(/ (in-scope '())
                         `(λ ,(/ `(,(/ `(id ,(/ 'a) ,(/ 'b) ,(/ '⊙)))))
                            ,(/ (in-scope `((id ,(/ 'a) ,(/ 'b) ,(/ '⊙))))
-                               0)))))
-  #;(check-equal? (augment-internal
-                   `(◇ ,(/ `(λ ,(/ `(,(/ `(id ,(/ 'a) ,(/ 'b) ,(/ '⊙)))))
-                              ,(/ 0)))))
-                  `(◇ ,(/ (in-scope '())
-                          `(λ ,(/ `(,(/ `(id ,(/ 'a) ,(/ 'b) ,(/ '⊙)))))
-                             ,(/ (in-scope '(ab))
-                                 0)))))
-  )
-
+                               0))))))
 
 
 

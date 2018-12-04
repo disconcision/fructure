@@ -2,49 +2,25 @@
 
 ; andrew blinn 2018
 
-
-; bug if true
 (require racket/hash
          2htdp/image
          2htdp/universe)
 
-; fructure uses some additional match syntax for rewriting
-(require "../fructerm/fructerm.rkt"
-         "../fructerm/f-match.rkt"
-         "new-syntax.rkt"
-         ; temporary renames so as not to intefere with f-match
-         (only-in "../containment-patterns/containment-patterns.rkt"
-                  (⋱ ⋱x)
-                  (⋱1 ⋱1x)
-                  (⋱+ ⋱+x)))
-
 ; internal structure
-(require "attributes.rkt" ; syntax->attributed-syntax
-         "layout.rkt" ; syntax->pixels
-         "utility.rkt") ; defines literals
+(require "language.rkt"
+         ; syntax generators
+         "attributes.rkt"
+         ; syntax->attributed-syntax
+         "layout.rkt"
+         ; syntax->pixels
+         "mode-transform.rkt"
+         ; input mode
+         "mode-navigate.rkt"
+         ; input mode
+         "common.rkt")
 
-
-(define (paint-handle fr)
-  (match fr   
-    ; slight hack? with proper order of application
-    ; i prob shouldn't have to recurse on tempalte here
-    ; note below fails to paint selectable on target
-    #;[(/ [transform template] a/ a)
-       (/ [transform (new-aug template)] a/ (new-aug a))]
-    [(/ [sort (and my-sort (or 'expr 'char))] a/ a)
-     (/ [sort my-sort] [handle #t] a/ (paint-handle a))]
-    [(/ a/ a)
-     (/ a/ (paint-handle a))]
-    [(? list?) (map paint-handle fr)]
-    [_ fr]))
-
-(define fruct-augment
-  (compose augment-transform
-           augment
-           paint-handle))
 
 ; -------------------------------------------------
-
 ; OUTPUT & DISPLAY SETTINGS
 
 (define (output state)
@@ -59,7 +35,7 @@
           'length-conditional-layout? #t
           'length-conditional-cutoff 8
           'dodge-enabled? #t
-          'implicit-forms '(ref #;app)
+          'implicit-forms '(ref app)
           'selected-atom-color "white"
           'menu-bkg-color (color 112 112 112)
           'form-color (color 0 130 214)
@@ -79,571 +55,30 @@
   image-out)
 
 
-
 ; -------------------------------------------------
-
 ; INITIAL DATA
+
+(define fruct-augment
+  ; augments syntax with attributes
+  (compose augment-transform
+           augment
+           paint-handle))
 
 (define initial-state
   ; we begin in navigation mode,
   ; with a single selected hole of sort 'expression
   ; transforms: undo history; currently broken
   ; messages: a messages log, currently disused
-  (hash 'stx (fruct-augment
-              ((desugar-fruct literals) '(◇ (▹ (sort expr) / ⊙))))
+  (hash 'stx (fruct-augment initial-stx)
         'mode 'nav
         'transforms '()
         'messages '("hello world")))
 
 
-(define alphabet
-  ; character set for identifiers
-  '(a b c d e f g h i j k l m n o p q r s t u v w x y z))
-
-
-
 ; -------------------------------------------------
-; packaged constructors and their helpers
+; INPUT LOOP & MODES
 
-
-; structure for annotating transformation rules
-(struct -> (class props payload) #:transparent)
-
-
-(define (make-constructor raw-rule)
-  (define (select mstx)
-    (match mstx
-      [`(,y ... / ,d ...)
-       `(▹ ,@y / ,@d)]))
-  (define (wrap⋱select mstx)
-    (for/list ([s mstx])
-      (match s
-        [`[,a ,b]
-         `[⋱ ,(select a) ,(select b)]])))
-  `(compose->
-    ,(-> 'runtime
-         (set 'meta 'move-▹)
-         '([(c ⋱ (▹ ys ... / (d ⋱ (xs ... / ⊙))))
-            (c ⋱ (ys ... / (d ⋱ (▹ xs ... / ⊙))))]
-           [A A]))
-    ,(-> 'runtime
-         (set 'object 'constructor)
-         (wrap⋱select raw-rule))))
-
-
-(define make-destructor
-  make-constructor)
-
-
-(define identity->
-  (-> 'runtime
-      (set 'object)
-      '([A A])))
-
-
-(define (make-movement raw-rule)
-  (-> 'runtime
-      (set 'meta 'move-▹)
-      raw-rule))
-
-
-; make constructors for each character
-(define packaged-alpha-constructors
-  (for/fold ([alpha (hash)])
-            ([x alphabet])
-    (hash-set alpha
-              (symbol->string x)
-              (-> 'runtime (set)
-                  `([⋱
-                      (xs ... / (id as ... (▹ ys ... / b) bs ...))
-                      (xs ... / (id as ... ([sort char] / ',x) (▹ ys ... / b) bs ...))])))))
-
-
-
-; -------------------------------------------------
-; non-packaged constructors for transform mode
-
-(define base-constructors
-  ; constructors for app and λ
-  ; constructors for variable references are introduced dynamically
-  (list '([⋱
-            (▹ [sort expr] xs ... / ⊙)
-            (▹ [sort expr] xs ... / (app ([sort expr] / ⊙)
-                                         ([sort expr] / ⊙)))])
-        '([⋱
-            (▹ [sort expr] xs ... / ⊙)
-            (▹ [sort expr] xs ... / (λ ([sort params]
-                                        / (([sort pat]
-                                            / (id ([sort char] / ⊙)))))
-                                      ([sort expr] / ⊙)))])))
-
-
-(define base-destructors
-  ; destructors for all syntactic forms
-  (list
-   '([⋱
-       (▹ xs ... / (ref a))
-       (▹ xs ... / ⊙)]
-     [⋱
-       (▹ xs ... / (app a b))
-       (▹ xs ... / ⊙)]
-     [⋱
-       (▹ xs ... / (λ a b))
-       (▹ xs ... / ⊙)]
-     )))
-
-
-(define alpha-constructors
-  ; char constructors for each letter in the alphabet
-  (cons
-   ; identity
-   `([⋱
-       (xs ... / (id as ... (▹ [sort char] ys ... / ⊙) bs ...))
-       (xs ... / (id as ... (▹ [sort char] ys ... / ⊙) bs ...))])
-   (for/list ([x alphabet])
-     `([⋱
-         (xs ... / (id as ... (▹ [sort char] ys ... / ⊙) bs ...))
-         (xs ... / (id as ... (▹ [sort char] ys ... / ',x) ([sort char] / ⊙) bs ...))]))))
-
-
-(define base-transforms
-  (append base-constructors
-          alpha-constructors
-          base-destructors))
-
-
-(define (transforms->menu transforms reagent)
-  ; 
-  (define (test-match transform stx)
-    (match (runtime-match literals transform stx)
-      ['no-match #f] [_ #t]))
-  (for/fold ([menu '()])
-            ([transform transforms])
-    (if (test-match transform reagent)
-        `(,@menu (,transform
-                  ,(f/match (runtime-match literals transform reagent)
-                     [(c ⋱ (▹ as ... / a))
-                      (as ... / a)])))
-        menu)))
-
-
-(define (make-menu in-scope current-selection)
-  (transforms->menu
-   (append base-transforms
-           (for/list ([id in-scope])
-             `([⋱
-                 (▹ [sort expr] xs ... / ⊙)
-                 (▹ [sort expr] xs ... /
-                    (ref ',id))])))
-   current-selection))
-
-
-
-; -------------------------------------------------
-
-
-(module+ test
-  (require rackunit)
-  (define raw-base-constructor-list
-    #;(list '([(/ [sort: expr] a/ ⊙)
-               (/ a/ (app (/ [sort: expr] ⊙)
-                          (/ [sort: expr] ⊙)))])
-            '([(/ [sort: expr] a/ ⊙)
-               (/ a/ (λ (/ [sort: params]
-                           `(,(/ [sort: pat]
-                                 `(id ,(/ [sort: char] ⊙)))))
-                       (/ (sort: expr) ⊙)))]))
-    (list '([([sort expr] xs ... / ⊙)
-             ([sort expr] xs ... / (app ([sort expr] / ⊙)
-                                        ([sort expr] / ⊙)))])
-          '([([sort expr] xs ... / ⊙)
-             ([sort expr] xs ... / (λ ( / (( / (id ([sort char] / ⊙)))))
-                                     ([sort expr] / ⊙)))])))
-  (check-equal?
-   (transforms->menu
-    raw-base-constructor-list
-    '(p/  #hash((sort . expr) (▹ . ▹)) ⊙))
-   '((((((sort expr) xs ... / ⊙)
-        ((sort expr) xs ... / (app ((sort expr) / ⊙)
-                                   ((sort expr) / ⊙)))))
-      (p/ #hash((sort . expr))
-          (app (p/ #hash((sort . expr)) ⊙)
-               (p/ #hash((sort . expr)) ⊙))))
-     (((((sort expr) xs ... / ⊙)
-        ((sort expr) xs ... / (λ (/ ((/ (id ((sort char) / ⊙)))))
-                                ((sort expr) / ⊙)))))
-      (p/ #hash((sort . expr))
-          (λ (p/ #hash() ((p/ #hash() (id (p/ #hash((sort . char)) ⊙)))))
-            (p/ #hash((sort . expr)) ⊙)))))))
-
-
-
-
-(define keymap
-  ; map from keys to functions
-  ; this is mostly deprecated by transform mode
-  ; but is still useful for editing identifers
-  ; pending a more structure solution
-  (hash
-
-   ; constructors
-   
-   "1" (make-constructor
-        '([([sort expr] xs ... / ⊙)
-           ([sort expr] xs ... / 0)]))
-   
-   "2" (make-constructor
-        '([([sort expr] xs ... / ⊙)
-           ([sort expr] xs ... / (app ([sort expr] / ⊙)
-                                      ([sort expr] / ⊙)))]))
-   "3" (make-constructor
-        '([([sort expr] xs ... / ⊙)
-           ([sort expr] xs ... / (λ ( / ((#;[sort pat] / (id ([sort char] / ⊙)))))
-                                   ([sort expr] / ⊙)))]))
-
-   ; destructors
-   
-   "\b" (-> 'runtime (set)
-            '([⋱
-                (xs ... / (id as ... a (▹ ys ... / b) bs ...))
-                (xs ... / (id as ... (▹ ys ... / b) bs ...))]))
-
-   "\u007F" `(fallthrough->
-              ,(-> 'runtime (set)
-                   '([⋱
-                       (xs ... / (id as ... (▹ ys ... / a) (zs ... / b) bs ...))
-                       (xs ... / (id as ... (▹ zs ... / b) bs ...))]))
-              ,(make-destructor
-                '([(xs ... / 0)
-                   (xs ... / ⊙)]
-                  [(xs ... / (ref a))
-                   (xs ... / ⊙)]
-                  [(xs ... / (id a))
-                   (xs ... / ⊙)]
-                  [(xs ... / (app a b))
-                   (xs ... / ⊙)]
-                  [(xs ... / (λ a b))
-                   (xs ... / ⊙)]
-                  )))
-
-   ; movements
-   
-   "up" (make-movement
-         '([⋱
-             (a ... / (λ (b ... / ((c ... / (id x ... (▹ ys ... / y) z ...)))) e))
-             (▹ a ... / (λ (b ... / ((c ... / (id x ... (ys ... / y) z ...)))) e))]
-           [⋱
-             (As ... / (a ... (▹ Bs ... / b) c ...))
-             (▹ As ... / (a ... (Bs ... / b) c ...))]))
-
-   "down" (make-movement
-           '([⋱
-               (▹ a ... / (λ (b ... / ((c ... / (id (ys ... / y) z ...)))) e))
-               (a ... / (λ (b ... / ((c ... / (id (▹ ys ... / y) z ...)))) e))]
-             [⋱
-               (▹ As ... / (ctx ⋱ (sort Bs ... / b)))
-               (As ... / (ctx ⋱ (▹ sort Bs ... / b)))]))
-
-   #;#;"left" (make-movement
-               '([⋱
-                   (◇ (▹ As ... / c))
-                   (◇ (▹ As ... / c))]
-                 [⋱
-                   (var (▹ As ... / c))
-                   (var (▹ As ... / c))]
-                 [⋱
-                   (app (▹ As ... / c) d ...)
-                   (app (▹ As ... / c) d ...)]
-                 [⋱
-                   (λ (Cs ... / ((▹ Bs ... / a))) b)
-                   (λ (Cs ... / ((▹ Bs ... / a))) b)]
-                 [⋱
-                   (λ (Cs ... / ((As ... / a))) (▹ Bs ... / b))
-                   (λ (Cs ... / ((▹ As ... / a))) (Bs ... / b))]
-                 [⋱
-                   ((▹ As ... / c) d ...)
-                   ((▹ As ... / c) d ...)]
-                 [⋱
-                   (a ... (As ... / b) (▹ Bs ... / c) d ...)
-                   (a ... (▹ As ... / b) (Bs ... / c) d ...)]))
-
-   #;#;"right" (make-movement
-                '([⋱
-                    (λ (Cs ... / ((▹ As ... / a))) (Bs ... / b))
-                    (λ (Cs ... / ((As ... / a))) (▹ Bs ... / b))]
-                  [⋱
-                    (a ... (▹ As ... / b) (Bs ... / c) d ...)
-                    (a ... (As ... / b) (▹ Bs ... / c) d ...)]))  
-   ))
-
-
-
-; perform a sequence of actions
-(define (do-seq stx actions)
-  (for/fold ([s stx])
-            ([a actions])
-    (runtime-match literals a s)))
-
-
-
-(define (apply-> transform state)
-  (define update (curry hash-set* state))
-  (define-from state
-    stx mode transforms messages)
-  (match transform
-    [`(fallthrough-> ,t0 ,t1)
-     (let ([new-state (apply-> t0 state)])
-       (if (equal? new-state state)
-           (apply-> t1 state)
-           new-state))]
-    [`(compose-> ,x)
-     (apply-> x state)]
-    [`(compose-> ,xs  ..1 ,x)
-     (apply-> `(compose-> ,@xs)
-              (apply-> x state))]
-    [(-> 'runtime _ t)
-     (match (runtime-match literals t stx)
-       ['no-match state]
-       [new-stx
-        (update
-         'stx new-stx
-         'transforms `(,t ,@transforms)
-         'messages `("performed action" ,@messages)
-         )])]))
-
-
-
-(define (extract-scope stx)
-  ; extract the variables in scope under the cursor
-  (f/match stx
-    [(c ⋱ (▹ in-scope As ... / a))
-     in-scope]    
-    ; fallthrough case - current λ params list has no in-scope
-    ; TODO: decide if i do/should actually need this case
-    [(c ⋱ (▹ As ... / a))
-     '()]))
-
-
-
-
-
-(define (mode:navigate key state)
-  ; navigation major mode
-  
-  (define-from state
-    stx mode transforms messages)
-  (define update (curry hash-set* state))
-  
-  (match key
-    ["right"
-     ; moves the cursor right in a preorder traversal
-     ; 1. if there is a handled fruct under the cursor, select it
-     ; 2. otherwise, gather all handled subfructs which don't contain the cursor,
-     ;    as well as the current selection, and therein advance the cursor
-     (define new-stx
-       (f/match stx
-         [(c ⋱ (▹ ys ... / (d ⋱ (handle xs ... / a))))
-          (c ⋱ (ys ... / (d ⋱ (▹ handle xs ... / a))))]
-         [(c ⋱ (capture-when (or (('▹ _) _ ... / _)
-                                 (('handle _) _ ... / (not (⋱ (('▹ _) _ ... / _))))))
-             `(,as ... ,(▹ ws ... / a) ,(zs ... / b) ,bs ...))
-          (c ⋱... 
-             `(,@as ,(ws ... / a) ,(▹ zs ... / b) ,@bs))]
-         [x x]))
-     (update 'stx new-stx)]
-    
-    ["left"
-     ; moves the cursor left in a preorder traversal
-     ; 1. if there is a left-sibling to the cursor which contains-or-is a handle,
-     ;    select its rightmost handle not containing another handle
-     ; 2. otherwise, find the most immediate containing handle;
-     ;    that is, a containing handle not containing a handle containing ▹
-     (define new-stx    
-       (f/match stx
-         [(⋱c1 ⋱ `(,as ...
-                   ,(⋱c2 ⋱ (capture-when (handle _ ... / (not (_ ⋱ (handle _ ... / _)))))
-                         `(,bs ... ,(cs ... / c)))
-                   ,ds ... ,(▹ es ... / e) ,fs ...))
-          (⋱c1 ⋱ `(,@as ,(⋱c2 ⋱... `(,@bs ,(▹ cs ... / c)))
-                        ,@ds ,(es ... / e) ,@fs))]
-         [(⋱c1 ⋱ (and (handle as ... / (⋱c2 ⋱ (▹ bs ... / b)))
-                      (not (handle _ ... / (_ ⋱ (handle _ ... / (_ ⋱ (▹ _ ... / _))))))))
-          (⋱c1 ⋱ (▹ handle as ... / (⋱c2 ⋱ (bs ... / b))))]
-         
-         [x x]))
-     (update 'stx new-stx)]
-
-    ["\r"
-     ; ENTER: insert a menu and switch to transform mode
-     (update
-      'mode 'menu
-      'stx (f/match stx
-             [(c ⋱ (▹ as ... / a))
-              (c ⋱ (('transform (insert-menu-at-cursor (▹ as ... / a)))
-                    as ... / a))]))]
-
-        
-    [","
-     ; COMMA: undo (BUG: currently completely broken)
-     (match transforms
-       ['() (update 'messages
-                    `("no undo states" ,messages))]
-       [_ (update 'messages `("reverting to previous state" ,@messages)
-                  'stx (do-seq (hash-ref initial-state 'stx)
-                               (reverse (rest transforms)))
-                  'transforms (rest transforms))])]
-    
-    [_
-     ; otherwise, apply a transformation from the keymap hash,
-     ; applying the identity if there is no binding for that key
-     (define transform
-       (hash-ref (hash-union packaged-alpha-constructors keymap
-                             #:combine/key (λ (k v v1) v))
-                 key identity->))
-     (apply-> transform state)]))
-
-
-
-
-#; (define (no-⊙? stx)
-     (f/match stx
-       [(c ⋱ '⊙) #f]
-       [_ #t]))
-
-
-(define (advance-cursor-to-next-hole stx)
-  (f/match stx
-    [(c ⋱ (▹ ys ... / (d ⋱ (xs ... / '⊙))))
-     (c ⋱ (ys ... / (d ⋱ (▹ xs ... / '⊙))))]
-    [(c ⋱ (capture-when (or (('▹ _) _ ... / _)
-                            (_ ... / '⊙)))
-        `(,as ... ,(▹ ws ... / a) ,(zs ... / b) ,bs ...))
-     (c ⋱... 
-        `(,@as ,(ws ... / a) ,(▹ zs ... / b) ,@bs))]
-    [x (println "warning: no hole after cursor") x]))
-
-
-(define (insert-menu-at-cursor stx)
-  (define in-scope
-    (extract-scope stx))
-  (define menu-stx (make-menu in-scope stx))
-  (f/match stx
-    [(c ⋱ (▹ xs ... / x))
-     #:when (not (empty? menu-stx))
-     (define menu-with-selection
-       ; recall that each menu item is a pairing
-       ; of a transformation and its result
-       (match menu-stx
-         [`((,t ,r) ,xs ...)
-          `((,t ,(select-▹ r)) ,@xs)]))
-     (c ⋱ (▹ ('menu menu-with-selection) xs ... / x))]
-    [x (println "warning: no menu inserted")
-       (when (empty? menu-stx)
-         (println "warning: menu was empty; not handled"))
-       x]))
-
-
-(define (strip-menu stx)
-  ; removes up to one menu from stx
-  (f/match stx
-    [(ctx ⋱ (menu xs ... / x))
-     (ctx ⋱ (xs ... / x))]
-    [x x]))
-
-
-(define (move-menu-to-next-hole stx)
-  ; removes existing menu, advances cursor to next hole,
-  ; and inserts a menu at that hole. if there is no such
-  ; hole, the returned stx will have no menu
-  (define (local-augment stx)
-    (f/match stx
-      [(ctx ⋱ (in-scope ts ... / t))
-       (ctx ⋱ (augment (in-scope ts ... / t)))]
-      [x (println "warning: local-augment no-match") x]))
-  ((if (equal? stx (advance-cursor-to-next-hole stx))
-       identity
-       (compose insert-menu-at-cursor
-                local-augment
-                advance-cursor-to-next-hole))  
-   (strip-menu stx)))
-
-
-
-(define (mode:transform key state)
-  ; transformation major mode
-  
-  (define-from state stx)
-  (define update (curry hash-set* state))
-  (match-define (⋱x ctx (/ [transform template] r/ reagent)) stx)
-
-  (define (perform-selected-transform template)
-    ; find the transform corresponding to the selected menu item
-    ; and apply that transform to the WHOLE template
-    (match template
-      [(⋱x (/ [menu `(,_ ... (,transform ,(/ _ (▹ _))) ,_ ...)] _ _))
-       (runtime-match literals transform template)]
-      [x (println "warning: no transform selected") x]))
-  
-  (match key
-    
-    ["escape"
-     ; cancel current transform and restore original syntax
-     ; TODO: decide if cursor is conceptually necessary here
-     (update 'mode 'nav
-             'stx (⋱x ctx (/ r/ (▹ reagent))))]
-
-    ["\r"
-     ; perform selected transform, remove menu, and switch to nav mode
-     (update 'mode 'nav
-             'stx (⋱x ctx (strip-menu (perform-selected-transform template))))]
-    
-    [" "
-     ; if there's a hole after the cursor, advance the cursor+menu to it
-     ; BUG? : think about behavior when press space at first-level menu
-     (update 'stx (⋱x ctx (/ [transform (move-menu-to-next-hole template)]
-                             r/ reagent)))]
-    
-    ["right"
-     ; apply selected transform and advance the cursor+menu the next hole     
-     (update 'stx (⋱x ctx (/ [transform (move-menu-to-next-hole
-                                         (perform-selected-transform template))]
-                             r/ reagent)))]
-    
-    ["up"
-     ; cycle the cursor to the previous menu item
-     ; it looks a bit noisy because each menu item is actually
-     ; a pair of a (hidden) transformation and its (displayed) result
-     (define new-template
-       (match template
-         [(⋱x c⋱ (/ [menu `((,t1 ,(/ a/ (▹ a))) ,bs ... (,t2 ,(/ c/ c)))] t/ t))
-          (⋱x c⋱ (/ [menu `((,t1 ,(/ a/ a)) ,@bs (,t2 ,(/ c/ (▹ c))))] t/ t))]
-         [(⋱x c⋱ (/ [menu `(,a ... (,t1 ,(/ b/ b)) (,t2 ,(/ c/ (▹ c))) ,d ...)] t/ t))
-          (⋱x c⋱ (/ [menu `(,@a (,t1 ,(/ b/ (▹ b))) (,t2 ,(/ c/ c)) ,@d)] t/ t))]
-         [x (println "warning: couldn't find menu cursor") x]))
-     (update 'stx (⋱x ctx (/ (transform new-template) r/ reagent)))]
-
-    ["down"
-     ; cycle the cursor to the next menu item
-     (define new-template
-       (match template
-         [(⋱x c⋱ (/ [menu `((,t1 ,(/ a/ a)) ,bs ... (,t2 ,(/ c/ (▹ c))))] t/ t))
-          (⋱x c⋱ (/ [menu `((,t1 ,(/ a/ (▹ a))) ,@bs (,t2 ,(/ c/ c)))] t/ t))]
-         [(⋱x c⋱ (/ [menu `(,a ... (,t1 ,(/ b/ (▹ b))) (,t2 ,(/ c/ c)) ,d ...)] t/ t))
-          (⋱x c⋱ (/ [menu `(,@a (,t1 ,(/ b/ b)) (,t2 ,(/ c/ (▹ c))) ,@d)] t/ t))]
-         [x (println "warning: couldn't find menu cursor") x]))
-     (update 'stx (⋱x ctx (/ (transform new-template) r/ reagent)))]
-
-    
-    [_ (println "warning: transform-mode: no programming for that key") state]))
-
-
-
-
-; -------------------------------------------------
-
-; FRUCTURE CORE
-
-(define (mode-loop state key)
+(define (input-keyboard state key)
   ; mode-loop : key x state -> state
   ; determines the effect of key based on mode
   (define-from state stx mode)
@@ -664,10 +99,14 @@
                 [stx fruct-augment]))
 
 
+; -------------------------------------------------
+; FRUCTURE CORE
+
 (big-bang initial-state
+  ; bug if true (c)
   ; MY LOVE FOR YOU IS LIKE A TRUCK
   [name 'fructure]
-  [on-key mode-loop]
+  [on-key input-keyboard]
   [to-draw output 800 800]
   #;[display-mode 'fullscreen]
   #;[record? "gif-recordings"])
