@@ -163,7 +163,8 @@
 (define (render fruct layout-settings (depth #t) (bkg 0))
   (define-from layout-settings
     text-size selected-color hole-color
-    popout-transform? popout-menu?)
+    popout-transform? popout-menu? implicit-forms
+    grey-one grey-two)
     
   (match fruct
    
@@ -193,6 +194,44 @@
                             "solid"
                             invisible))
                new-image))]
+
+    [(/ ref/ `(ref ,id))
+     #:when (member 'ref implicit-forms)
+     ; bug: this is losing location information
+     ; reproduce: try to transform a letter in a reference
+     ; selected highlight is... not great
+     ; need to make the selector overlaid so can
+     ; draw this like parens, but space it out a bit
+     ; it's too tight as-is
+     (define margin (div-integer text-size 5))
+     (define radius (sub1 (div-integer text-size 2)))
+     (match-define (list id-fruct id-image)
+       (if (selected? (/ ref/ `(ref ,id)))
+           (render id layout-settings)
+           (render id layout-settings)))
+     ; need to add position information here
+     (list (/ ref/ `(ref ,id-fruct))
+           (if (selected? (/ ref/ `(ref ,id)))
+               (overlay id-image
+                        #;(rounded-rectangle
+                           (image-width id-image)
+                           (image-height id-image)
+                           radius
+                           selected-color)
+                        (overlay
+                         (rounded-rectangle
+                          (+ (- 0 margin) (image-width id-image))
+                          (image-height id-image)
+                          radius
+                          ; hacky: skip depth level
+                          (if (not depth) grey-one grey-two))
+                         (rounded-rectangle
+                          (image-width id-image)
+                          (image-height id-image)
+                          radius
+                          selected-color))
+                        )
+               id-image))]
     
     [(/ id/ `(id ,xs ...))
      ; id itself is not drawn
@@ -261,7 +300,8 @@
 
 (define (get-atomic-children stx child-images)  
   (foldl (λ (x y acc)
-           (if (atomic? x)
+           (if (or (atomic? x)
+                   (match x [(/ _/ `(ref ,_)) #t][_ #f]))
                (cons y acc)
                acc))
          '() stx child-images))
@@ -269,7 +309,8 @@
 
 (define (get-non-atomic-children stx child-images)
   (foldl (λ (x y acc)
-           (if (not (atomic? x))
+           (if (not (or (atomic? x)
+                        (match x [(/ _/ `(ref ,_)) #t][_ #f])))
                (cons y acc)
                acc))
          '() stx child-images))
@@ -494,7 +535,7 @@
 
 (define (render-menu stx layout-settings)
   (define-from layout-settings
-    text-size max-menu-length max-menu-length-chars
+    text-size max-menu-length max-menu-length-chars implicit-forms
     custom-menu-selector? selected-color menu-bkg-color)
   (define radius (sub1 (div-integer text-size 2)))
   (define margin (div-integer text-size 5))
@@ -544,13 +585,27 @@
                                                          'identifier-color "white")))
                       (overlay/align "left" "top"
                                      (second (render '▹ override-layout-settings))
-                                     (if (not (list? b))
+                                     (if (or (not (list? b)) (and (member 'ref implicit-forms)
+                                                                  (match b [`(ref ,_) #t][_ #f])))
                                          ; hacky extra spacing for atoms
+                                         ; extra hacky for implicit refs
                                          (beside (space text-size)
-                                                 (second (render (/ b/ b) override-layout-settings))
+                                                 (second (render (/ b/ b) (hash-set override-layout-settings
+                                                                                    'identifier-color "white")))
                                                  (space text-size))
                                          (second (render (/ b/ b) override-layout-settings))))))]
-           [_ (render item override-layout-settings)])]
+           [(/ b/ b)
+            (list (first (render (/ b/ b) override-layout-settings))
+                  (if (or (not (list? b)) (and (member 'ref implicit-forms)
+                                               (match b [`(ref ,_) #t][_ #f])))
+                      ; hacky extra spacing for atoms
+                      ; extra hacky for implicit refs
+                      (beside (space text-size)
+                              (second (render (/ b/ b) (hash-set override-layout-settings
+                                                                 'identifier-color "white")))
+                              (space text-size))
+                      (second (render (/ b/ b) override-layout-settings))))
+            #;(render item override-layout-settings)])]
         [else (render item override-layout-settings)])))
   
   (define truncated-menu-image
@@ -1154,6 +1209,9 @@
 
 (second
  (fructure-layout data-10 test-settings))
+
+(second
+ (fructure-layout data-11 test-settings))
 
 
 ; temp work on search
