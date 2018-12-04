@@ -2,8 +2,7 @@
 
 ; andrew blinn 2018
 
-(require racket/hash
-         2htdp/image
+(require 2htdp/image
          2htdp/universe)
 
 ; internal structure
@@ -51,18 +50,11 @@
   (define-from state stx)
   (match-define (list new-fruct image-out)
     (fructure-layout (second stx) real-layout-settings))
-  #;(text (pretty-format (project new-fruct) 100) 24 "black")
   image-out)
 
 
 ; -------------------------------------------------
-; INITIAL DATA
-
-(define fruct-augment
-  ; augments syntax with attributes
-  (compose augment-transform
-           augment
-           paint-handle))
+; SEED
 
 (define initial-state
   ; we begin in navigation mode,
@@ -76,7 +68,7 @@
 
 
 ; -------------------------------------------------
-; INPUT LOOP & MODES
+; INPUT LOOP / MODAL DISPATCH
 
 (define (input-keyboard state key)
   ; mode-loop : key x state -> state

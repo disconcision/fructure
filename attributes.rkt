@@ -1,6 +1,7 @@
 #lang racket
 
-(provide augment
+(provide fruct-augment
+         augment
          augment-transform
          paint-handle)
 
@@ -123,3 +124,9 @@
     [_ (error (~a `("attribute generation error on stx: ", stx))) 0]
     ))
 
+
+(define fruct-augment
+  ; augments syntax with attributes
+  (compose augment-transform
+           augment
+           paint-handle))
