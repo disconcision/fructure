@@ -102,7 +102,7 @@
   ; MY LOVE FOR YOU IS LIKE A TRUCK
   [name 'fructure]
   [on-key input-keyboard]
-  [to-draw output 800 800]
+  [to-draw output 800 400]
   #;[display-mode 'fullscreen]
   #;[record? "gif-recordings"])
 

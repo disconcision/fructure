@@ -459,6 +459,8 @@
         ; if last child is atom, we leave a space on the right
         (beside new-image
                 (match (last children)
+                  ; this seems to work mostly right for refs
+                  ; is there a hack somewhere??
                   [(/ _/ (? list?)) empty-image]
                   [_ (space text-size)]))))
 
@@ -950,19 +952,17 @@
           
      (define atomic-children
        (get-atomic-children (rest stx) (rest child-images)))
-     (define non-atomic-children
-       (get-non-atomic-children (rest stx) (rest child-images)))
-          
+     (define header-length
+       ; width of form-name e.g. 'and'
+       ; plus spaces before/after
+       (+ (image-width (first child-images))
+          (* 2 (image-width (space text-size)))))
+     
      (rounded-rectangle
-      (+ (image-width (first child-images)) 
-         ; width of form-name e.g. 'and'
-         (* 2 (image-width (space text-size)))
-         ; add pixels for each row (what? this is width...)
-         #;(length (rest child-images))
-         ; spaces before/after above form-name
+      (+ header-length  
          (max (+ (longest atomic-children)
                  (image-width (space text-size)))
-              (shortest non-atomic-children)))
+              (image-width (space text-size))))
       (image-height new-layout)
       radius
       (if depth grey-one grey-two))]
@@ -972,13 +972,6 @@
      (define atomic-children
        (get-atomic-children (rest (rest stx))
                             (rest (rest child-images))))
-     (define non-atomic-children
-       (get-non-atomic-children (rest (rest stx))
-                                (rest (rest child-images))))
-     (define shortest-non-atomic-child-width
-       (shortest non-atomic-children))
-     (define longest-atomic-child-width
-       (longest atomic-children))
           
      (define header-length
        (+ (image-width (first child-images))
@@ -989,26 +982,20 @@
        (max (image-height (first child-images))
             (image-height (second child-images))))
           
-     (define minimum-child-length
-       (apply min (map image-width
-                       (filter (negate list?)
-                               (rest (rest child-images))))))
-
      (define backing-candidate
        (overlay/align
         "left" "top" 
-        (rounded-rectangle header-length
+        (rounded-rectangle (+ -2 header-length) ; hack magic -2, prevents aliasing
                            header-height
                            radius (if depth grey-one grey-two))
         (rounded-rectangle (+ (* 2 (image-width (space text-size))) ; indentation                              
-                              (image-width (space text-size)) ; just looks good
-                              (longest atomic-children)  ; cover any atoms
-                              )
+                              (+ (image-width (space text-size)) ; just looks good
+                                 (longest atomic-children))) ; cover any atoms 
                            (apply +
                                   header-height
                                   ; add pixels for each space between rows
                                   ; remember header (first two) count as one
-                                  (+ 0 (length (rest (rest child-images))))
+                                  (length (rest (rest child-images)))
                                   (map image-height (rest (rest child-images))))
                            radius (if depth grey-one grey-two))))
      backing-candidate]
@@ -1174,19 +1161,19 @@
 
 
 #;(second
- (render
-  data-0
-  test-settings))
+   (render
+    data-0
+    test-settings))
 
 #;(second
- (render
-  data-1
-  test-settings))
+   (render
+    data-1
+    test-settings))
 
 #;(second
- (render
-  data-2
-  test-settings))
+   (render
+    data-2
+    test-settings))
 
 (second
  (render
@@ -1194,35 +1181,35 @@
   test-settings))
 
 #;(second
- (render
-  data-4
-  test-settings))
+   (render
+    data-4
+    test-settings))
 
 #;(second
- (render
-  data-5
-  test-settings))
+   (render
+    data-5
+    test-settings))
 
 #;(second
- (render
-  (match data-6
-    [(/ a/ a)
-     (/ [display-box `(800 240)]
-        [display-offset `(0 0)]
-        a/ a)])
-  test-settings))
+   (render
+    (match data-6
+      [(/ a/ a)
+       (/ [display-box `(800 240)]
+          [display-offset `(0 0)]
+          a/ a)])
+    test-settings))
 
 #;(draw-outlines-abs
- (augment-absolute-offsets
-  (first (render (match data-6
-                   [(/ a/ a)
-                    (/ [display-box `(800 240)]
-                       [display-offset `(0 0)]
-                       a/ a)])
-                 test-settings))))
+   (augment-absolute-offsets
+    (first (render (match data-6
+                     [(/ a/ a)
+                      (/ [display-box `(800 240)]
+                         [display-offset `(0 0)]
+                         a/ a)])
+                   test-settings))))
 
 #;(second
- (fructure-layout data-7 test-settings))
+   (fructure-layout data-7 test-settings))
 
 (draw-outlines-abs (first (fructure-layout data-8 test-settings))
                    (second (fructure-layout data-8 test-settings)))
@@ -1269,9 +1256,9 @@
 
 
 #;(add-hooks "x" (stx->fruct
-                '(lambda (x)
-                   (and x (▹ (and true false)))
-                   x)))
+                  '(lambda (x)
+                     (and x (▹ (and true false)))
+                     x)))
 
 
 
