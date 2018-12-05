@@ -32,20 +32,23 @@
         'length-conditional-layout? #t
         'length-conditional-cutoff 10
         'dodge-enabled? #t
-        'implicit-forms '(ref #;app)
+        'implicit-forms '(ref app)
 
-        'selected-atom-color "white"
+        'selected-atom-color (color 255 255 255)
         'menu-bkg-color (color 112 112 112)
         'form-color (color 0 130 214)
         'literal-color (color 255 131 50)
         'grey-one (color 200 200 200)
         'grey-two (color 184 184 184)
         'pattern-grey-one (color 84 84 84)
-        'identifier-color "black"
+        'identifier-color (color 0 0 0)
         'selected-color (color 230 0 0)
         'hole-color (color 0 180 140)
         'transform-arrow-color (color 255 255 255)
         'bkg-color (color 0 47 54)
+        'pattern-bkg-color (color 230 230 230)
+        'pattern-grey-one (color 76 76 76)
+        'pattern-grey-two (color 110 110 110)
 
         #;#;'radius (λ (text-size) (sub1 (div-integer text-size 2)))
         #;#;'margin (λ (text-size) (div-integer text-size 5))
@@ -164,9 +167,24 @@
   (define-from layout-settings
     text-size selected-color hole-color
     popout-transform? popout-menu? implicit-forms
-    grey-one grey-two)
+    grey-one grey-two pattern-bkg-color
+    pattern-grey-one pattern-grey-two)
     
   (match fruct
+
+    [(/ [metavar m] a/ a)
+     #;(println `(metavar-case ,a))
+     (render (/ a/ a) (for/hash ([(k v) layout-settings])
+                        (match v
+                          [(color _ _ _ _)
+                           (values k ((per-color-linear-dodge-tint
+                                       (match m
+                                         [0 (color 0 255 255)]
+                                         [1 (color 255 0 255)]
+                                         [2 (color 255 255 0)]
+                                         [_ (color 0 255 0)])
+                                       0.3) v))]
+                          [_ (values k v)])))]
    
     [(and this-menu
           (/ [menu `((,transforms ,resultants) ...)] m/ m))
@@ -195,6 +213,8 @@
                             invisible))
                new-image))]
 
+     
+    
     [(/ ref/ `(ref ,id))
      #:when (member 'ref implicit-forms)
      ; bug: this is losing location information
@@ -250,9 +270,9 @@
          [(/ (sort 'params) _/ _)
           (hash-set* layout-settings
                      ; TODO magic colors
-                     'identifier-color (color 230 230 230)
-                     'grey-one (color 76 76 76)
-                     'grey-two (color 110 110 110))]
+                     'identifier-color pattern-bkg-color
+                     'grey-one pattern-grey-one
+                     'grey-two pattern-grey-two)]
          [_ layout-settings]))
      (render-list (/ a/ a)
                   ; hack to reset depth for params-list
@@ -570,7 +590,7 @@
         ; slight hack to remove form backings
         (hash-set* layout-settings
                    'grey-one invisible
-                   'form-color "white")) ; magic color
+                   'form-color (color 255 255 255))) ; magic color
       (cond
         [custom-menu-selector?
          (match item
@@ -1212,6 +1232,9 @@
 
 (second
  (fructure-layout data-11 test-settings))
+
+(second
+ (fructure-layout data-12 test-settings))
 
 
 ; temp work on search

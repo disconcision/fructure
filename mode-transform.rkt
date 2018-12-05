@@ -10,14 +10,9 @@
   (define-from state stx)
   (define update (curry hash-set* state))
   (match-define (⋱x ctx (/ [transform template] r/ reagent)) stx)
+  #;(define template (insert-menu-at-cursor pre-template))
 
-  (define (perform-selected-transform template)
-    ; find the transform corresponding to the selected menu item
-    ; and apply that transform to the WHOLE template
-    (match template
-      [(⋱x (/ [menu `(,_ ... (,transform ,(/ _ (▹ _))) ,_ ...)] _ _))
-       (runtime-match literals transform template)]
-      [x (println "warning: no transform selected") x]))
+
   
   (match key
     
@@ -35,13 +30,14 @@
     [" "
      ; if there's a hole after the cursor, advance the cursor+menu to it
      ; BUG? : think about behavior when press space at first-level menu
-     (update 'stx (⋱x ctx (/ [transform (move-menu-to-next-hole template)]
+     (update 'stx (⋱x ctx (/ [transform (move-menu-to-next-hole template stx)]
                              r/ reagent)))]
     
     ["right"
      ; apply selected transform and advance the cursor+menu the next hole     
      (update 'stx (⋱x ctx (/ [transform (move-menu-to-next-hole
-                                         (perform-selected-transform template))]
+                                         (perform-selected-transform template)
+                                         stx)]
                              r/ reagent)))]
     
     ["up"
@@ -89,6 +85,16 @@
 
 ; -------------------------------------------------
 
+(define (perform-selected-transform template)
+  ; find the transform corresponding to the selected menu item
+  ; and apply that transform to the WHOLE template
+  (match template
+    [(⋱x (/ [menu `(,_ ... (,transform ,(/ _ (▹ _))) ,_ ...)] _ _))
+     (runtime-match literals transform template)]
+    [x (println "warning: no transform selected") x]))
+
+
+; -------------------------------------------------
 ; menu creation
 
 (define (transforms->menu transforms reagent)
@@ -105,9 +111,10 @@
         menu)))
 
 
-(define (make-menu in-scope current-selection)
+(define (make-menu in-scope metavar-transforms current-selection)
   (transforms->menu
    (append base-transforms
+           metavar-transforms
            (for/list ([id in-scope])
              `([⋱
                  (▹ [sort expr] xs ... / ⊙)
@@ -177,10 +184,42 @@
     [x (println "warning: no hole after cursor") x]))
 
 
-(define (insert-menu-at-cursor stx)
+
+(define (fruct-to-runtime fr)
+  ; done quick... prob hacky
+  (match fr
+    [`(p/ ,my-hash ,contents)
+     (define pairs
+       (for/list ([(k v) my-hash])
+         `(,k ,(fruct-to-runtime v))))
+     `(,@pairs / ,(fruct-to-runtime contents))]
+    [(? list?)
+     (map fruct-to-runtime fr)]
+    [_ fr]))
+
+(define (insert-menu-at-cursor stx ambient-stx)
+  (define (extract-metavars ambient-stx)
+      (match ambient-stx
+        [(⋱+x c⋱ (and m (/ metavar _/ _)))
+         m]))
+  (define metavar-transforms
+      (map (λ (x)
+             (match (fruct-to-runtime x)
+               [`(,a ... / ,b)
+                ;  not copying even sort over ...
+                `([⋱
+                    (▹ / ⊙)
+                    (▹ ,@a / ,b)])]))
+           (extract-metavars ambient-stx)))
+  (println `(mvt ,metavar-transforms))
+  (when (not (empty? metavar-transforms))
+    (println `(res ,(runtime-match literals (first metavar-transforms) initial-stx))))
+  
+  ; problem: need to project metavar contents into
+  ; a format runtime-match understands
   (define in-scope
     (extract-scope stx))
-  (define menu-stx (make-menu in-scope stx))
+  (define menu-stx (make-menu in-scope metavar-transforms stx))
   (f/match stx
     [(c ⋱ (▹ xs ... / x))
      #:when (not (empty? menu-stx))
@@ -204,19 +243,20 @@
      (ctx ⋱ (xs ... / x))]
     [x x]))
 
+(define (local-augment stx)
+  (f/match stx
+    [(ctx ⋱ (in-scope ts ... / t))
+     (ctx ⋱ (augment (in-scope ts ... / t)))]
+    [x (println "warning: local-augment no-match") x]))
 
-(define (move-menu-to-next-hole stx)
+(define (move-menu-to-next-hole stx ambient-stx)
   ; removes existing menu, advances cursor to next hole,
   ; and inserts a menu at that hole. if there is no such
   ; hole, the returned stx will have no menu
-  (define (local-augment stx)
-    (f/match stx
-      [(ctx ⋱ (in-scope ts ... / t))
-       (ctx ⋱ (augment (in-scope ts ... / t)))]
-      [x (println "warning: local-augment no-match") x]))
+  
   ((if (equal? stx (advance-cursor-to-next-hole stx))
        identity
-       (compose insert-menu-at-cursor
+       (compose (curryr insert-menu-at-cursor ambient-stx)
                 local-augment
                 advance-cursor-to-next-hole))  
    (strip-menu stx)))

@@ -87,9 +87,30 @@
              [(⋱x c⋱ (/ as/
                         (▹ a)))
               (⋱x c⋱ (/ [transform
-                         (insert-menu-at-cursor (/ as/ (▹ a)))]
+                         (insert-menu-at-cursor (/ as/ (▹ a)) stx)]
                         as/ a))]))]
 
+    ["\t"
+     (println "metavar case")
+     (update
+      'stx (match stx
+             [(⋱+x c⋱ #;(capture-when (or (/ _ (▹ _)) (/ [metavar _] _ _)))
+                  (and ls (or (/ _ (▹ (not (⋱x (/ [metavar _] _ _))))) (/ [metavar _] _ _))))
+              (println ls)
+              (⋱+x c⋱
+                  (map (λ (t m) (match t [(/ x/ x)
+                                          (println `(matched-painting ,(/ [metavar m] x/ x)))
+                                          (/ [metavar m] x/ x)]))
+                       ls (range 0 (length ls))))]))]
+    ["escape"
+     (define (erase-metavars fr)
+       (match fr
+         [(/ metavar a/ a)
+          (/ a/ (erase-metavars a))]
+         [(? list? a)
+          (map erase-metavars a)]
+         [_ fr]))
+     (update 'stx (erase-metavars stx))]
         
     #;[","
        ; COMMA: undo (BUG: currently completely broken)

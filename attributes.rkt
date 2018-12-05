@@ -13,12 +13,19 @@
 (define (paint-handle fr)
   ; paint-handle: stx -> stx
   ; add selectability handles
-  (match fr   
+  (match fr
     ; slight hack? with proper order of application
     ; i prob shouldn't have to recurse on tempalte here
     ; note below fails to paint selectable on target
     #;[(/ [transform template] a/ a)
        (/ [transform (new-aug template)] a/ (new-aug a))]
+    ; don't recurse into metavariables
+    ; whoops, but what about old handles. need to erase them first...
+    [(/ [metavar m]
+        [sort (and my-sort (or 'expr 'char))] a/ a)
+     (/ [metavar m] [sort my-sort] [handle #t] a/ a)]
+    [(/ [metavar m] a/ a)
+     (/ [metavar m] a/ a)]
     [(/ [sort (and my-sort (or 'expr 'char))] a/ a)
      (/ [sort my-sort] [handle #t] a/ (paint-handle a))]
     [(/ a/ a)
@@ -26,6 +33,12 @@
     [(? list?) (map paint-handle fr)]
     [_ fr]))
 
+(define (erase-handles fr)
+  (match fr
+    [(/ handle a/ a)
+     (/ a/ (erase-handles a))]
+    [(? list?) (map erase-handles fr)]
+    [_ fr]))
 
 (define (augment stx)
   ; augment: stx -> stx
@@ -129,4 +142,5 @@
   ; augments syntax with attributes
   (compose augment-transform
            augment
-           paint-handle))
+           paint-handle
+           erase-handles))

@@ -46,7 +46,10 @@
           'selected-color (color 230 0 0)
           'hole-color (color 0 180 140)
           'transform-arrow-color (color 255 255 255)
-          'bkg-color (color 0 47 54)))
+          'bkg-color (color 0 47 54)
+          'pattern-bkg-color (color 230 230 230)
+          'pattern-grey-one (color 76 76 76)
+          'pattern-grey-two (color 110 110 110)))
   (define-from state stx)
   (match-define (list new-fruct image-out)
     (fructure-layout (second stx) real-layout-settings))
@@ -76,7 +79,7 @@
   (define-from state stx mode)
   
   ; print debugging information
-  #;(displayln `(mode: ,mode  key: ,key))
+  (displayln `(mode: ,mode  key: ,key))
   #;(displayln `(projected: ,(project stx)))
   #;(displayln state)
 
