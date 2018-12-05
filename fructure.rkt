@@ -39,8 +39,8 @@
           'menu-bkg-color (color 112 112 112)
           'form-color (color 0 130 214)
           'literal-color (color 255 131 50)
-          'grey-one (color 200 200 200)
-          'grey-two (color 184 184 184)
+          'grey-one (color 230 230 230)
+          'grey-two (color 215 215 215)
           'pattern-grey-one (color 84 84 84)
           'identifier-color "black"
           'selected-color (color 230 0 0)

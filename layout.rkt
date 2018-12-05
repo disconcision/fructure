@@ -38,8 +38,8 @@
         'menu-bkg-color (color 112 112 112)
         'form-color (color 0 130 214)
         'literal-color (color 255 131 50)
-        'grey-one (color 200 200 200)
-        'grey-two (color 184 184 184)
+        'grey-one (color 230 230 230)
+        'grey-two (color 215 215 215)
         'pattern-grey-one (color 84 84 84)
         'identifier-color (color 0 0 0)
         'selected-color (color 230 0 0)
@@ -71,7 +71,7 @@
      (match fruct
        [(/ fr/ stx)
         (/ [display-offset `(,x-offset ,y-offset)]
-           [display-box '(800 800)]
+           [display-box '(800 400)]
            fr/ stx)])
      layout-settings))
 
@@ -85,7 +85,7 @@
     (overlay/align/offset "left" "top"
                           scene-image
                           (- x-offset) (- y-offset)
-                          (rectangle 800 800 "solid" bkg-color)))
+                          (rectangle 800 400 "solid" bkg-color)))
 
   ; overlay transform if in popout mode
   (define post-procd-image
@@ -183,7 +183,7 @@
                                          [1 (color 255 0 255)]
                                          [2 (color 255 255 0)]
                                          [_ (color 0 255 0)])
-                                       0.3) v))]
+                                       0.4) v))]
                           [_ (values k v)])))]
    
     [(and this-menu
@@ -498,9 +498,11 @@
      (first child-images)
      (space text-size)
      (apply above/align* "left"
-            (for/fold ([acc '()])
-                      ([i (rest child-images)])
-              `(,@acc ,i ,1px)))
+            (drop-right
+             (for/fold ([acc '()])
+                       ([i (rest child-images)])
+               `(,@acc ,i ,1px))
+             1))
      #;(space text-size)))
   
   (list (cons new-first-children new-rest-children) new-image))
@@ -531,7 +533,8 @@
 
   (define-values (new-rest-children final-offset)
     (layout-column (list (image-width indent-image)
-                         (image-height header-image))
+                         ; +1 for 1px line spacing after header
+                         (+ 1 (image-height header-image)))
                    1
                    (rest (rest stx))
                    (rest (rest child-images))))
@@ -540,12 +543,15 @@
   (define new-image
     (above/align* "left"
                   header-image
+                  1px
                   (beside/align* "top"
                                  indent-image
                                  (apply above/align* "left"
-                                        (for/fold ([acc '()])
-                                                  ([i (rest (rest child-images))])
-                                          `(,@acc ,i ,1px))))))
+                                        (drop-right ; drop trailing pixel spacer
+                                         (for/fold ([acc '()])
+                                                   ([i (rest (rest child-images))])
+                                           `(,@acc ,i ,1px))
+                                         1)))))
 
 
   (list (append new-header-children new-rest-children) new-image))
@@ -768,7 +774,7 @@
                   (match v
                     [(color _ _ _ _)
                      (values k ((per-color-linear-dodge-tint
-                                 selected-color 0.3) v))]
+                                 selected-color 0.5) v))]
                     [_ (values k v)])))
         (render template layout-settings)))
  
@@ -1000,7 +1006,8 @@
                               )
                            (apply +
                                   header-height
-                                  ; add pixels for each row
+                                  ; add pixels for each space between rows
+                                  ; remember header (first two) count as one
                                   (+ 0 (length (rest (rest child-images))))
                                   (map image-height (rest (rest child-images))))
                            radius (if depth grey-one grey-two))))
@@ -1024,7 +1031,7 @@
   (define margin (div-integer text-size 5))
   
   (overlay/align
-   "left" "middle"
+   "left" "top"
    new-layout
    (if selected?
        (overlay (overlay
@@ -1056,7 +1063,7 @@
      radius
      (if depth grey-one grey-two)))
   (overlay/align
-   "left" "middle"
+   "left" "top"
    new-layout
    (if selected?
        (overlay (overlay
@@ -1166,17 +1173,17 @@
 
 
 
-(second
+#;(second
  (render
   data-0
   test-settings))
 
-(second
+#;(second
  (render
   data-1
   test-settings))
 
-(second
+#;(second
  (render
   data-2
   test-settings))
@@ -1186,35 +1193,35 @@
   data-3
   test-settings))
 
-(second
+#;(second
  (render
   data-4
   test-settings))
 
-(second
+#;(second
  (render
   data-5
   test-settings))
 
-(second
+#;(second
  (render
   (match data-6
     [(/ a/ a)
-     (/ [display-box `(800 800)]
+     (/ [display-box `(800 240)]
         [display-offset `(0 0)]
         a/ a)])
   test-settings))
 
-(draw-outlines-abs
+#;(draw-outlines-abs
  (augment-absolute-offsets
   (first (render (match data-6
                    [(/ a/ a)
-                    (/ [display-box `(800 800)]
+                    (/ [display-box `(800 240)]
                        [display-offset `(0 0)]
                        a/ a)])
                  test-settings))))
 
-(second
+#;(second
  (fructure-layout data-7 test-settings))
 
 (draw-outlines-abs (first (fructure-layout data-8 test-settings))
@@ -1231,10 +1238,13 @@
  (fructure-layout data-10 test-settings))
 
 (second
- (fructure-layout data-11 test-settings))
+ (render data-11 test-settings))
 
 (second
- (fructure-layout data-12 test-settings))
+ (render data-12 test-settings))
+
+(second
+ (fructure-layout data-13 test-settings))
 
 
 ; temp work on search
@@ -1258,7 +1268,7 @@
     [_ fruct]))
 
 
-(add-hooks "x" (stx->fruct
+#;(add-hooks "x" (stx->fruct
                 '(lambda (x)
                    (and x (▹ (and true false)))
                    x)))

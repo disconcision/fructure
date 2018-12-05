@@ -95,11 +95,17 @@
 
 
 
-(define (rounded-rectangle width height init-radius my-color)
+(define (rounded-rectangle w h init-radius my-color)
+  ; added rounding to try and fix subpixel layout issues
+  ; doesn't seem to have done much. todo: check if it does anything
+  (define width (inexact->exact (round w)))
+  (define height (inexact->exact (round h)))
   (define radius
-    (if (width . < . (* 2 init-radius))
-        (/ width 2) ; note possible syntax issue
-        init-radius))
+    (inexact->exact
+     (round
+      (if (width . < . (* 2 init-radius))
+          (/ width 2) ; note possible syntax issue
+          init-radius))))
   
   (define pen
     (make-pen my-color (* 2 radius) "solid" "round" "round"))
