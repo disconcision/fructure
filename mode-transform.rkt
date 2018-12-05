@@ -191,7 +191,7 @@
     [`(p/ ,my-hash ,contents)
      (define pairs
        (for/list ([(k v) my-hash])
-         `(,k ,(fruct-to-runtime v))))
+         `(,k ,(fruct-to-runtime v)))) ;should we recurse into vals?
      `(,@pairs / ,(fruct-to-runtime contents))]
     [(? list?)
      (map fruct-to-runtime fr)]
@@ -199,18 +199,32 @@
 
 (define (insert-menu-at-cursor stx ambient-stx)
   (define (extract-metavars ambient-stx)
-      (match ambient-stx
-        [(⋱+x c⋱ (and m (/ metavar _/ _)))
-         m]))
+    (match ambient-stx
+      [(⋱+x c⋱ (and m (/ metavar _/ _)))
+       m]))
+  ; should i be erasing this stuff?
+  ; it prevents some bugs, but might just be masking them
+  (define (erase-attrs fr)
+    (match fr
+      [(/ handle in-scope a/ a)
+       (/ a/ (erase-attrs a))]
+      [(/ handle a/ a)
+       (/ a/ (erase-attrs a))]
+      [(/ in-scope a/ a)
+       (/ a/ (erase-attrs a))]
+      [(? list?) (map erase-attrs fr)]
+      [_ fr]))
+  ; the problem with this approach is runtime-match
+  ; doesn't know the literal (chars) for the ids we introduce
   (define metavar-transforms
-      (map (λ (x)
-             (match (fruct-to-runtime x)
-               [`(,a ... / ,b)
-                ;  not copying even sort over ...
-                `([⋱
-                    (▹ / ⊙)
-                    (▹ ,@a / ,b)])]))
-           (extract-metavars ambient-stx)))
+    (map (λ (x)
+           (match (fruct-to-runtime x)
+             [`(,a ... / ,b)
+              ;  not copying even sort over ...
+              `([⋱
+                  (▹ / ⊙)
+                  (▹ ,@a / ,b)])]))
+         (extract-metavars (erase-attrs ambient-stx))))
   (println `(mvt ,metavar-transforms))
   (when (not (empty? metavar-transforms))
     (println `(res ,(runtime-match literals (first metavar-transforms) initial-stx))))
