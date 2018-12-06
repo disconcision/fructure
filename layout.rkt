@@ -10,6 +10,7 @@
          "../containment-patterns/containment-patterns.rkt"
          "common-graphics.rkt")
 
+; bug if true (c)
 (provide fructure-layout)
 
 ; for tests

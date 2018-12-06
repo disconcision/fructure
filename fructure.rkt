@@ -19,59 +19,109 @@
          "common.rkt")
 
 
-; -------------------------------------------------
-; OUTPUT & DISPLAY SETTINGS
+#|
 
-(define (output state)
-  ; output : state -> image
-  (define real-layout-settings
-    (hash 'text-size 30
-          'max-menu-length 4
-          'max-menu-length-chars 1
-          'popout-transform? #t
-          'popout-menu? #t
-          'custom-menu-selector? #t
-          'length-conditional-layout? #t
-          'length-conditional-cutoff 8
-          'dodge-enabled? #t
-          'implicit-forms '(ref app)
-          'selected-atom-color "white"
-          'menu-bkg-color (color 112 112 112)
-          'form-color (color 0 130 214)
-          'literal-color (color 255 131 50)
-          'grey-one (color 230 230 230)
-          'grey-two (color 215 215 215)
-          'pattern-grey-one (color 84 84 84)
-          'identifier-color "black"
-          'selected-color (color 230 0 0)
-          'hole-color (color 0 180 140)
-          'transform-arrow-color (color 255 255 255)
-          'bkg-color (color 0 47 54)
-          'pattern-bkg-color (color 230 230 230)
-          'pattern-grey-one (color 76 76 76)
-          'pattern-grey-two (color 110 110 110)))
-  (define-from state stx)
-  (match-define (list new-fruct image-out)
-    (fructure-layout (second stx) real-layout-settings))
-  image-out)
+  This is fructure. Fructure is a world in the hdtp2 universe.
+  Fructure orbits around a STATE, which reflects the outer aspect
+  of its STRUCTURE.
+
+  Our object is structural interaction. Fructure is about regarding,
+  transforming, conversing with, and being transformed by structure.
+
+  The state concerns our interface with structure. It represents
+  the lens through which we apprehend structure, and provides
+  a record of our interactions.
+
+  We devide our interactions into modes, which are mappings
+  taking inputs and states to states. INPUT modes are defined
+  in seperate modules, indicated above. The fruits of our labors
+  are realized visually, by an OUTPUT (layout) lens indicated above.
+
+  Within a mode, your input determines a purely functional mapping
+  from the current structure to a new one. Our LANGUAGE determines
+  the shape possible mappings, and hence possible structure.
+
+  External aspects of this update, including history, logging, and
+  interaction buffers with external devices, is represented in
+  the 'outer structure' which is the state.
+
+  Between interactions, we annotate our structure with
+  contextual cues to inform further interaction. These (morally)
+  represent an ATTRIBUTE grammar, permitting context-free
+  rewriting to respect context-sensitive properties.
+
+
+|#
+
+
+; -------------------------------------------------
+; DISPLAY SETTINGS
+
+(define-map initial-layout
+  
+  ; scaling parameter
+  'text-size 30
+  
+  ; hide the heads of these forms
+  'implicit-forms '(ref app)
+  
+  ; maximum completions
+  'max-menu-length 4
+  ; for single-character menus
+  'max-menu-length-chars 1
+  
+  ; layer transform/menu above structure
+  'popout-transform? #t
+  'popout-menu? #t
+  
+  ; invade the second dimension 
+  'length-conditional-layout? #t
+  ; but only if our children weigh more than
+  'length-conditional-cutoff 8
+  
+  ; beautify menu
+  'dodge-enabled? #t
+  ; beautify menu selector
+  'custom-menu-selector? #t
+
+  ; look at the pretty colors
+  'selected-atom-color (color 255 255 255)
+  'menu-bkg-color (color 112 112 112)
+  'form-color (color 0 130 214)
+  'literal-color (color 255 131 50)
+  'grey-one (color 230 230 230)
+  'grey-two (color 215 215 215)
+  'pattern-grey-one (color 84 84 84)
+  'identifier-color (color 0 0 0)
+  'selected-color (color 230 0 0)
+  'hole-color (color 0 180 140)
+  'transform-arrow-color (color 255 255 255)
+  'bkg-color (color 0 47 54)
+  'pattern-bkg-color (color 230 230 230)
+  'pattern-grey-one (color 76 76 76)
+  'pattern-grey-two (color 110 110 110))
 
 
 ; -------------------------------------------------
 ; SEED
 
-(define initial-state
-  ; we begin in navigation mode,
-  ; with a single selected hole of sort 'expression
-  ; transforms: undo history; currently broken
-  ; messages: a messages log, currently disused
-  (hash 'stx (fruct-augment initial-stx)
-        'mode 'nav
-        'transforms '()
-        'messages '("hello world")))
+(define-map initial-state
+  ; we begin in navigation mode
+  'mode 'nav
+  ; with a selected hole
+  'stx (fruct-augment initial-stx)
+  ; new: current selection filter
+  'search-buffer ""
+  ; new: initial layout settings
+  'layout-settings initial-layout
+  ; transforms: history, currently broken
+  'transforms '()
+  ; messages: log, currently disused
+  'messages '("bang"))
 
 
 ; -------------------------------------------------
-; INPUT LOOP / MODAL DISPATCH
+; INPUT
 
 (define (input-keyboard state key)
   ; mode-loop : key x state -> state
@@ -79,7 +129,7 @@
   (define-from state stx mode)
   
   ; print debugging information
-  (displayln `(mode: ,mode  key: ,key))
+  #;(displayln `(mode: ,mode  key: ,key))
   #;(displayln `(projected: ,(project stx)))
   #;(displayln state)
 
@@ -90,15 +140,28 @@
       ['nav  (mode:navigate key state)]))
   
   ; augment syntax with attributes
-  (transform-in new-state
-                [stx fruct-augment]))
+  (update-map new-state
+              [stx fruct-augment]))
+
+
+; -------------------------------------------------
+; OUTPUT
+
+(define (output state)
+  ; output : state -> image
+  (define-from state
+    stx layout-settings)
+  (match-define (list _ image-out)
+    ; second here skips the top (diamond) affo
+    ; todo: make this less hacky by going fs
+    (fructure-layout (second stx) layout-settings))
+  image-out)
 
 
 ; -------------------------------------------------
 ; FRUCTURE CORE
 
 (big-bang initial-state
-  ; bug if true (c)
   ; MY LOVE FOR YOU IS LIKE A TRUCK
   [name 'fructure]
   [on-key input-keyboard]

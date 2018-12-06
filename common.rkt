@@ -4,8 +4,10 @@
          "new-syntax.rkt")
 
 (provide define-from
-         transform-in
+         update-map
          apply-in!
+
+         define-map
          
          atomic?
          selected?
@@ -24,7 +26,7 @@
       [(hash-table ('attr attr))
        (hash-set state 'attr (f attr))]))
 
-(define-syntax-rule (transform-in state (attr f) ...)
+(define-syntax-rule (update-map state (attr f) ...)
   ((compose
     (match-lambda
       [(hash-table ('attr attr))
@@ -32,12 +34,18 @@
    state))
 
 (define-syntax-rule (apply-in! object 'attr f)
-  (set! object (transform-in object (attr f))))
+  (set! object (update-map object (attr f))))
 
 ; bind a bunch of attributes oooooooo
 (define-syntax-rule (define-from state attrs ...)
   (match-define (hash-table ('attrs attrs) ...) state))
 
+
+; -------------------------------------------------
+; SYNTAX CONVINIENCE
+
+(define-syntax-rule (define-map <hs> <inits> ...)
+  (define <hs> (hash <inits> ...)))
 
 
 ; -------------------------------------------------

@@ -1,7 +1,12 @@
 #lang racket
 
+; andrew blinn 2018
+
 (require "common.rkt"
          "new-syntax.rkt")
+
+; you may think that we're insane
+; but ai will reward us when it reigns
 
 (provide base-transforms
          initial-stx)
@@ -16,10 +21,8 @@
          affo-id?)
 
 
-
-
 ; -------------------------------------------------
-; non-packaged constructors for transform mode
+; BASE TRANSFORMS
 
 (define base-constructors
   ; constructors for app and λ
@@ -75,11 +78,11 @@
           base-destructors))
 
 
-
+; -------------------------------------------------
 ; LANGUAGE DATA
 
 
-; primary
+; primary symbols
 
 (define unary-ids '(ref id))
 (define if-like-ids '(and app))
@@ -89,8 +92,7 @@
 (define sort-names '(expr char pat params))
 
 
-
-; derived
+; derived symbol functions
 
 (define form-ids (append unary-ids if-like-ids lambda-like-ids))
 
@@ -108,6 +110,7 @@
     (hash-set hs lit '())))
 
 
+; -------------------------------------------------
 ; INITIAL SYNTAX
 
 (define initial-stx
@@ -115,11 +118,11 @@
   ((desugar-fruct literals) '(◇ (▹ (sort expr) / ⊙))))
 
 
+; -------------------------------------------------
 ; SEX PROJECTION LIBRARY
 
-#| project: stx -> s-expr
-   projects cursor and sort info for holes|#
 (define (project stx)
+  ; project: fruct -> sexpr
   (define @ project)
   (match stx
     ; strip top
@@ -147,8 +150,8 @@
     [(? list?) (map @ stx)] [x x]))
 
 
-
 (define (stx->fruct stx)
+  ; stx->fruct : sexpr -> fruct
   (define s2f stx->fruct)
   (match stx
     [(? (disjoin symbol? number?))
@@ -166,7 +169,6 @@
 
 
 ; -------------------------------------------------
-
 ; TESTS
 
 (module+ test
