@@ -164,6 +164,7 @@
 
 
 
+
 (define (render fruct layout-settings (depth #t) (bkg 0))
   (define-from layout-settings
     text-size selected-color hole-color
@@ -175,17 +176,27 @@
 
     [(/ [metavar m] a/ a)
      #;(println `(metavar-case ,a))
-     (render (/ a/ a) (for/hash ([(k v) layout-settings])
-                        (match v
-                          [(color _ _ _ _)
-                           (values k ((per-color-linear-dodge-tint
-                                       (match m
-                                         [0 (color 0 255 255)]
-                                         [1 (color 255 0 255)]
-                                         [2 (color 255 255 0)]
-                                         [_ (color 0 255 0)])
-                                       0.4) v))]
-                          [_ (values k v)])))]
+     (define (metavar-tint-colors m layout-settings)
+       (for/hash ([(k v) layout-settings])
+         (match v
+           [(color _ _ _ _)
+            (values k ((per-color-linear-dodge-tint
+                        (match m
+                          [0 (color 0 255 255)]
+                          [1 (color 255 0 255)]
+                          [2 (color 255 255 0)]
+                          [_ (color 0 255 0)])
+                        0.4) v))]
+           [_ (values k v)])))
+     (list
+      ; hack
+      ; this took forever to figure out
+      ; otherwise this is taking the metavar attribute off
+      ; so when we try to render the item in a menu...
+      ; actually what exactly is going on?
+      ; in any case, we need to make sure we're not loosing attributes..
+      (/ [metavar m] a/ a)
+      (second (render (/ a/ a) (metavar-tint-colors m layout-settings))))]
    
     [(and this-menu
           (/ [menu `((,transforms ,resultants) ...)] m/ m))
@@ -597,9 +608,19 @@
     (for/list ([item truncated-menu])
       (define override-layout-settings
         ; slight hack to remove form backings
-        (hash-set* layout-settings
-                   'grey-one invisible
-                   'form-color (color 255 255 255))) ; magic color
+        ; another hack for metavars
+        ; need to do this again here because
+        ; menu breaks layout-settings inheritance
+        (match item
+          ; shouldnt need special case
+          ; render should pick this up
+          ; but it doesn't work either way...
+          [(/ [metavar m] b/ b)
+             (hash-set* layout-settings
+                        #;#;'form-color (color 255 255 255))]
+          [_ (hash-set* layout-settings
+                        'grey-one invisible
+                        'form-color (color 255 255 255))])) ; magic color
       (cond
         [custom-menu-selector?
          (match item
@@ -624,17 +645,17 @@
                                                  (space text-size))
                                          (second (render (/ b/ b) override-layout-settings))))))]
            [(/ b/ b)
-            (list (first (render (/ b/ b) override-layout-settings))
+            (list (first (render item override-layout-settings))
                   (if (or (not (list? b)) (and (member 'ref implicit-forms)
                                                (match b [`(ref ,_) #t][_ #f])))
                       ; hacky extra spacing for atoms
                       ; extra hacky for implicit refs
                       (beside (space text-size)
-                              (second (render (/ b/ b) (hash-set override-layout-settings
+                              (second (render item (hash-set override-layout-settings
                                                                  'identifier-color "white")))
                               (space text-size))
-                      (second (render (/ b/ b) override-layout-settings))))
-            #;(render item override-layout-settings)])]
+                      ; below is call that should have tint when metavar 666
+                      (second (render item override-layout-settings))))])]
         [else (render item override-layout-settings)])))
   
   (define truncated-menu-image
@@ -1115,7 +1136,7 @@
         (/ local-a/ new-as)])]
 
     ; menu items which aren't drawn
-    [(/  a/ a) (/  a/ a)] 
+    [(/ a/ a) (/ a/ a)] 
     [_ fruct]))
 
 
@@ -1233,6 +1254,9 @@
 
 (second
  (fructure-layout data-13 test-settings))
+
+(second
+ (fructure-layout data-14 test-settings))
 
 
 ; temp work on search

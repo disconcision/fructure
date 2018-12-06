@@ -206,14 +206,23 @@
   ; it prevents some bugs, but might just be masking them
   (define (erase-attrs fr)
     (match fr
+      [(/ handle in-scope transform a/ a)
+       (/ a/ (erase-attrs a))]
+      [(/ in-scope transform a/ a)
+       (/ a/ (erase-attrs a))]
+      [(/ handle transform a/ a)
+       (/ a/ (erase-attrs a))]
       [(/ handle in-scope a/ a)
        (/ a/ (erase-attrs a))]
       [(/ handle a/ a)
        (/ a/ (erase-attrs a))]
       [(/ in-scope a/ a)
        (/ a/ (erase-attrs a))]
+      [(/ transform a/ a)
+       (/ a/ (erase-attrs a))]
       [(? list?) (map erase-attrs fr)]
       [_ fr]))
+
   ; the problem with this approach is runtime-match
   ; doesn't know the literal (chars) for the ids we introduce
   (define metavar-transforms
@@ -225,9 +234,13 @@
                   (▹ / ⊙)
                   (▹ ,@a / ,b)])]))
          (extract-metavars (erase-attrs ambient-stx))))
-  (println `(mvt ,metavar-transforms))
-  (when (not (empty? metavar-transforms))
-    (println `(res ,(runtime-match literals (first metavar-transforms) initial-stx))))
+  #;(println `(mvt ,metavar-transforms))
+  #;(when (not (empty? metavar-transforms))
+      (define literals2
+        (for/fold ([hs literals])
+                  ([lit '(a b c d e f g h i j k l m n o p q r s t u v w x y z)])
+          (hash-set hs lit '())))
+      (println `(res ,(runtime-match literals2 (first metavar-transforms) initial-stx))))
   
   ; problem: need to project metavar contents into
   ; a format runtime-match understands
