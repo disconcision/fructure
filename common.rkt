@@ -8,6 +8,7 @@
          apply-in!
 
          define-map
+         match-lambda?
          
          atomic?
          selected?
@@ -46,6 +47,9 @@
 
 (define-syntax-rule (define-map <hs> <inits> ...)
   (define <hs> (hash <inits> ...)))
+
+(define-syntax-rule (match-lambda? <pat>)
+  (match-lambda [<pat> #t] [_ #f]))
 
 
 ; -------------------------------------------------

@@ -73,7 +73,8 @@
   ; layer transform/menu above structure
   'popout-transform? #t
   'popout-menu? #t
-  
+
+  'force-horizontal-layout? #f
   ; invade the second dimension 
   'length-conditional-layout? #t
   ; but only if our children weigh more than

@@ -30,6 +30,7 @@
         'popout-transform? #t
         'popout-menu? #t
         'custom-menu-selector? #t
+        'force-horizontal-layout? #f
         'length-conditional-layout? #t
         'length-conditional-cutoff 10
         'dodge-enabled? #t
@@ -174,29 +175,7 @@
     
   (match fruct
 
-    [(/ [metavar m] a/ a)
-     #;(println `(metavar-case ,a))
-     (define (metavar-tint-colors m layout-settings)
-       (for/hash ([(k v) layout-settings])
-         (match v
-           [(color _ _ _ _)
-            (values k ((per-color-linear-dodge-tint
-                        (match m
-                          [0 (color 0 255 255)]
-                          [1 (color 255 0 255)]
-                          [2 (color 255 255 0)]
-                          [_ (color 0 255 0)])
-                        0.4) v))]
-           [_ (values k v)])))
-     (list
-      ; hack
-      ; this took forever to figure out
-      ; otherwise this is taking the metavar attribute off
-      ; so when we try to render the item in a menu...
-      ; actually what exactly is going on?
-      ; in any case, we need to make sure we're not loosing attributes..
-      (/ [metavar m] a/ a)
-      (second (render (/ a/ a) (metavar-tint-colors m layout-settings))))]
+    
    
     [(and this-menu
           (/ [menu `((,transforms ,resultants) ...)] m/ m))
@@ -225,6 +204,31 @@
                             invisible))
                new-image))]
 
+    ; this needs to be after the transform/menu(?) cases
+    ; feels hacky
+    [(/ [metavar m] a/ a)
+     #;(println `(metavar-case ,a))
+     (define (metavar-tint-colors m layout-settings)
+       (for/hash ([(k v) layout-settings])
+         (match v
+           [(color _ _ _ _)
+            (values k ((per-color-linear-dodge-tint
+                        (match m
+                          [0 (color 0 255 255)]
+                          [1 (color 255 0 255)]
+                          [2 (color 255 255 0)]
+                          [_ (color 0 255 0)])
+                        0.4) v))]
+           [_ (values k v)])))
+     (list
+      ; hack
+      ; this took forever to figure out
+      ; otherwise this is taking the metavar attribute off
+      ; so when we try to render the item in a menu...
+      ; actually what exactly is going on?
+      ; in any case, we need to make sure we're not loosing attributes..
+      (/ [metavar m] a/ a)
+      (second (render (/ a/ a) (metavar-tint-colors m layout-settings))))]
      
     
     [(/ ref/ `(ref ,id))
@@ -440,14 +444,7 @@
 (define (render-horizontal-default selected? layout-settings children)
   (match-define `((,possibly-truncated-stx ,possibly-truncated-child-images) ...) children)
   (define-from layout-settings
-    text-size implicit-forms)
-  
-  #;(define-values (possibly-truncated-stx possibly-truncated-child-images)
-      (match* (stx child-images)
-        [(`(,(? (curryr member implicit-forms)) ,xs ...)
-          `(,c ,cs ...))
-         (values xs cs)]
-        [(_ _) (values stx child-images)]))
+    text-size)
 
   (define-values (new-children final-offset)
     (layout-row (list (image-width (space text-size)) 0)
@@ -616,9 +613,11 @@
           ; render should pick this up
           ; but it doesn't work either way...
           [(/ [metavar m] b/ b)
-             (hash-set* layout-settings
-                        #;#;'form-color (color 255 255 255))]
+           (hash-set* layout-settings
+                      'force-horizontal-layout? #t
+                      #;#;'form-color (color 255 255 255))]
           [_ (hash-set* layout-settings
+                        'force-horizontal-layout? #t
                         'grey-one invisible
                         'form-color (color 255 255 255))])) ; magic color
       (cond
@@ -652,7 +651,7 @@
                       ; extra hacky for implicit refs
                       (beside (space text-size)
                               (second (render item (hash-set override-layout-settings
-                                                                 'identifier-color "white")))
+                                                             'identifier-color "white")))
                               (space text-size))
                       ; below is call that should have tint when metavar 666
                       (second (render item override-layout-settings))))])]
@@ -903,7 +902,8 @@
 (define (render-list fruct depth bkg layout-settings selected?)
   (define-from layout-settings
     selected-color text-size implicit-forms
-    length-conditional-layout? length-conditional-cutoff)
+    length-conditional-layout? length-conditional-cutoff
+    force-horizontal-layout?)
   
   (match-define (/ a/ `(,first-stx ,rest-stx ...)) fruct)
 
@@ -930,6 +930,7 @@
   ; decide if we're laying this out horizontally or vertically
   (define render-this-horizontally?
     (cond
+      [force-horizontal-layout? #t]
       [(not (or if-like? lambda-like?)) #t]
       [(not length-conditional-layout?) #f]
       [else (match-define `((,_ ,child-images) ...) children)
@@ -941,6 +942,12 @@
   (define layout-renderer
     (cond
       [(and lambda-like? (not render-this-horizontally?))
+       ; BUG: implicit apps are all rendering horizontally
+       ; because we're just removing the app symbol
+       ; so the whole form is being interpreted as the header
+       ; by below function
+       ; need to either de-hackify,
+       ; or create renderer for no-head pure vertical
        render-vertical-lambda-like]         
       [(and if-like? (not render-this-horizontally?))
        render-vertical-if-like]
@@ -957,8 +964,14 @@
 
   (match-define (list new-kids-local new-layout-local)
     (layout-renderer selected? layout-settings children))
-  
-  (list (/ a/ new-kids-local)
+
+  ; possible BUG
+  ; put back in the implicit form
+  ; dunno if this is working properly and or necessary at all
+  (list (/ a/ (if (member first-stx implicit-forms)
+                    (cons first-stx new-kids-local)
+                    new-kids-local)
+           #;new-kids-local)
         (backer new-layout-local)))
 
 

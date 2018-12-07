@@ -173,11 +173,15 @@
 
 
 (define (advance-cursor-to-next-hole stx)
+  ; new: prevent descending into metavar
+  ; note that other metavar clause is ill-advised
   (f/match stx
-    [(c ⋱ (▹ ys ... / (d ⋱ (xs ... / '⊙))))
+    [(c ⋱ (and (▹ ys ... / (d ⋱ (xs ... / '⊙)))
+               (not (('metavar _) _ ... / _))))
      (c ⋱ (ys ... / (d ⋱ (▹ xs ... / '⊙))))]
-    [(c ⋱ (capture-when (or (('▹ _) _ ... / _)
-                            (_ ... / '⊙)))
+    [(c ⋱ (capture-when (and (or (('▹ _) _ ... / _)
+                                 (_ ... / '⊙))
+                             #;(not (('metavar _) _ ... / _))))
         `(,as ... ,(▹ ws ... / a) ,(zs ... / b) ,bs ...))
      (c ⋱... 
         `(,@as ,(ws ... / a) ,(▹ zs ... / b) ,@bs))]
@@ -197,11 +201,17 @@
      (map fruct-to-runtime fr)]
     [_ fr]))
 
-(define (insert-menu-at-cursor stx ambient-stx)
+(define (insert-menu-at-cursor template ambient-stx)
   (define (extract-metavars ambient-stx)
     (match ambient-stx
       [(⋱+x c⋱ (and m (/ metavar _/ _)))
        m]))
+
+  
+  ; problem: need to project metavar contents into
+  ; a format runtime-match understands
+  ; soln: fruct-to-runtime
+
   ; should i be erasing this stuff?
   ; it prevents some bugs, but might just be masking them
   (define (erase-attrs fr)
@@ -225,6 +235,9 @@
 
   ; the problem with this approach is runtime-match
   ; doesn't know the literal (chars) for the ids we introduce
+  ; i EXTREME DANGER HACK ""fix"" this
+  ; by hacking fructerm to interpret unbound pattern vars as literals
+  ; sorry future people
   (define metavar-transforms
     (map (λ (x)
            (match (fruct-to-runtime x)
@@ -234,16 +247,17 @@
                   (▹ / ⊙)
                   (▹ ,@a / ,b)])]))
          (extract-metavars (erase-attrs ambient-stx))))
-  #;(println `(mvt ,metavar-transforms))
-  #;(when (not (empty? metavar-transforms))
-      (define literals2
-        (for/fold ([hs literals])
-                  ([lit '(a b c d e f g h i j k l m n o p q r s t u v w x y z)])
-          (hash-set hs lit '())))
-      (println `(res ,(runtime-match literals2 (first metavar-transforms) initial-stx))))
+
+    ; hack:
+  ; if the template is a metavar
+  ; all transformed menu items will be the same metavar
+  ; so we strip it
+  (define stx
+      (match template
+        [(/ metavar a/ a) (/ a/ a)]
+        [x x]))
+
   
-  ; problem: need to project metavar contents into
-  ; a format runtime-match understands
   (define in-scope
     (extract-scope stx))
   (define menu-stx (make-menu in-scope metavar-transforms stx))
@@ -280,13 +294,25 @@
   ; removes existing menu, advances cursor to next hole,
   ; and inserts a menu at that hole. if there is no such
   ; hole, the returned stx will have no menu
+
+  (define hole-under-cursor?
+    (match-lambda? (⋱x c⋱ (/ _/ (▹ '⊙)))))
+
+  (define candidate
+    ((compose #;(curryr insert-menu-at-cursor ambient-stx)
+              local-augment
+              advance-cursor-to-next-hole
+              strip-menu)
+     stx))
+
+  ; slightly hacky
+  ; this case prevents a menu from spawning on an atom
+  ; if we press over when there are no other holes
+  (if (hole-under-cursor? candidate)
+      (insert-menu-at-cursor candidate ambient-stx)
+      candidate)
   
-  ((if (equal? stx (advance-cursor-to-next-hole stx))
-       identity
-       (compose (curryr insert-menu-at-cursor ambient-stx)
-                local-augment
-                advance-cursor-to-next-hole))  
-   (strip-menu stx)))
+  )
 
 
 
