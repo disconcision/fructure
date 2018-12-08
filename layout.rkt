@@ -32,7 +32,7 @@
         'custom-menu-selector? #t
         'force-horizontal-layout? #f
         'length-conditional-layout? #t
-        'length-conditional-cutoff 10
+        'length-conditional-cutoff 14
         'dodge-enabled? #t
         'implicit-forms '(ref app)
 
@@ -205,7 +205,10 @@
                new-image))]
 
     ; this needs to be after the transform/menu(?) cases
-    ; feels hacky
+    ; otherwise we lose location information
+    ; and popups draw improperly
+    ; super hacky; investigate and refactor
+    ; probably related to below hack
     [(/ [metavar m] a/ a)
      #;(println `(metavar-case ,a))
      (define (metavar-tint-colors m layout-settings)
@@ -475,97 +478,114 @@
 
 
 
-(define (render-vertical-if-like selected? layout-settings children)
+(define (render-vertical indent-style header-items selected? layout-settings children)
   (match-define `((,stx ,child-images) ...) children)
   (define-from layout-settings
     text-size)
-
-  (define new-first-children
-    (match (first stx)
-      [(? (disjoin symbol? number?)) (first stx)]
-      [(/ a/ a)
-       (/ [display-offset (list (image-width (space text-size)) 0)]
-          [display-box (list (image-width (first child-images))
-                             (image-height (first child-images)))]
-          a/ a)]))
-
-  (define offset-after-first ; note two spaces
-    (list (+ (image-width (space text-size))
-             (image-width (first child-images))
-             (image-width (space text-size)))
-          0))
-
-  (define-values (new-rest-children final-offset)
-    (layout-column offset-after-first
-                   1
-                   (rest stx)
-                   (rest child-images)))
-
-  (define new-image
-    (beside/align
-     "top"
-     (space text-size)
-     #;(if selected? (second (render '▹ layout-settings)) (space text-size))
-     (first child-images)
-     (space text-size)
-     (apply above/align* "left"
-            (drop-right
-             (for/fold ([acc '()])
-                       ([i (rest child-images)])
-               `(,@acc ,i ,1px))
-             1))
-     #;(space text-size)))
-  
-  (list (cons new-first-children new-rest-children) new-image))
-
-
-
-(define (render-vertical-lambda-like selected? layout-settings children)
-  (match-define `((,stx ,child-images) ...) children)
-  (define-from layout-settings
-    text-size)
-
-  (define-values (new-header-children offset-after-header-children)
-    (layout-row (list (image-width (space text-size)) 0)
-                (image-width (space text-size))
-                (take stx 2)
-                (take child-images 2)))
-
-  (define header-image
-    (beside/align "top"
-                  (space text-size)
-                  #;(if selected? (second (render '▹ layout-settings)) (space text-size))
-                  (first child-images)
-                  (space text-size)
-                  (second child-images)))
 
   (define indent-image
-    (beside (space text-size) (space text-size)))
+    (rectangle (if (equal? indent-style 'first-element)
+                   (+ (* 2 (image-width (space text-size)))
+                      (image-width (first child-images)))
+                   (* indent-style (image-width (space text-size))))
+               (image-height (space text-size))
+               "solid"
+               invisible))
 
-  (define-values (new-rest-children final-offset)
-    (layout-column (list (image-width indent-image)
-                         ; +1 for 1px line spacing after header
-                         (+ 1 (image-height header-image)))
-                   1
-                   (rest (rest stx))
-                   (rest (rest child-images))))
+  (define stx-header (take stx header-items))
+  (define img-header (take child-images header-items))
+  (define stx-body (drop stx header-items))
+  (define img-body (drop child-images header-items))
+
+  (define-values (new-fruct-head offset-after)
+    (layout-row (list (image-width (space text-size)) 0)
+                (image-width (space text-size))
+                stx-header
+                img-header))
+
+  (define header-image
+    (apply beside/align* "top"
+           (for/fold ([acc '()])
+                     ([i img-header])
+             `(,@acc ,(space text-size) ,i))))
+
+  (define body-image
+    (apply above/align* "left"
+           (let ([temp
+                  (for/fold ([acc '()])
+                            ([i img-body])
+                    `(,@acc ,i ,1px))])
+             (if (empty? temp)
+                 temp
+                 (drop-right temp 1)))))
+
+  (define offset-after-header
+    (list (image-width indent-image)
+          ; +1 for 1px line spacing after header
+          (+ 1 (image-height header-image))))
+
+  (define-values (new-fruct-body _)
+    (layout-column offset-after-header
+                   ; 1px spacing between lines
+                   1 stx-body img-body))
+
+  (define new-image
+    (above/align*
+     "left" header-image 1px
+     (beside/align*
+      "top" indent-image body-image)))
+  
+  (list (append new-fruct-head new-fruct-body) new-image))
+
+
+
+#;(define (render-vertical-lambda-like selected? layout-settings children)
+    (match-define `((,stx ,child-images) ...) children)
+    (define-from layout-settings
+      text-size)
+
+    (define-values (new-fruct-head offset-after-header-children)
+      (layout-row (list (image-width (space text-size)) 0)
+                  (image-width (space text-size))
+                  (take stx 2)
+                  (take child-images 2)))
+
+    (define header-image
+      (beside/align "top"
+                    (space text-size)
+                    (first child-images)
+                    (space text-size)
+                    (second child-images)))
+
+  
+
+    (define indent-image
+      (beside (space text-size) (space text-size)))
+
+    (define offset-after-first
+      (list (image-width indent-image)
+            ; +1 for 1px line spacing after header
+            (+ 1 (image-height header-image))))
+
+    (define-values (new-fruct-body _)
+      (layout-column offset-after-first
+                     1
+                     (drop stx 2)
+                     (drop child-images 2)))
 
  
-  (define new-image
-    (above/align* "left"
-                  header-image
-                  1px
-                  (beside/align* "top"
-                                 indent-image
-                                 (apply above/align* "left"
-                                        (drop-right ; drop trailing pixel spacer
-                                         (for/fold ([acc '()])
-                                                   ([i (rest (rest child-images))])
-                                           `(,@acc ,i ,1px))
-                                         1)))))
+    (define new-image
+      (above/align*
+       "left"
+       header-image
+       1px
+       (beside/align*
+        "top"
+        indent-image
+        (make-body-image (drop child-images 2)))))
 
 
-  (list (append new-header-children new-rest-children) new-image))
+    (list (append new-fruct-head new-fruct-body) new-image))
 
 
 
@@ -948,9 +968,12 @@
        ; by below function
        ; need to either de-hackify,
        ; or create renderer for no-head pure vertical
-       render-vertical-lambda-like]         
+       (curry render-vertical 2 2)]         
       [(and if-like? (not render-this-horizontally?))
-       render-vertical-if-like]
+       (if (member first-stx implicit-forms)
+           (curry render-vertical 1 1)
+           (curry render-vertical 'first-element 2))
+       #;(curry render-vertical 'first-element 2)]
       [else render-horizontal-default]))
 
   ; choose an algorithm to back the layout
@@ -969,8 +992,8 @@
   ; put back in the implicit form
   ; dunno if this is working properly and or necessary at all
   (list (/ a/ (if (member first-stx implicit-forms)
-                    (cons first-stx new-kids-local)
-                    new-kids-local)
+                  (cons first-stx new-kids-local)
+                  new-kids-local)
            #;new-kids-local)
         (backer new-layout-local)))
 
