@@ -133,6 +133,9 @@
      (/ in-scope λ/
         `(λ ,(/ params/ `(,(/ id/ my-stx)))
            ,(W (/ (in-scope new-in-scope) body/ body))))]
+
+    ; SILENT FALLTHROUGH WHILE IMPLEMENTING NEW FORMS
+    [_ stx]
     
     [_ (error (~a `("attribute generation error on stx: ", stx))) 0]
     ))

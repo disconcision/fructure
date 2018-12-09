@@ -176,11 +176,11 @@
   ; new: prevent descending into metavar
   ; note that other metavar clause is ill-advised
   (f/match stx
-    [(c ⋱ (and (▹ ys ... / (d ⋱ (xs ... / '⊙)))
+    [(c ⋱ (and (▹ ys ... / (d ⋱ (xs ... / (and h (or '⊙ '⊙+)))))
                (not (('metavar _) _ ... / _))))
-     (c ⋱ (ys ... / (d ⋱ (▹ xs ... / '⊙))))]
+     (c ⋱ (ys ... / (d ⋱ (▹ xs ... / h))))]
     [(c ⋱ (capture-when (and (or (('▹ _) _ ... / _)
-                                 (_ ... / '⊙))
+                                 (_ ... / (or '⊙ '⊙+)))
                              #;(not (('metavar _) _ ... / _))))
         `(,as ... ,(▹ ws ... / a) ,(zs ... / b) ,bs ...))
      (c ⋱... 
@@ -296,7 +296,7 @@
   ; hole, the returned stx will have no menu
 
   (define hole-under-cursor?
-    (match-lambda? (⋱x c⋱ (/ _/ (▹ '⊙)))))
+    (match-lambda? (⋱x c⋱ (/ _/ (▹ (or '⊙ '⊙+))))))
 
   (define candidate
     ((compose #;(curryr insert-menu-at-cursor ambient-stx)

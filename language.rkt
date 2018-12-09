@@ -17,6 +17,7 @@
 (provide literals
          if-like-id?
          lambda-like-id?
+         cond-like-id?
          form-id?
          affo-id?)
 
@@ -27,31 +28,155 @@
 (define base-constructors
   ; constructors for app and λ
   ; constructors for variable references are introduced dynamically
-  (list '([⋱
-            (▹ [sort expr] xs ... / ⊙)
-            (▹ [sort expr] xs ... / (app ([sort expr] / ⊙)
+  (append
+   (list '([⋱
+             (▹ [sort expr] xs ... / ⊙)
+             (▹ [sort expr] xs ... / (app ([sort expr] / ⊙)
+                                          ([sort expr] / ⊙)))])
+         '([⋱
+             (▹ [sort expr] xs ... / ⊙)
+             (▹ [sort expr] xs ... / (λ ([sort params]
+                                         / (([sort pat]
+                                             / (id ([sort char] / ⊙)))))
+                                       ([sort expr] / ⊙)))]))
+   (list '([⋱
+             (▹ [sort expr] xs ... / ⊙)
+             (▹ [sort expr] xs ... / (λm ([sort params]
+                                          / (([sort pat]
+                                              / ⊙+)))
                                          ([sort expr] / ⊙)))])
-        '([⋱
-            (▹ [sort expr] xs ... / ⊙)
-            (▹ [sort expr] xs ... / (λ ([sort params]
-                                        / (([sort pat]
-                                            / (id ([sort char] / ⊙)))))
-                                      ([sort expr] / ⊙)))])))
+         '([⋱
+             ([sort params]
+              / (as ... (▹ xs ... / ⊙+) bs ...))
+             ([sort params]
+              / (as ... (▹ xs ... / (id ([sort char] / ⊙))) (xs ... / ⊙+) bs ...))])
+         '([⋱
+             (▹ [sort expr] xs ... / ⊙)
+             (▹ [sort expr] xs ... / (if ([sort expr] / ⊙)
+                                         ([sort expr] / ⊙)
+                                         ([sort expr] / ⊙)))])
+         '([⋱
+             (▹ [sort expr] xs ... / ⊙)
+             (▹ [sort expr] xs ... / (begin
+                                       ([sort expr] / ⊙)
+                                       ([sort expr] / ⊙+)))])
+         '([⋱
+             ([sort expr] xs ... / (begin
+                                     a ...
+                                     (▹ [sort expr] / ⊙+)))
+             ([sort expr] xs ... / (begin
+                                     a ...
+                                     ; does this work? or does transform traversal
+                                     ; just skip past it...
+                                     ; might need to start with cursor before...
+                                     ; ie match as ... a above, put cursor last in a here
+                                     ; hacky af....
+                                     (▹ [sort expr] / ⊙)
+                                     ([sort expr] / ⊙+)))])
+
+         '([⋱
+             (▹ [sort expr] xs ... / ⊙)
+             (▹ [sort expr] xs ... / (cond
+                                       ([sort CP] / (cp ([sort expr] / ⊙)
+                                                        ([sort expr] / ⊙)))
+                                       ([sort CP] / ⊙+)))])
+         '([⋱
+             ([sort expr] xs ... / (cond
+                                     a ...
+                                     (▹ [sort CP] / ⊙+)))
+             ([sort expr] xs ... / (cond
+                                     a ...
+                                     (▹ [sort CP] / (cp ([sort expr] / ⊙)
+                                                        ([sort expr] / ⊙)))
+                                     ([sort CP] / ⊙+)))])
+         '([⋱
+             (▹ [sort expr] xs ... / ⊙)
+             (▹ [sort expr] xs ... / (match ([sort expr] / ⊙)
+                                       ([sort MP] / (mp ([sort expr] / ⊙)
+                                                        ([sort expr] / ⊙)))
+                                       ([sort MP] / ⊙+)))])
+         '([⋱
+             ([sort expr] xs ... / (match ([sort expr] / ⊙)
+                                     a ...
+                                     (▹ [sort MP] / ⊙+)))
+             ([sort expr] xs ... / (match ([sort expr] / ⊙)
+                                     a ...
+                                     (▹ [sort MP] / (mp ([sort pat] / ⊙)
+                                                        ([sort expr] / ⊙)))
+                                     ([sort MP] / ⊙+)))])
+         '([⋱
+             (▹ [sort expr] xs ... / ⊙)
+             (▹ [sort expr] xs ... / (let ([sort pairs] / (([sort LP] / (lp ([sort pat]
+                                                                             / (id ([sort char] / ⊙)))
+                                                                            ([sort expr] / ⊙)))
+                                                           ([sort LP] / ⊙+)))
+                                       ([sort expr] / ⊙)))])
+         '([⋱
+             ([sort expr] xs ... / (let ([sort pairs] / (a ...
+                                                         (▹ [sort LP] / ⊙+)))
+                                     ([sort expr] / ⊙)))
+             ([sort expr] xs ... / (let ([sort pairs] / (a ...
+                                                         (▹ [sort LP] / (lp ([sort pat]
+                                                                             / (id ([sort char] / ⊙)))
+                                                                            ([sort expr] / ⊙)))
+                                                         ([sort LP] / ⊙+)))
+                                     ([sort expr] / ⊙)))])
+
+
+         ; identity transform
+         ; redundant to generalmost destructor
+         #;'([⋱
+               (▹ [sort expr] xs ... / ⊙)
+               (▹ [sort expr] xs ... / ⊙)])))
+  )
 
 
 (define base-destructors
   ; destructors for all syntactic forms
-  (list
-   '([⋱
-       (▹ xs ... / (ref a))
-       (▹ xs ... / ⊙)]
-     [⋱
-       (▹ xs ... / (app a b))
-       (▹ xs ... / ⊙)]
-     [⋱
-       (▹ xs ... / (λ a b))
-       (▹ xs ... / ⊙)]
-     )))
+  (append
+   (list
+    '([⋱
+        (▹ xs ... / (ref a))
+        (▹ xs ... / ⊙)]
+      [⋱
+        (▹ xs ... / (app a b))
+        (▹ xs ... / ⊙)]
+      [⋱
+        (▹ xs ... / (λ a b))
+        (▹ xs ... / ⊙)]))
+   (list
+    '(
+      #;#;#;#;#;#;
+      [⋱
+        (▹ xs ... / (if a b c))
+        (▹ xs ... / ⊙)]
+      [⋱
+        (▹ xs ... / (cond a ...))
+        (▹ xs ... / ⊙)]
+      [⋱
+        (▹ xs ... / (λm a ...))
+        (▹ xs ... / ⊙)]
+      [⋱
+        (▹ xs ... / (begin a ...))
+        (▹ xs ... / ⊙)]
+      [⋱
+        (▹ xs ... / (match a ...))
+        (▹ xs ... / ⊙)]
+      [⋱
+        (▹ xs ... / (let a ...))
+        (▹ xs ... / ⊙)]
+     
+      ; general fallthough for now
+      ; don't need identity constructor with this
+      ; but needs this hacky guard
+      ; actually that doesn't work, thre's still a superfluous transform
+      [⋱
+        (▹ xs ... / ⊙+)
+        (▹ xs ... / ⊙+)]
+      [⋱
+        (▹ xs ... / a)
+        (▹ xs ... / ⊙)]
+      ))))
 
 
 (define alphabet
@@ -84,20 +209,22 @@
 
 ; primary symbols
 
-(define unary-ids '(ref id))
-(define if-like-ids '(and app))
-(define lambda-like-ids '(λ lambda))
+(define unary-ids (append '(ref id) '(quote qq uq p-not num)))
+(define if-like-ids (append '(app and) '(if mp lp cp begin list p-and p-or p-list)))
+(define lambda-like-ids (append '(λ lambda) '(match let define local)))
+(define cond-like-ids '(cond match-λ λm))
 
-(define affordances '(▹ ⊙ ◇ →))
-(define sort-names '(expr char pat params))
+(define affordances '(▹ ⊙ ⊙+ ◇ →))
+(define sort-names (append '(expr char pat params) '(MP LP CP def)))
 
 
 ; derived symbol functions
 
-(define form-ids (append unary-ids if-like-ids lambda-like-ids))
+(define form-ids (append unary-ids if-like-ids lambda-like-ids cond-like-ids))
 
 (define if-like-id? (curryr member if-like-ids))
 (define lambda-like-id? (curryr member lambda-like-ids))
+(define cond-like-id? (curryr member cond-like-ids))
 (define form-id? (curryr member form-ids))
 (define affo-id? (curryr member affordances))
 

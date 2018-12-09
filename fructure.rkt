@@ -18,6 +18,8 @@
          ; input mode
          "common.rkt")
 
+(define-values (screen-x screen-y)
+  (values 1200 800))
 
 #|
 
@@ -63,7 +65,7 @@
   'text-size 30
   
   ; hide the heads of these forms
-  'implicit-forms '(ref app)
+  'implicit-forms '(ref app cp lp mp)
   
   ; maximum completions
   'max-menu-length 4
@@ -155,7 +157,8 @@
   (match-define (list _ image-out)
     ; second here skips the top (diamond) affo
     ; todo: make this less hacky by going fs
-    (fructure-layout (second stx) layout-settings))
+    (fructure-layout (second stx) layout-settings
+                     screen-x screen-y))
   image-out)
 
 
@@ -166,7 +169,7 @@
   ; MY LOVE FOR YOU IS LIKE A TRUCK
   [name 'fructure]
   [on-key input-keyboard]
-  [to-draw output 800 400]
+  [to-draw output screen-x screen-y]
   #;[display-mode 'fullscreen]
   #;[record? "gif-recordings"])
 

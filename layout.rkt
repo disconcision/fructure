@@ -57,7 +57,7 @@
         ))
 
 ; fructure-layout : syntax -> pixels
-(define (fructure-layout fruct layout-settings)
+(define (fructure-layout fruct layout-settings (screen-x 800) (screen-y 400))
   (define-from layout-settings
     bkg-color text-size popout-transform? popout-menu?)
   (define margin (div-integer text-size 5))
@@ -66,14 +66,14 @@
   (match fruct
     [`(◇ ,x) (error "strip top before calling")] [_ 0])
 
-  (match-define `(,x-offset ,y-offset) '(20 20))
+  (match-define `(,x-offset ,y-offset) `(,text-size ,text-size))
 
   (match-define `(,new-fruct ,scene-image)
     (render
      (match fruct
        [(/ fr/ stx)
         (/ [display-offset `(,x-offset ,y-offset)]
-           [display-box '(800 400)]
+           [display-box `(,screen-x ,screen-y)]
            fr/ stx)])
      layout-settings))
 
@@ -87,7 +87,7 @@
     (overlay/align/offset "left" "top"
                           scene-image
                           (- x-offset) (- y-offset)
-                          (rectangle 800 400 "solid" bkg-color)))
+                          (rectangle screen-x screen-y "solid" bkg-color)))
 
   ; overlay transform if in popout mode
   (define post-procd-image
@@ -325,11 +325,11 @@
 
 
 (define (ellipses expander-height color)
-  (beside (circle 3/2 "solid" color)
+  (beside (circle (div-integer expander-height 6) "solid" color)
           (rectangle 1 expander-height "solid" invisible)
-          (circle 3/2 "solid" color)
+          (circle (div-integer expander-height 6) "solid" color)
           (rectangle 1 expander-height "solid" invisible)
-          (circle 3/2 "solid" color)))
+          (circle (div-integer expander-height 6) "solid" color)))
 
 
 (define (space text-size)
@@ -519,13 +519,11 @@
                  temp
                  (drop-right temp 1)))))
 
-  (define offset-after-header
-    (list (image-width indent-image)
-          ; +1 for 1px line spacing after header
-          (+ 1 (image-height header-image))))
 
   (define-values (new-fruct-body _)
-    (layout-column offset-after-header
+    (layout-column (list (image-width indent-image)
+                         ; +1 for 1px line spacing after header
+                         (+ 1 (image-height header-image)))
                    ; 1px spacing between lines
                    1 stx-body img-body))
 
@@ -537,55 +535,6 @@
   
   (list (append new-fruct-head new-fruct-body) new-image))
 
-
-
-#;(define (render-vertical-lambda-like selected? layout-settings children)
-    (match-define `((,stx ,child-images) ...) children)
-    (define-from layout-settings
-      text-size)
-
-    (define-values (new-fruct-head offset-after-header-children)
-      (layout-row (list (image-width (space text-size)) 0)
-                  (image-width (space text-size))
-                  (take stx 2)
-                  (take child-images 2)))
-
-    (define header-image
-      (beside/align "top"
-                    (space text-size)
-                    (first child-images)
-                    (space text-size)
-                    (second child-images)))
-
-  
-
-    (define indent-image
-      (beside (space text-size) (space text-size)))
-
-    (define offset-after-first
-      (list (image-width indent-image)
-            ; +1 for 1px line spacing after header
-            (+ 1 (image-height header-image))))
-
-    (define-values (new-fruct-body _)
-      (layout-column offset-after-first
-                     1
-                     (drop stx 2)
-                     (drop child-images 2)))
-
- 
-    (define new-image
-      (above/align*
-       "left"
-       header-image
-       1px
-       (beside/align*
-        "top"
-        indent-image
-        (make-body-image (drop child-images 2)))))
-
-
-    (list (append new-fruct-head new-fruct-body) new-image))
 
 
 
@@ -885,7 +834,8 @@
   
   (define candidate
     (render-symbol
-     (match (/ s/ s) [(/ (sort 'char) _/ '⊙) '+] [_ s])
+     (match (/ s/ s) [(or (/ (sort 'char) _/ '⊙)
+                          (/ _/ '⊙+)) '+] [_ s])
      (if selected?
          (if (form-id? s)
              selected-color
@@ -893,6 +843,7 @@
          (cond
            [(equal? s '→) transform-arrow-color]
            [(equal? s '⊙) hole-color]
+           [(equal? s '⊙+) hole-color]
            [(equal? s '+) hole-color]
            [(literal? s) literal-color]
            [(form-id? s) form-color]
@@ -930,6 +881,7 @@
   ; figure this out here in case we truncate the names below
   (define if-like? (if-like-id? first-stx))
   (define lambda-like? (lambda-like-id? first-stx))
+  (define cond-like? (cond-like-id? first-stx))
 
   ; forms may lose their identities here
   (define possibly-truncated-stx
@@ -951,7 +903,7 @@
   (define render-this-horizontally?
     (cond
       [force-horizontal-layout? #t]
-      [(not (or if-like? lambda-like?)) #t]
+      [(not (or if-like? lambda-like? cond-like?)) #t]
       [(not length-conditional-layout?) #f]
       [else (match-define `((,_ ,child-images) ...) children)
             (define total-length (div-integer (apply + (map image-width child-images))
@@ -974,6 +926,8 @@
            (curry render-vertical 1 1)
            (curry render-vertical 'first-element 2))
        #;(curry render-vertical 'first-element 2)]
+      [(and cond-like? (not render-this-horizontally?))
+       (curry render-vertical 1 1)]
       [else render-horizontal-default]))
 
   ; choose an algorithm to back the layout
@@ -993,13 +947,12 @@
   ; dunno if this is working properly and or necessary at all
   (list (/ a/ (if (member first-stx implicit-forms)
                   (cons first-stx new-kids-local)
-                  new-kids-local)
-           #;new-kids-local)
+                  new-kids-local))
         (backer new-layout-local)))
 
 
 
-(define (render-backing stx new-layout depth child-images layout-settings)
+(define (render-vertical-backing stx new-layout depth child-images layout-settings)
   (define-from layout-settings
     text-size
     grey-one
@@ -1069,7 +1022,7 @@
 
 (define (add-vertical-backing stx selected? depth children new-layout layout-settings)
   (define new-backing
-    (render-backing stx new-layout depth (map second children) layout-settings))
+    (render-vertical-backing stx new-layout depth (map second children) layout-settings))
   (define-from layout-settings
     selected-color text-size grey-one grey-two)
   (define radius (sub1 (div-integer text-size 2)))
