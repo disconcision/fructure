@@ -139,7 +139,7 @@
             (render-menu this-menu layout-settings))
           ;todo: factor out to property
           (place-image/align menu-image
-                             (+ x x-offset (- (* 2 margin))) ;only slightly magic
+                             (+ x x-offset (- (+ (* 2 margin)))) ;only slightly magic
                              (+ y y-offset (- expander-height)) "left" "top"
                              post-procd-image)]
          
@@ -175,8 +175,6 @@
     
   (match fruct
 
-    
-   
     [(and this-menu
           (/ [menu `((,transforms ,resultants) ...)] m/ m))
      (match-define (list fruct-with-positions new-image)
@@ -275,12 +273,10 @@
     [(/ id/ `(id ,xs ...))
      ; id itself is not drawn
      ; draw the letters xs with no spaces
-     (match-define `((,child-fructs ,child-images) ...)
+     (define children
        (map (curryr render layout-settings) xs))
-     (define-values (new-frs _)
-       (layout-row (list 0 0) 0 xs child-images))
-     (define my-new-image
-       (apply beside* child-images))
+     (define-values (new-frs my-new-image _)
+       (layout-row (list 0 0) 0 children))
      (list (/ id/ `(id ,@new-frs)) my-new-image)]
     
     [(/ a/ (? list? a))
@@ -404,68 +400,83 @@
               "solid" invisible)))
 
 
-(define (layout-row intial-offset space-width stx images)
-  (for/fold ([output '()]
-             [running-offset intial-offset])
-            ([s stx] [i images])
-    (match-define (list offset-x offset-y) running-offset)
-    (define new-child
-      (match s
-        [(? (disjoin symbol? number?)) s]
-        [(/ a/ a)
-         (/ [display-offset (list offset-x offset-y)]
-            [display-box (list (image-width i) (image-height i))]
-            a/ a) ]))
-    (define new-running-offset
-      (list (+ offset-x space-width (image-width i)) offset-y))
-    (values `(,@output ,new-child)
-            new-running-offset)))
+(define (layout-row intial-offset space-width pairs)
+  (match-define `((,stx ,images) ...) pairs)
+  (define spacer-image
+    (rectangle space-width space-width "solid" invisible))
+  (define new-image
+    (apply beside/align* "top"
+           (for/fold ([acc '()])
+                     ([i images])
+             `(,@acc ,spacer-image ,i))))
+  (define-values (new-fruct final-offset)
+    (for/fold ([output '()]
+               [running-offset intial-offset])
+              ([s stx] [i images])
+      (match-define (list offset-x offset-y) running-offset)
+      (define new-child
+        (match s
+          [(? (disjoin symbol? number?)) s]
+          [(/ a/ a)
+           (/ [display-offset (list offset-x offset-y)]
+              [display-box (list (image-width i) (image-height i))]
+              a/ a) ]))
+      (define new-running-offset
+        (list (+ offset-x space-width (image-width i)) offset-y))
+      (values `(,@output ,new-child)
+              new-running-offset)))
+  (values new-fruct
+          new-image
+          final-offset))
 
 
-(define (layout-column intial-offset line-spacing stx images)
-  (for/fold ([output '()]
-             [running-offset intial-offset])
-            ([s stx] [i images])
-    (match-define (list offset-x offset-y) running-offset)
-    (define new-child
-      (match s
-        [(? (disjoin symbol? number?)) s]
-        [(/ a/ a)
-         (/ [display-offset (list offset-x offset-y)]
-            [display-box (list (image-width i) (image-height i))]
-            a/ a) ]))
-    (define new-running-offset
-      (list offset-x
-            (+ offset-y
-               line-spacing
-               (image-height i))))
-    (values `(,@output ,new-child)
-            new-running-offset)))
+(define (layout-column intial-offset line-spacing pairs)
+  (match-define `((,stx ,images) ...) pairs)
+  (define line-spacer-image
+    (rectangle line-spacing line-spacing "solid" invisible))
+  (define new-image
+    (apply above/align* "left"
+           (let ([temp
+                  (for/fold ([output '()])
+                            ([i images])
+                    `(,@output ,i ,line-spacer-image))])
+             (if (empty? temp)
+                 temp
+                 (drop-right temp 1)))))
+  (define-values (new-fruct final-offset)
+    (for/fold ([output '()]
+               [running-offset intial-offset])
+              ([s stx] [i images])
+      (match-define (list offset-x offset-y) running-offset)
+      (define new-child
+        (match s
+          [(? (disjoin symbol? number?)) s]
+          [(/ a/ a)
+           (/ [display-offset (list offset-x offset-y)]
+              [display-box (list (image-width i) (image-height i))]
+              a/ a) ]))
+      (define new-running-offset
+        (list offset-x
+              (+ offset-y
+                 line-spacing
+                 (image-height i))))
+      (values `(,@output ,new-child)
+              new-running-offset)))
+  (values new-fruct
+          new-image
+          final-offset))
 
 
 
-(define (render-horizontal-default selected? layout-settings children)
-  (match-define `((,possibly-truncated-stx ,possibly-truncated-child-images) ...) children)
+(define (render-horizontal layout-settings children)
   (define-from layout-settings
     text-size)
 
-  (define-values (new-children final-offset)
+  (define-values (new-children new-image _)
     (layout-row (list (image-width (space text-size)) 0)
                 (image-width (space text-size))
-                possibly-truncated-stx
-                possibly-truncated-child-images))
-  
-  (define new-image
-    (apply beside/align
-           "top"
-           (space text-size)
-           ; cursor display disabled for the moment
-           #;(if selected? (second (render '▹ layout-settings)) (space text-size))
-           (first possibly-truncated-child-images)
-           (for/fold ([acc '()])
-                     ([a (rest possibly-truncated-child-images)])
-             `(,@acc ,(space text-size) ,a))))
-  
+                children))
+
   (list new-children
         ; note special case
         ; if last child is atom, we leave a space on the right
@@ -478,54 +489,39 @@
 
 
 
-(define (render-vertical indent-style header-items selected? layout-settings children)
-  (match-define `((,stx ,child-images) ...) children)
-  (define-from layout-settings
-    text-size)
-
+(define (render-vertical indent-width header-items layout-settings children)
+  (define-from layout-settings text-size)
+  
+  (define header (take children header-items))
+  (define body (drop children header-items))
+  #;(match-define `((,stx-header ,img-header) ...) header)
+  
   (define indent-image
-    (rectangle (if (equal? indent-style 'first-element)
-                   (+ (* 2 (image-width (space text-size)))
-                      (image-width (first child-images)))
-                   (* indent-style (image-width (space text-size))))
+    (rectangle indent-width
                (image-height (space text-size))
                "solid"
                invisible))
 
-  (define stx-header (take stx header-items))
-  (define img-header (take child-images header-items))
-  (define stx-body (drop stx header-items))
-  (define img-body (drop child-images header-items))
-
-  (define-values (new-fruct-head offset-after)
+  (define-values (new-fruct-head header-image offset-after)
     (layout-row (list (image-width (space text-size)) 0)
                 (image-width (space text-size))
+                header
+                #;#;
                 stx-header
                 img-header))
 
-  (define header-image
-    (apply beside/align* "top"
-           (for/fold ([acc '()])
-                     ([i img-header])
-             `(,@acc ,(space text-size) ,i))))
+  #;(define header-image
+      (apply beside/align* "top"
+             (for/fold ([acc '()])
+                       ([i img-header])
+               `(,@acc ,(space text-size) ,i))))
 
-  (define body-image
-    (apply above/align* "left"
-           (let ([temp
-                  (for/fold ([acc '()])
-                            ([i img-body])
-                    `(,@acc ,i ,1px))])
-             (if (empty? temp)
-                 temp
-                 (drop-right temp 1)))))
-
-
-  (define-values (new-fruct-body _)
+  (define-values (new-fruct-body body-image _)
     (layout-column (list (image-width indent-image)
                          ; +1 for 1px line spacing after header
                          (+ 1 (image-height header-image)))
                    ; 1px spacing between lines
-                   1 stx-body img-body))
+                   1 body))
 
   (define new-image
     (above/align*
@@ -666,9 +662,11 @@
          empty-image)
         (overlay/align/offset
          "right" "top"
-         cool-menu             
-         (- (div-integer margin 2)) 0 ; slighly magic number
-         (rounded-rectangle
+         cool-menu
+         (- (* 2 margin)) 0 
+         #;#;(- (div-integer margin 2)) 0 ; slighly magic number
+         empty-image
+         #;(rounded-rectangle
           (+ 0 (image-width truncated-menu-image))
           (+ (* 2 expander-height)
              (image-height truncated-menu-image))
@@ -678,7 +676,7 @@
   ; calculate REAL position data
   (define-values (post-new-fruct _)
     (for/fold ([output '()]
-               [running-offset `(,(- margin) 0)])
+               [running-offset `(,(- (* 2 margin)) 0)])
               ; BUG, HACK: dubious initial offset above!
               ; alignment not quite right AND conceptually suspect
               ([s child-fructs] [i child-images])
@@ -875,6 +873,7 @@
     selected-color text-size implicit-forms
     length-conditional-layout? length-conditional-cutoff
     force-horizontal-layout?)
+  (define space-width (image-width (space text-size)))
   
   (match-define (/ a/ `(,first-stx ,rest-stx ...)) fruct)
 
@@ -907,28 +906,28 @@
       [(not length-conditional-layout?) #f]
       [else (match-define `((,_ ,child-images) ...) children)
             (define total-length (div-integer (apply + (map image-width child-images))
-                                              (image-width (space text-size))))
+                                              space-width))
             (total-length . < . length-conditional-cutoff)]))
 
   ; choose an algorithm to layout the children
   (define layout-renderer
     (cond
       [(and lambda-like? (not render-this-horizontally?))
-       ; BUG: implicit apps are all rendering horizontally
-       ; because we're just removing the app symbol
-       ; so the whole form is being interpreted as the header
-       ; by below function
-       ; need to either de-hackify,
-       ; or create renderer for no-head pure vertical
-       (curry render-vertical 2 2)]         
+       (curry render-vertical (* 2 space-width) 2)]         
+      [(and if-like? (not render-this-horizontally?)
+            (member first-stx implicit-forms))
+       ; if the form is implicit and we're rendering it vertically
+       ; the header is just child 1, and the indent-width is space-width
+       (curry render-vertical space-width 1)]
       [(and if-like? (not render-this-horizontally?))
-       (if (member first-stx implicit-forms)
-           (curry render-vertical 1 1)
-           (curry render-vertical 'first-element 2))
-       #;(curry render-vertical 'first-element 2)]
+       ; indent length is 2 plus the length of the form name
+       (curry render-vertical
+              (+ (* 2 space-width)
+                 (image-width (second (first children))))
+              2)]
       [(and cond-like? (not render-this-horizontally?))
-       (curry render-vertical 1 1)]
-      [else render-horizontal-default]))
+       (curry render-vertical space-width 1)]
+      [else render-horizontal]))
 
   ; choose an algorithm to back the layout
   (define backer
@@ -940,7 +939,7 @@
                                     children x layout-settings))]))
 
   (match-define (list new-kids-local new-layout-local)
-    (layout-renderer selected? layout-settings children))
+    (layout-renderer layout-settings children))
 
   ; possible BUG
   ; put back in the implicit form
@@ -954,12 +953,10 @@
 
 (define (render-vertical-backing stx new-layout depth child-images layout-settings)
   (define-from layout-settings
-    text-size
-    grey-one
-    grey-two)
+    text-size grey-one grey-two implicit-forms)
   (define radius (sub1 (div-integer text-size 2)))
   (match stx
-    [`(,(? if-like-id?) ,xs ...)
+    [`(,(? if-like-id? id) ,xs ...)
           
      (define atomic-children
        (get-atomic-children (rest stx) (rest child-images)))
@@ -1011,11 +1008,27 @@
                            radius (if depth grey-one grey-two))))
      backing-candidate]
     [_
+     ; this case is only implicit app
+     ; refactor to avoid potential bugs
+     (define atomic-children
+       (get-atomic-children stx child-images))
+     (define header-length
+       (image-width (space text-size)))
+     
      (rounded-rectangle
-      (image-width new-layout)
+      (+ header-length  
+         (max (+ (longest atomic-children)
+                 (image-width (space text-size)))
+              (image-width (space text-size))))
       (image-height new-layout)
       radius
-      (if depth grey-one grey-two))]))
+      (if depth grey-one grey-two))
+     
+     #;(rounded-rectangle
+        (image-width new-layout)
+        (image-height new-layout)
+        radius
+        (if depth grey-one grey-two))]))
 
 
 

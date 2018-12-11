@@ -113,8 +113,8 @@
 
 (define (make-menu in-scope metavar-transforms current-selection)
   (transforms->menu
-   (append base-transforms
-           metavar-transforms
+   (append metavar-transforms
+           base-transforms
            (for/list ([id in-scope])
              `([⋱
                  (▹ [sort expr] xs ... / ⊙)
@@ -176,6 +176,8 @@
   ; new: prevent descending into metavar
   ; note that other metavar clause is ill-advised
   (f/match stx
+    #;[(c ⋱ (▹ as ... / (and h (or '⊙ '⊙+))))
+     (c ⋱ (▹ as ... / h))]
     [(c ⋱ (and (▹ ys ... / (d ⋱ (xs ... / (and h (or '⊙ '⊙+)))))
                (not (('metavar _) _ ... / _))))
      (c ⋱ (ys ... / (d ⋱ (▹ xs ... / h))))]

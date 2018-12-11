@@ -63,6 +63,7 @@
          '([⋱
              ([sort expr] xs ... / (begin
                                      a ...
+                                     (bs ... / b)
                                      (▹ [sort expr] / ⊙+)))
              ([sort expr] xs ... / (begin
                                      a ...
@@ -70,8 +71,12 @@
                                      ; just skip past it...
                                      ; might need to start with cursor before...
                                      ; ie match as ... a above, put cursor last in a here
-                                     ; hacky af....
-                                     (▹ [sort expr] / ⊙)
+                                     ; hacky af...
+                                     ; doesn;t even work; need to select last element of that
+                                     ; waay too hacky
+                                     #;(▹ bs ... / b)
+                                     (▹ [sort expr] / ⊙+)
+                                     ([sort expr] / ⊙)
                                      ([sort expr] / ⊙+)))])
 
          '([⋱
@@ -133,9 +138,9 @@
 
 (define base-destructors
   ; destructors for all syntactic forms
-  (append
-   (list
-    '([⋱
+  (list
+    (append
+     '([⋱
         (▹ xs ... / (ref a))
         (▹ xs ... / ⊙)]
       [⋱
@@ -143,9 +148,8 @@
         (▹ xs ... / ⊙)]
       [⋱
         (▹ xs ... / (λ a b))
-        (▹ xs ... / ⊙)]))
-   (list
-    '(
+        (▹ xs ... / ⊙)])
+     '(
       #;#;#;#;#;#;
       [⋱
         (▹ xs ... / (if a b c))
