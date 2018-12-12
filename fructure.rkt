@@ -61,8 +61,10 @@
 
 (define-map initial-layout
   
-  ; scaling parameter
+  ; scaling parameters
   'text-size 30
+  'line-spacing 1 ; 1
+  'char-padding-vertical 3 ; 5
   
   ; hide the heads of these forms
   'implicit-forms '(ref app cp lp mp)

@@ -202,9 +202,9 @@
 
 
 (define base-transforms
-  (append base-constructors
-          alpha-constructors
-          base-destructors))
+  (append base-destructors
+          base-constructors
+          alpha-constructors))
 
 
 ; -------------------------------------------------

@@ -4,6 +4,7 @@
          lang/posn)
 
 (provide rounded-rectangle
+         rounded-rectangle-outline
          rounded-rectangle-new
          beside* beside/align* above/align*
          1px invisible
@@ -117,6 +118,32 @@
    (rectangle (max 0 (- width (* 2 radius)))
               (max 0 (- height (* 2 radius)))
               "solid" my-color)
+   (polygon
+    (list (make-posn radius radius)
+          (make-posn (- width radius) radius)
+          (make-posn (- width radius) (- height radius))
+          (make-posn radius (- height radius)))
+    "outline" pen)))
+
+; BELOW DOES NOT WORK todo bug
+(define (rounded-rectangle-outline w h init-radius my-color)
+  ; added rounding to try and fix subpixel layout issues
+  ; doesn't seem to have done much. todo: check if it does anything
+  (define width (inexact->exact (round w)))
+  (define height (inexact->exact (round h)))
+  (define radius
+    (inexact->exact
+     (round
+      (if (width . < . (* 2 init-radius))
+          (/ width 2) ; note possible syntax issue
+          init-radius))))
+  
+  (define pen
+    (make-pen my-color 1 "solid" "round" "round"))
+  (underlay/align
+   "middle" "middle"
+   ; bounding box
+   (rectangle width height "solid" (color 0 0 0 0))
    (polygon
     (list (make-posn radius radius)
           (make-posn (- width radius) radius)

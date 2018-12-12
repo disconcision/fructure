@@ -35,6 +35,8 @@
         'length-conditional-cutoff 14
         'dodge-enabled? #t
         'implicit-forms '(ref app)
+        'line-spacing 1 ; 1
+        'char-padding-vertical 4 ; 5
 
         'selected-atom-color (color 255 255 255)
         'menu-bkg-color (color 112 112 112)
@@ -208,7 +210,6 @@
     ; super hacky; investigate and refactor
     ; probably related to below hack
     [(/ [metavar m] a/ a)
-     #;(println `(metavar-case ,a))
      (define (metavar-tint-colors m layout-settings)
        (for/hash ([(k v) layout-settings])
          (match v
@@ -216,8 +217,9 @@
             (values k ((per-color-linear-dodge-tint
                         (match m
                           [0 (color 0 255 255)]
-                          [1 (color 255 0 255)]
-                          [2 (color 255 255 0)]
+                          [1 (color 0 255 0)]
+                          [2 (color 255 0 255)]
+                          [3 (color 255 255 0)]
                           [_ (color 0 255 0)])
                         0.4) v))]
            [_ (values k v)])))
@@ -286,6 +288,8 @@
           (hash-set* layout-settings
                      ; TODO magic colors
                      'identifier-color pattern-bkg-color
+                     ; hack, need to update when patterns move beyond chars
+                     'hole-color (color 170 170 170 120)
                      'grey-one pattern-grey-one
                      'grey-two pattern-grey-two)]
          [_ layout-settings]))
@@ -368,15 +372,23 @@
 
 (define (render-symbol s my-color layout-settings)
   (define-from layout-settings
-    text-size)
+    text-size char-padding-vertical)
+
+  ; todo: factor out
+  (define unit-width (image-width (space text-size)))
+  (define unit-height
+    (+ char-padding-vertical
+       (image-height (space text-size))))
 
   (overlay
    (cond
      [(equal? s '⊙)
       (define my-radius
         ; TODO: magic numbers
+        ; TODO: render transform arrow, menu cursor in this way
+        ; TODO (aside): try red outline instead of arrow for menu selection
         (min (* 3/11 text-size)
-             (* 1/2 (image-width (space text-size))))) 
+             (* 1/2 unit-width))) 
       (overlay
        (circle my-radius "outline"
                (color 74 241 237))
@@ -392,18 +404,15 @@
                  my-color
                  #f 'modern 'normal 'normal #f)])
    ; padding
-   (rectangle (image-width (space text-size))
-              ; TODO: magic number 5
-              ; additional headroom for chars
-              ; aka default line spacing in pixels
-              (+ 5 (image-height (space text-size)))
+   (rectangle unit-width
+              unit-height
               "solid" invisible)))
 
 
 (define (layout-row intial-offset space-width pairs)
   (match-define `((,stx ,images) ...) pairs)
   (define spacer-image
-    (rectangle space-width space-width "solid" invisible))
+    (rectangle space-width 1 "solid" invisible))
   (define new-image
     (apply beside/align* "top"
            (for/fold ([acc '()])
@@ -453,7 +462,8 @@
           [(? (disjoin symbol? number?)) s]
           [(/ a/ a)
            (/ [display-offset (list offset-x offset-y)]
-              [display-box (list (image-width i) (image-height i))]
+              [display-box (list (image-width i)
+                                 (image-height i))]
               a/ a) ]))
       (define new-running-offset
         (list offset-x
@@ -469,67 +479,61 @@
 
 
 (define (render-horizontal layout-settings children)
-  (define-from layout-settings
-    text-size)
+  (define-from layout-settings text-size)
+  (define unit-width (image-width (space text-size)))
 
   (define-values (new-children new-image _)
-    (layout-row (list (image-width (space text-size)) 0)
-                (image-width (space text-size))
+    (layout-row (list unit-width 0)
+                unit-width
                 children))
 
   (list new-children
         ; note special case
         ; if last child is atom, we leave a space on the right
         (beside new-image
-                (match (last children)
-                  ; this seems to work mostly right for refs
-                  ; is there a hack somewhere??
-                  [(/ _/ (? list?)) empty-image]
+                (match (first (last children))
+                  ; feels slightly hacky
+                  ; should bellow be single 'pattern case?
+                  [(/ _/ `(,(not (or 'id 'ref)) ,xs ...)) empty-image]
                   [_ (space text-size)]))))
 
 
 
 (define (render-vertical indent-width header-items layout-settings children)
-  (define-from layout-settings text-size)
-  
-  (define header (take children header-items))
-  (define body (drop children header-items))
-  #;(match-define `((,stx-header ,img-header) ...) header)
+  (define-from layout-settings
+    text-size line-spacing char-padding-vertical)
+
+  ; todo: factor out
+  (define unit-width (image-width (space text-size)))
+  (define unit-height
+    (+ char-padding-vertical
+       (image-height (space text-size))))
   
   (define indent-image
-    (rectangle indent-width
-               (image-height (space text-size))
-               "solid"
-               invisible))
+    (rectangle indent-width unit-height
+               "solid" invisible))
 
-  (define-values (new-fruct-head header-image offset-after)
-    (layout-row (list (image-width (space text-size)) 0)
-                (image-width (space text-size))
-                header
-                #;#;
-                stx-header
-                img-header))
+  (define line-spacer-image
+    (rectangle unit-width line-spacing
+               "solid" invisible))
 
-  #;(define header-image
-      (apply beside/align* "top"
-             (for/fold ([acc '()])
-                       ([i img-header])
-               `(,@acc ,(space text-size) ,i))))
+  (define-values (header-fruct header-image _)
+    (layout-row (list unit-width 0)
+                unit-width
+                (take children header-items)))
 
-  (define-values (new-fruct-body body-image _)
-    (layout-column (list (image-width indent-image)
-                         ; +1 for 1px line spacing after header
-                         (+ 1 (image-height header-image)))
-                   ; 1px spacing between lines
-                   1 body))
-
-  (define new-image
-    (above/align*
-     "left" header-image 1px
-     (beside/align*
-      "top" indent-image body-image)))
+  (define-values (body-fruct body-image __)
+    (layout-column (list indent-width
+                         (+ line-spacing
+                            (image-height header-image)))
+                   line-spacing
+                   (drop children header-items)))
   
-  (list (append new-fruct-head new-fruct-body) new-image))
+  (list (append header-fruct body-fruct)
+        (above/align*
+         "left" header-image line-spacer-image
+         (beside/align*
+          "top" indent-image body-image))))
 
 
 
@@ -583,7 +587,7 @@
                       #;#;'form-color (color 255 255 255))]
           [_ (hash-set* layout-settings
                         'force-horizontal-layout? #t
-                        'grey-one invisible
+                        'grey-one menu-bkg-color
                         'form-color (color 255 255 255))])) ; magic color
       (cond
         [custom-menu-selector?
@@ -598,16 +602,31 @@
                       (second (render (/ b/ b) (hash-set override-layout-settings
                                                          'identifier-color "white")))
                       (overlay/align "left" "top"
-                                     (second (render '▹ override-layout-settings))
+                                     (space text-size)
+                                     #;(second (render '▹ override-layout-settings))
                                      (if (or (not (list? b)) (and (member 'ref implicit-forms)
                                                                   (match b [`(ref ,_) #t][_ #f])))
                                          ; hacky extra spacing for atoms
                                          ; extra hacky for implicit refs
-                                         (beside (space text-size)
-                                                 (second (render (/ b/ b) (hash-set override-layout-settings
-                                                                                    'identifier-color "white")))
-                                                 (space text-size))
-                                         (second (render (/ b/ b) override-layout-settings))))))]
+                                         ; HACK below throws off offset alignment
+                                         ; need to refacto as popped layer
+                                         (let ([temp (beside (space text-size)
+                                                             (second (render (/ b/ b) (hash-set override-layout-settings
+                                                                                                'identifier-color "white")))
+                                                             (space text-size))])
+                                           (overlay temp
+                                                    (rounded-rectangle
+                                                     (+ 2 (image-width temp))
+                                                     (+ 2 (image-height temp))
+                                                     radius
+                                                     selected-color)))
+                                         (let ([temp (second (render (/ b/ b) override-layout-settings))])
+                                           (overlay temp
+                                                    (rounded-rectangle
+                                                     (+ 2 (image-width temp))
+                                                     (+ 2 (image-height temp))
+                                                     radius
+                                                     selected-color)))))))]
            [(/ b/ b)
             (list (first (render item override-layout-settings))
                   (if (or (not (list? b)) (and (member 'ref implicit-forms)
@@ -663,15 +682,18 @@
         (overlay/align/offset
          "right" "top"
          cool-menu
-         (- (* 2 margin)) 0 
+         (- (* 2 margin)) 0
+         ; lets skip out on adornment while we get the basics down
+         ; makes offset more complicated
+         ; espc forces special-casing of offset for char menu
          #;#;(- (div-integer margin 2)) 0 ; slighly magic number
          empty-image
          #;(rounded-rectangle
-          (+ 0 (image-width truncated-menu-image))
-          (+ (* 2 expander-height)
-             (image-height truncated-menu-image))
-          radius
-          selected-color))))
+            (+ 0 (image-width truncated-menu-image))
+            (+ (* 2 expander-height)
+               (image-height truncated-menu-image))
+            radius
+            selected-color))))
 
   ; calculate REAL position data
   (define-values (post-new-fruct _)
@@ -873,7 +895,7 @@
     selected-color text-size implicit-forms
     length-conditional-layout? length-conditional-cutoff
     force-horizontal-layout?)
-  (define space-width (image-width (space text-size)))
+  (define unit-width (image-width (space text-size)))
   
   (match-define (/ a/ `(,first-stx ,rest-stx ...)) fruct)
 
@@ -906,27 +928,27 @@
       [(not length-conditional-layout?) #f]
       [else (match-define `((,_ ,child-images) ...) children)
             (define total-length (div-integer (apply + (map image-width child-images))
-                                              space-width))
+                                              unit-width))
             (total-length . < . length-conditional-cutoff)]))
 
   ; choose an algorithm to layout the children
   (define layout-renderer
     (cond
       [(and lambda-like? (not render-this-horizontally?))
-       (curry render-vertical (* 2 space-width) 2)]         
+       (curry render-vertical (* 2 unit-width) 2)]         
       [(and if-like? (not render-this-horizontally?)
             (member first-stx implicit-forms))
        ; if the form is implicit and we're rendering it vertically
        ; the header is just child 1, and the indent-width is space-width
-       (curry render-vertical space-width 1)]
+       (curry render-vertical unit-width 1)]
       [(and if-like? (not render-this-horizontally?))
        ; indent length is 2 plus the length of the form name
        (curry render-vertical
-              (+ (* 2 space-width)
+              (+ (* 2 unit-width)
                  (image-width (second (first children))))
               2)]
       [(and cond-like? (not render-this-horizontally?))
-       (curry render-vertical space-width 1)]
+       (curry render-vertical unit-width 1)]
       [else render-horizontal]))
 
   ; choose an algorithm to back the layout
@@ -953,25 +975,56 @@
 
 (define (render-vertical-backing stx new-layout depth child-images layout-settings)
   (define-from layout-settings
-    text-size grey-one grey-two implicit-forms)
+    text-size grey-one grey-two implicit-forms
+    line-spacing char-padding-vertical)
+
+  ; todo: factor out
   (define radius (sub1 (div-integer text-size 2)))
+  (define unit-height (+ char-padding-vertical (image-height (space text-size))))
+  (define unit-width (image-width (space text-size)))
+
+  (define (calculate-height effective-stx effective-child-images)
+    (apply +
+           (if (not (empty? (get-atomic-children (list (last effective-stx))
+                                                 (list (last effective-child-images)))))
+               (map image-height effective-child-images)
+               (cons unit-height
+                     (map image-height (drop-right effective-child-images 1))))))
+  
   (match stx
+    [`(,(? cond-like-id? id) ,xs ...)
+          
+     (define atomic-children
+       (get-atomic-children (rest stx) (rest child-images)))
+     
+     (rounded-rectangle
+      (+ (* 2 unit-width)
+         ; front and back margins
+         (max (+ (longest atomic-children)
+                 unit-width)
+              (image-width (first child-images))))
+      (apply + unit-height
+             (map image-height (rest (rest child-images))))
+      radius
+      (if depth grey-one grey-two))]
+    
     [`(,(? if-like-id? id) ,xs ...)
           
      (define atomic-children
        (get-atomic-children (rest stx) (rest child-images)))
+     
      (define header-length
        ; width of form-name e.g. 'and'
        ; plus spaces before/after
        (+ (image-width (first child-images))
-          (* 2 (image-width (space text-size)))))
+          (* 2 unit-width)))
      
      (rounded-rectangle
       (+ header-length  
          (max (+ (longest atomic-children)
-                 (image-width (space text-size)))
-              (image-width (space text-size))))
-      (image-height new-layout)
+                 unit-width)
+              unit-width))
+      (calculate-height stx (rest child-images))
       radius
       (if depth grey-one grey-two))]
          
@@ -984,7 +1037,7 @@
      (define header-length
        (+ (image-width (first child-images))
           (image-width (second child-images))
-          (* 2 (image-width (space text-size)))))
+          (* 2 unit-width)))
 
      (define header-height
        (max (image-height (first child-images))
@@ -992,43 +1045,41 @@
           
      (define backing-candidate
        (overlay/align
-        "left" "top" 
+        "left" "top"
+        ; todo: make local-atomic. use to condition
+        ; below rectangle width of if last child is atomic
         (rounded-rectangle (+ -2 header-length) ; hack magic -2, prevents aliasing
                            header-height
                            radius (if depth grey-one grey-two))
-        (rounded-rectangle (+ (* 2 (image-width (space text-size))) ; indentation                              
-                              (+ (image-width (space text-size)) ; just looks good
+        (rounded-rectangle (+ (* 2 unit-width) ; indentation                              
+                              (+ unit-width ; just looks good
                                  (longest atomic-children))) ; cover any atoms 
-                           (apply +
-                                  header-height
-                                  ; add pixels for each space between rows
-                                  ; remember header (first two) count as one
-                                  (length (rest (rest child-images)))
-                                  (map image-height (rest (rest child-images))))
+                           (+ header-height
+                              ; accounts for line-spacing   
+                              (* line-spacing
+                                 (length (rest (rest child-images))))
+                              (calculate-height stx (rest (rest child-images))))
                            radius (if depth grey-one grey-two))))
      backing-candidate]
     [_
      ; this case is only implicit app
      ; refactor to avoid potential bugs
      (define atomic-children
-       (get-atomic-children stx child-images))
+       (if (and (list? stx) (cond-like-id? (first stx)))
+           (get-atomic-children stx child-images)
+           (get-atomic-children stx child-images))
+       )
      (define header-length
-       (image-width (space text-size)))
+       unit-width)
      
      (rounded-rectangle
       (+ header-length  
          (max (+ (longest atomic-children)
-                 (image-width (space text-size)))
-              (image-width (space text-size))))
-      (image-height new-layout)
+                 (* 2 unit-width)) ; MAGIC 2 for debatable looks
+              unit-width))
+      (calculate-height stx child-images)
       radius
-      (if depth grey-one grey-two))
-     
-     #;(rounded-rectangle
-        (image-width new-layout)
-        (image-height new-layout)
-        radius
-        (if depth grey-one grey-two))]))
+      (if depth grey-one grey-two))]))
 
 
 
@@ -1049,12 +1100,12 @@
                  (rounded-rectangle
                   (max 0 (+ (- margin)
                             (image-width new-backing)))
-                  (image-height new-layout)
+                  (image-height new-backing)
                   radius
                   (if depth grey-one grey-two))
                  (rounded-rectangle
                   (image-width new-backing)
-                  (image-height new-layout)
+                  (image-height new-backing)
                   radius
                   selected-color)
                  )
@@ -1085,7 +1136,7 @@
                   (if depth grey-one grey-two))
                  (rounded-rectangle
                   (image-width new-backing)
-                  (image-height new-layout)
+                  (image-height new-backing)
                   radius
                   selected-color)
                  )
