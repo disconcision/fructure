@@ -641,22 +641,20 @@
                                                              (space text-size))])
                                            (overlay (rounded-rectangle-outline
                                                      (image-width temp)
-                                                     (image-height temp)
+                                                     ; slightly hacky adjustment
+                                                     ; to make outline entirely inside line-height
+                                                     (max 0 (- (image-height temp) 1))
                                                      radius
                                                      selected-color)
-                                            temp
-                                                    #;(rounded-rectangle
-                                                     (+ 2 (image-width temp))
-                                                     (+ 2 (image-height temp))
-                                                     radius
-                                                     selected-color)))
+                                            temp))
                                          (let ([temp (second (render (/ b/ b) override-layout-settings))])
-                                           (overlay temp
-                                                    (rounded-rectangle
-                                                     (+ 2 (image-width temp))
-                                                     (+ 2 (image-height temp))
+                                           (overlay (rounded-rectangle-outline
+                                                     (image-width temp)
+                                                     ; slightly hacky see above
+                                                     (max 0 (- (image-height temp) 1))
                                                      radius
-                                                     selected-color)))))))]
+                                                     selected-color)
+                                                    temp))))))]
            [(/ b/ b)
             (list (first (render item override-layout-settings))
                   (if (or (not (list? b)) (and (member 'ref implicit-forms)
