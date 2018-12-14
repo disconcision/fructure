@@ -63,7 +63,7 @@
   'implicit-forms '(ref app cp lp mp)
 
   ; show a list of the 10 last keypresses
-  'display-keypresses? #f
+  'display-keypresses? #t
   
   ; maximum completions
   'max-menu-length 4

@@ -639,8 +639,13 @@
                                                              (second (render (/ b/ b) (hash-set override-layout-settings
                                                                                                 'identifier-color "white")))
                                                              (space text-size))])
-                                           (overlay temp
-                                                    (rounded-rectangle
+                                           (overlay (rounded-rectangle-outline
+                                                     (image-width temp)
+                                                     (image-height temp)
+                                                     radius
+                                                     selected-color)
+                                            temp
+                                                    #;(rounded-rectangle
                                                      (+ 2 (image-width temp))
                                                      (+ 2 (image-height temp))
                                                      radius

@@ -5,7 +5,6 @@
 
 (provide rounded-rectangle
          rounded-rectangle-outline
-         rounded-rectangle-new
          beside* beside/align* above/align*
          1px invisible
          linear-dodge-tint
@@ -95,38 +94,43 @@
 
 
 
+(define (rounded-rectangle width height init-r my-color)
+  (rounded-rectangle-2 width height init-r "solid" my-color))
 
-(define (rounded-rectangle w h init-radius my-color)
-  ; added rounding to try and fix subpixel layout issues
-  ; doesn't seem to have done much. todo: check if it does anything
-  (define width (inexact->exact (round w)))
-  (define height (inexact->exact (round h)))
-  (define radius
-    (inexact->exact
-     (round
-      (if (width . < . (* 2 init-radius))
-          (/ width 2) ; note possible syntax issue
-          init-radius))))
+(define (rounded-rectangle-outline width height init-r my-color)
+  (rounded-rectangle-2 width height init-r "outline" my-color))
+
+#;(define (rounded-rectangle w h init-radius my-color)
+    ; added rounding to try and fix subpixel layout issues
+    ; doesn't seem to have done much. todo: check if it does anything
+    (define width (inexact->exact (round w)))
+    (define height (inexact->exact (round h)))
+    (define radius
+      (inexact->exact
+       (round
+        (if (width . < . (* 2 init-radius))
+            (/ width 2) ; note possible syntax issue
+            init-radius))))
   
-  (define pen
-    (make-pen my-color (* 2 radius) "solid" "round" "round"))
-  (underlay/align
-   "middle" "middle"
-   ; bounding box
-   (rectangle width height "solid" (color 0 0 0 0))
-   ; fill in inside
-   (rectangle (max 0 (- width (* 2 radius)))
-              (max 0 (- height (* 2 radius)))
-              "solid" my-color)
-   (polygon
-    (list (make-posn radius radius)
-          (make-posn (- width radius) radius)
-          (make-posn (- width radius) (- height radius))
-          (make-posn radius (- height radius)))
-    "outline" pen)))
+    (define pen
+      (make-pen my-color (* 2 radius) "solid" "round" "round"))
+    (underlay/align
+     "middle" "middle"
+     ; bounding box
+     (rectangle width height "solid" (color 0 0 0 0))
+     ; fill in inside
+     (rectangle (max 0 (- width (* 2 radius)))
+                (max 0 (- height (* 2 radius)))
+                "solid" my-color)
+     (polygon
+      (list (make-posn radius radius)
+            (make-posn (- width radius) radius)
+            (make-posn (- width radius) (- height radius))
+            (make-posn radius (- height radius)))
+      "outline" pen)))
 
 ; BELOW DOES NOT WORK todo bug
-(define (rounded-rectangle-outline w h init-radius my-color)
+#;(define (rounded-rectangle-outline w h init-radius my-color)
   ; added rounding to try and fix subpixel layout issues
   ; doesn't seem to have done much. todo: check if it does anything
   (define width (inexact->exact (round w)))
@@ -151,7 +155,7 @@
           (make-posn radius (- height radius)))
     "outline" pen)))
 
-(define (rounded-rectangle-new width height radius my-color)
+#;(define (rounded-rectangle-new width height radius my-color)
   (define my-radius (inexact->exact (round radius)))
   (define corner
     (crop/align "left" "top" my-radius my-radius
@@ -164,6 +168,35 @@
                     (max 0 (- height (* 2 my-radius)))
                     "solid" my-color)
          (rotate 180 top-side)))
+
+(define (rounded-rectangle-2 width height init-r mode my-color)
+  (define r (if (width . < . (* 2 init-r))
+                (inexact->exact (round (/ width 2))) ; note possible syntax issue
+                (inexact->exact (round init-r))))
+  (define sl (max 0 (- width (* 2 r))))
+  (define sh (max 0 (- height (* 2 r))))
+  (define t 0.39) ; magic tightness constant
+  ; this constant is visually determined via the following test code
+  #;(local [(define t 0.39) ; both .38 and .4 show more slack
+            (define r 120)
+            (define l 240)]
+      (beside
+       (overlay
+        (rounded-rectangle-2 l l r "solid" "red" t)
+        (rounded-rectangle l l r "white"))
+       (overlay
+        (rounded-rectangle l l r "red")
+        (rounded-rectangle-2 l l r "solid" "white" t))))
+  (polygon (list (make-pulled-point 0 0 0 r t -45)
+                 (make-pulled-point t 45 r 0 0 0)
+                 (make-pulled-point 0 0 (+ r sl) 0 t -45)
+                 (make-pulled-point t 45 (+ r r sl) r 0 0)
+                 (make-pulled-point 0 0 (+ r r sl) (+ r sh) t -45)
+                 (make-pulled-point t 45 (+ r sl) (+ r r sh) 0 0)
+                 (make-pulled-point 0 0 r (+ r r sh) t -45)
+                 (make-pulled-point t 45 0 (+ r sh) t 0))
+           mode
+           my-color))
 
 
 #;(define (bracket-h width my-color corner-radius rect)
