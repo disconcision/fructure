@@ -61,6 +61,9 @@
   
   ; hide the heads of these forms
   'implicit-forms '(ref app cp lp mp)
+
+  ; show a list of the 10 last keypresses
+  'display-keypresses? #f
   
   ; maximum completions
   'max-menu-length 4
@@ -132,7 +135,7 @@
   #;(displayln `(mode: ,mode  key: ,key))
   #;(displayln `(projected: ,(project stx)))
   #;(displayln `(search-buffer: ,search-buffer))
-  (displayln `(keypresses ,keypresses))
+  #;(displayln `(keypresses ,keypresses))
   #;(displayln state)
 
   ; dispatch based on current mode
@@ -153,22 +156,20 @@
   ; output : state -> image
   (define-from state
     stx layout-settings keypresses)
+  (define-from layout-settings
+    display-keypresses?)
   (match-define (list _ image-out)
     ; second here skips the top (diamond) affo
     ; todo: make this less hacky by going fs
     (fructure-layout (second stx) layout-settings
                      screen-x screen-y))
 
-  (define (keypresses-display keypresses)
-    (text/font (apply string-append (map (λ (x) (string-append " " (if (equal? x " ") "SPC" x)))
-                                         (if (< (length keypresses) 10)
-                                             keypresses (take keypresses 10))))
-               12 "white" #f 'modern 'normal 'normal #f))
-  
-  (overlay/align
-   "left" "top"
-   (keypresses-display keypresses)
-   image-out))
+  (if display-keypresses?
+      (overlay/align
+       "left" "top"
+       (display-keypresses keypresses)
+       image-out)
+      image-out))
 
 
 ; -------------------------------------------------

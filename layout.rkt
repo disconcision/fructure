@@ -11,7 +11,8 @@
          "common-graphics.rkt")
 
 ; bug if true (c)
-(provide fructure-layout)
+(provide fructure-layout
+         display-keypresses)
 
 ; for tests
 (provide render
@@ -57,6 +58,29 @@
         #;#;'radius (λ (text-size) (sub1 (div-integer text-size 2)))
         #;#;'margin (λ (text-size) (div-integer text-size 5))
         ))
+
+
+(define (display-keypresses keypresses)
+    (define (key-remap k)
+      (match k
+        [" " "SPACE"]
+        ["\r" "ENTER"]
+        ["\b" "BACK"]
+        [else k]))
+    (if (empty? keypresses)
+        empty-image
+        (beside/align
+         "top"
+         (text/font (string-append " " (key-remap (first keypresses)))
+                    12 (color 255 255 255 220) #f 'modern 'normal 'bold #f)
+         (text/font (apply string-append
+                           (map (λ (x) (string-append " " (key-remap x)))
+                                (if (< (length (rest keypresses)) 10)
+                                    (rest keypresses) (take (rest keypresses) 10))))
+                    12 (color 255 255 255 160) #f 'modern 'normal 'normal #f)
+         (text/font " ..."
+                    12 (color 255 255 255 220) #f 'modern 'normal 'bold #f))))
+
 
 ; fructure-layout : syntax -> pixels
 (define (fructure-layout fruct layout-settings (screen-x 800) (screen-y 400))
