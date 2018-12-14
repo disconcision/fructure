@@ -48,10 +48,11 @@
                                          stx "")] ; empty search buffer
                              r/ reagent)))]
 
-    [(or "left" "\b")
+    ["left"
      ; budget undo
      (update 'stx (if (empty? history) stx (first history))
-             'history (if (empty? history) history (rest history)))]
+             'history (if (empty? history) history (rest history))
+             'search-buffer "")]
     
     ["up"
      ; cycle the cursor to the previous menu item

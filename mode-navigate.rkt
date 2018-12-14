@@ -91,25 +91,27 @@
                         as/ a))]))]
 
     ["\t"
-     (println "metavar case")
+     ; paint selection as metavariable
+     ; if there are metavariables under the selection, erase them first
+     ; metavariables sibling/cousin to cursor may be renamed
      (update
       'stx (match stx
              [(⋱+x c⋱ #;(capture-when (or (/ _ (▹ _)) (/ [metavar _] _ _)))
-                  (and ls (or (/ _ (▹ (not (⋱x (/ [metavar _] _ _))))) (/ [metavar _] _ _))))
-              (println ls)
+                   (and ls (or (/ _ (▹ _)) (/ [metavar _] _ _))))
+              #;(println ls)
+              (define new-ls
+                (match ls
+                  ['() '()]
+                  [`(,a ... ,(/ s/ (▹ s)) ,b ...)
+                   `(,@a ,(erase-metavars (/ s/ (▹ s))) ,@b)]))
               (⋱+x c⋱
-                  (map (λ (t m) (match t [(/ x/ x)
-                                          (println `(matched-painting ,(/ [metavar m] x/ x)))
-                                          (/ [metavar m] x/ x)]))
-                       ls (range 0 (length ls))))]))]
+                   (map (λ (t m) (match t [(/ x/ x)
+                                           #;(println `(matched-painting ,(/ [metavar m] x/ x)))
+                                           (/ [metavar m] x/ x)]))
+                        new-ls (range 0 (length ls))))]))]
+
     ["escape"
-     (define (erase-metavars fr)
-       (match fr
-         [(/ metavar a/ a)
-          (/ a/ (erase-metavars a))]
-         [(? list? a)
-          (map erase-metavars a)]
-         [_ fr]))
+     ; release all extant metavariables
      (update 'stx (erase-metavars stx))]
         
     #;[","
@@ -141,3 +143,12 @@
                   (⋱ ⋱x)
                   (⋱1 ⋱1x)
                   (⋱+ ⋱+x)))
+
+
+(define (erase-metavars fr)
+  (match fr
+    [(/ metavar a/ a)
+     (/ a/ (erase-metavars a))]
+    [(? list? a)
+     (map erase-metavars a)]
+    [_ fr]))
