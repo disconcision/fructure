@@ -57,6 +57,11 @@
                                          ([sort expr] / ⊙)))])
          '([⋱
              (▹ [sort expr] xs ... / ⊙)
+             (▹ [sort expr] xs ... / (iff ([sort expr] / ⊙)
+                                         ([sort expr] / ⊙)
+                                         ([sort expr] / ⊙)))])
+         '([⋱
+             (▹ [sort expr] xs ... / ⊙)
              (▹ [sort expr] xs ... / (begin
                                        ([sort expr] / ⊙)
                                        ([sort expr] / ⊙+)))])
@@ -214,7 +219,7 @@
 ; primary symbols
 
 (define unary-ids (append '(ref id) '(quote qq uq p-not num)))
-(define if-like-ids (append '(app and) '(if mp lp cp begin list p-and p-or p-list)))
+(define if-like-ids (append '(app and) '(if iff mp lp cp begin list p-and p-or p-list)))
 (define lambda-like-ids (append '(λ lambda) '(match let define local)))
 (define cond-like-ids '(cond match-λ λm))
 

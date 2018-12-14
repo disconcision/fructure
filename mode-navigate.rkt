@@ -87,7 +87,7 @@
              [(⋱x c⋱ (/ as/
                         (▹ a)))
               (⋱x c⋱ (/ [transform
-                         (insert-menu-at-cursor (/ as/ (▹ a)) stx)]
+                         (insert-menu-at-cursor (/ as/ (▹ a)) stx "")]
                         as/ a))]))]
 
     ["\t"

@@ -23,33 +23,26 @@
 
 #|
 
-  This is fructure. Fructure is a world in the hdtp2 universe.
-  Fructure orbits around a STATE, which reflects the outer aspect
-  of its STRUCTURE.
+  structured interaction engine
 
-  Our object is structural interaction. Fructure is about regarding,
-  transforming, conversing with, and being transformed by structure.
+  Fructure is transforming, conversing with, and being transformed by structure.
 
-  The state concerns our interface with structure. It represents
-  the lens through which we apprehend structure, and provides
-  a record of our interactions.
+  Modes determine the mapping between input and pure functions of state.
+  input modes are each defined in seperate modules, indicated above.
+  The fruits of our labors are realized visually, by a layout lens indicated above.
 
-  We devide our interactions into modes, which are mappings
-  taking inputs and states to states. INPUT modes are defined
-  in seperate modules, indicated above. The fruits of our labors
-  are realized visually, by an OUTPUT (layout) lens indicated above.
+  Language.rkt determines the shape of possible mappings, and hence possible structure.
 
-  Within a mode, your input determines a purely functional mapping
-  from the current structure to a new one. Our LANGUAGE determines
-  the shape possible mappings, and hence possible structure.
+  Our object 'in itself' is a syntax object, a composite of
+  labelled sexprs called fructs. The UI is itself part of the syntax,
+  as both syntactic annotation and an encompassing metagrammar.
 
-  External aspects of this update, including history, logging, and
-  interaction buffers with external devices, is represented in
-  the 'outer structure' which is the state.
+  Extensional aspects of the object, including history, logging, and
+  interaction buffers with external devices, are represented in the state.
 
-  Between interactions, we annotate our structure with
+  Between interactions, we automatically annotate our structure with
   contextual cues to inform further interaction. These (morally)
-  represent an ATTRIBUTE grammar, permitting context-free
+  represent an attribute grammar, permitting context-free
   rewriting to respect context-sensitive properties.
 
 
@@ -131,11 +124,12 @@
 (define (input-keyboard state key)
   ; mode-loop : key x state -> state
   ; determines the effect of key based on mode
-  (define-from state stx mode)
+  (define-from state stx mode search-buffer)
   
   ; print debugging information
   #;(displayln `(mode: ,mode  key: ,key))
   #;(displayln `(projected: ,(project stx)))
+  #;(displayln `(search-buffer: ,search-buffer))
   #;(displayln state)
 
   ; dispatch based on current mode

@@ -149,7 +149,8 @@
                     (⋱ d⋱ (and this-menu
                                (/ [menu _]
                                   [display-absolute-offset `(,x ,y)]
-                                  m/ _)))] t/ _))
+                                  m/ _)))]
+                   t/ _))
           (match-define (list menu-fr menu-image)
             (render-menu this-menu layout-settings))
           (place-image/align menu-image
