@@ -115,6 +115,7 @@
   ; transforms: history, currently broken
   'transforms '()
   'history '()
+  'keypresses '()
   ; messages: log, currently disused
   'messages '("bang"))
 
@@ -125,12 +126,13 @@
 (define (input-keyboard state key)
   ; mode-loop : key x state -> state
   ; determines the effect of key based on mode
-  (define-from state stx mode search-buffer)
+  (define-from state stx mode search-buffer keypresses)
   
   ; print debugging information
   #;(displayln `(mode: ,mode  key: ,key))
   #;(displayln `(projected: ,(project stx)))
   #;(displayln `(search-buffer: ,search-buffer))
+  (displayln `(keypresses ,keypresses))
   #;(displayln state)
 
   ; dispatch based on current mode
@@ -150,13 +152,23 @@
 (define (output state)
   ; output : state -> image
   (define-from state
-    stx layout-settings)
+    stx layout-settings keypresses)
   (match-define (list _ image-out)
     ; second here skips the top (diamond) affo
     ; todo: make this less hacky by going fs
     (fructure-layout (second stx) layout-settings
                      screen-x screen-y))
-  image-out)
+
+  (define (keypresses-display keypresses)
+    (text/font (apply string-append (map (λ (x) (string-append " " (if (equal? x " ") "SPC" x)))
+                                         (if (< (length keypresses) 10)
+                                             keypresses (take keypresses 10))))
+               12 "white" #f 'modern 'normal 'normal #f))
+  
+  (overlay/align
+   "left" "top"
+   (keypresses-display keypresses)
+   image-out))
 
 
 ; -------------------------------------------------

@@ -98,7 +98,6 @@
       'stx (match stx
              [(⋱+x c⋱ #;(capture-when (or (/ _ (▹ _)) (/ [metavar _] _ _)))
                    (and ls (or (/ _ (▹ _)) (/ [metavar _] _ _))))
-              #;(println ls)
               (define new-ls
                 (match ls
                   ['() '()]
@@ -106,7 +105,6 @@
                    `(,@a ,(erase-metavars (/ s/ (▹ s))) ,@b)]))
               (⋱+x c⋱
                    (map (λ (t m) (match t [(/ x/ x)
-                                           #;(println `(matched-painting ,(/ [metavar m] x/ x)))
                                            (/ [metavar m] x/ x)]))
                         new-ls (range 0 (length ls))))]))]
 

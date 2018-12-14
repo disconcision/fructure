@@ -7,11 +7,14 @@
 (define (mode:transform key state)
   ; transformation major mode
   
-  (define-from state stx search-buffer history)
+  (define-from state
+    stx search-buffer history keypresses)
   #;(define update (curry hash-set* state))
   (define (update . stuff)
     (define base-state
-      (hash-set state 'history (cons stx history)))
+      (hash-set* state
+                 'history (cons stx history)
+                 'keypresses (cons key keypresses)))
     (apply hash-set* base-state stuff))
   (match-define (⋱x ctx (/ [transform template] r/ reagent)) stx)
   #;(define template (insert-menu-at-cursor pre-template))
@@ -50,6 +53,8 @@
 
     ["left"
      ; budget undo
+     ; do we actually want to change the history in this way?
+     ; what are the alternatives?
      (update 'stx (if (empty? history) stx (first history))
              'history (if (empty? history) history (rest history))
              'search-buffer "")]
