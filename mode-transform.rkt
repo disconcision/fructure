@@ -7,8 +7,12 @@
 (define (mode:transform key state)
   ; transformation major mode
   
-  (define-from state stx search-buffer)
-  (define update (curry hash-set* state))
+  (define-from state stx search-buffer history)
+  #;(define update (curry hash-set* state))
+  (define (update . stuff)
+    (define base-state
+      (hash-set state 'history (cons stx history)))
+    (apply hash-set* base-state stuff))
   (match-define (⋱x ctx (/ [transform template] r/ reagent)) stx)
   #;(define template (insert-menu-at-cursor pre-template))
   
@@ -43,6 +47,11 @@
                                          (perform-selected-transform template)
                                          stx "")] ; empty search buffer
                              r/ reagent)))]
+
+    [(or "left" "\b")
+     ; budget undo
+     (update 'stx (if (empty? history) stx (first history))
+             'history (if (empty? history) history (rest history)))]
     
     ["up"
      ; cycle the cursor to the previous menu item

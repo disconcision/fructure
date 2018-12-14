@@ -114,6 +114,7 @@
   'layout-settings initial-layout
   ; transforms: history, currently broken
   'transforms '()
+  'history '()
   ; messages: log, currently disused
   'messages '("bang"))
 
