@@ -11,8 +11,7 @@
   (define update (curry hash-set* state))
   (match-define (⋱x ctx (/ [transform template] r/ reagent)) stx)
   #;(define template (insert-menu-at-cursor pre-template))
-
-  #;`(? symbol? (app symbol->string (regexp (string-append "^" ,(symbol->string s) ".*"))))
+  
   
   (match key
     
@@ -33,8 +32,8 @@
      ; if there's a hole after the cursor, advance the cursor+menu to it
      ; BUG? : think about behavior when press space at first-level menu
      (update 'search-buffer ""
-             'stx (⋱x ctx (/ [transform (move-menu-to-next-hole template stx
-                                                                search-buffer)]
+             'stx (⋱x ctx (/ [transform (move-menu-to-next-hole template stx "")]
+                             ; above "" is empty search buffer
                              r/ reagent)))]
     
     ["right"
@@ -42,8 +41,7 @@
      (update 'search-buffer ""
              'stx (⋱x ctx (/ [transform (move-menu-to-next-hole
                                          (perform-selected-transform template)
-                                         stx
-                                         search-buffer)]
+                                         stx "")] ; empty search buffer
                              r/ reagent)))]
     
     ["up"
@@ -74,16 +72,21 @@
      ; BUG. to duplicate, type i f in menu and then \b
      ; it will got back to full menu, not i-filtered menu
      ; but the buffer seems to be set right
-     (define new-search-buffer (if (equal? "" search-buffer)
-                                   ""
-                                   (substring search-buffer 0 (sub1 (string-length search-buffer)))))
-     (update 'search-buffer new-search-buffer
-             'stx (match stx
-                    [(⋱x c⋱ (/ [transform template] t/ t))
-                     (define new-template
-                       (insert-menu-at-cursor (strip-menu template) stx new-search-buffer))
-                     (⋱x c⋱ (/ [transform new-template] t/ t))])
-             )]
+     ; also: ideally we'd like to retain current menu selection
+     ; after pressing bksp
+     (define new-search-buffer
+       (if (equal? "" search-buffer)
+           ""
+           (substring search-buffer 0 (sub1 (string-length search-buffer)))))
+     (if (equal? "" search-buffer)
+         (update)
+         (update 'search-buffer new-search-buffer
+                 'stx (match stx
+                        [(⋱x c⋱ (/ [transform template] t/ t))
+                         (define new-template
+                           (insert-menu-at-cursor (strip-menu template) stx new-search-buffer))
+                         (⋱x c⋱ (/ [transform new-template] t/ t))])
+                 ))]
 
     [(regexp #rx"^[a-z\\]$" c)
      #:when c
@@ -105,11 +108,20 @@
        (filter-menu menu buffer-candidate))
 
      #;(println `(menu-candidate ,menu-candidate))
+
+     (define template-candidate
+       (⋱x d⋱ (/ [menu menu-candidate]  m/ m)))
      
      (if (empty? menu-candidate)
-         (update 'stx stx)
-         (update 'stx (⋱x c⋱ (/ [transform (⋱x d⋱ (/ [menu menu-candidate]  m/ m))] t/ t))
-                 'search-buffer buffer-candidate))
+         (update)
+         (if (equal? 1 (length menu-candidate))
+             (update 'stx (⋱x ctx (/ [transform (move-menu-to-next-hole
+                                                 (perform-selected-transform template-candidate)
+                                                 stx "")] ; empty search buffer
+                                     r/ reagent))
+                     'seatch-buffer "")
+             (update 'stx (⋱x c⋱ (/ [transform template-candidate] t/ t))
+                     'search-buffer buffer-candidate)))
      
      ; we want to add it to buffer, but only if it doesn't make the menu of zero length
      ; so just add it to buffer,
@@ -161,9 +173,9 @@
             ([transform transforms])
     (if (test-match transform reagent)
         `(,@menu (,transform
-                  ,(f/match (runtime-match literals transform reagent)
-                     [(c ⋱ (▹ as ... / a))
-                      (as ... / a)])))
+                  ,(match (runtime-match literals transform reagent)
+                     [(⋱x c⋱ (/ as/ (▹ a)))
+                      (/ as/ a)])))
         menu)))
 
 
@@ -218,12 +230,12 @@
 (define (extract-scope stx)
   ; extract the variables in scope under the cursor
   ; todo: improve and inline this function
-  (f/match stx
-    [(c ⋱ (▹ in-scope As ... / a))
-     in-scope]    
+  (match stx
+    [(⋱x c⋱ (/ [in-scope a-scope] a/ (▹ a)))
+     a-scope]    
     ; fallthrough case - current λ params list has no in-scope
     ; TODO: decide if i do/should actually need this case
-    [(c ⋱ (▹ As ... / a))
+    [(⋱x c⋱ (/ a/ (▹ a)))
      '()]))
 
 
@@ -319,8 +331,8 @@
   (define in-scope
     (extract-scope stx))
   (define menu-stx (make-menu in-scope metavar-transforms stx))
-  (f/match stx
-    [(c ⋱ (▹ xs ... / x))
+  (match stx
+    [(⋱x c⋱ (/ xs/ (▹ x)))
      #:when (not (empty? menu-stx))
      (define menu-with-selection
        ; recall that each menu item is a pairing
@@ -330,7 +342,8 @@
           `((,t ,(select-▹ r)) ,@xs)]))
      (define filtered-menu
        (filter-menu menu-with-selection search-buffer))
-     (c ⋱ (▹ ('menu menu-with-selection) xs ... / x))]
+     #;(println `(fm ,search-buffer ,filtered-menu))
+     (⋱x c⋱ (/ [menu filtered-menu] xs/ (▹ x)))]
     [x (println "warning: no menu inserted")
        (when (empty? menu-stx)
          (println "warning: menu was empty; not handled"))
@@ -339,15 +352,15 @@
 
 (define (strip-menu stx)
   ; removes up to one menu from stx
-  (f/match stx
-    [(ctx ⋱ (menu xs ... / x))
-     (ctx ⋱ (xs ... / x))]
+  (match stx
+    [(⋱x ctx⋱ (/ [menu menu] xs/ x))
+     (⋱x ctx⋱ (/ xs/ x))]
     [x x]))
 
 (define (local-augment stx)
-  (f/match stx
-    [(ctx ⋱ (in-scope ts ... / t))
-     (ctx ⋱ (augment (in-scope ts ... / t)))]
+  (match stx
+    [(⋱x ctx⋱ (/ [in-scope in-scope] ts/ t))
+     (⋱x ctx⋱ (augment (/ in-scope ts/ t)))]
     [x (println "warning: local-augment no-match") x]))
 
 (define (move-menu-to-next-hole stx ambient-stx search-buffer)
@@ -377,7 +390,6 @@
 
 
 (define (filter-menu menu search-buffer)
-  #;(println `(da menu: ,menu))
   (define matcher
     (match-lambda [`(,t ,r) (stx-str-match r search-buffer)]
                   [a #;(println `(fallthru: ,a)) #f]))
@@ -395,13 +407,12 @@
 
 
 (define (stx-str-match stx str)
-  #;(println `(res ,stx))
   (match stx
     [(/ ref/ `(ref ,(/ id/ `(id ,(/ c/ c) ...))))
-     #;(println `(id case: ,(apply string-append (map symbol->string c))))
      (string-prefix? (apply string-append (map symbol->string c)) str)]
     [(/ form/ `(, as ... ,(? form-id? f) ,bs ...))
-     ; temp HACK to match lambda literals
-     #;(define new-str (if (equal? (first str) "λ") (cons "l" (rest str)) str))
      (string-prefix? (symbol->string f) str)]
-    [_ (println `(stx-str-match-fallthrough ,stx)) #f]))
+    [(/ c/ (? symbol? c)) ; should just be chars
+     (string-prefix? (symbol->string c) str)]
+    ; note fallthrough is true
+    [_ (println `(stx-str-match-fallthrough ,stx)) #t]))
