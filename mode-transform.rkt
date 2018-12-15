@@ -18,7 +18,9 @@
     (apply hash-set* base-state stuff))
   (match-define (⋱x ctx (/ [transform template] r/ reagent)) stx)
   #;(define template (insert-menu-at-cursor pre-template))
-  
+
+  (define hole-selected-in-menu?
+    (match-lambda? (⋱x c⋱ (/ [transform (⋱x d⋱ (/ (menu (⋱x (/ h/ (▹ (or '⊙ '⊙+))))) m/ _))] t/ t))))
   
   (match key
     
@@ -35,9 +37,11 @@
              'search-buffer ""
              'stx (⋱x ctx (strip-menu (perform-selected-transform template))))]
     
-    [" "
+    [#;"\t"
+     " "
+     #:when (hole-selected-in-menu? stx)
      ; if there's a hole after the cursor, advance the cursor+menu to it
-     ; BUG? : think about behavior when press space at first-level menu
+     ; idea for modification to make this feel more natural
      (update 'search-buffer ""
              'stx (⋱x ctx (/ [transform (move-menu-to-next-hole template stx "")]
                              ; above "" is empty search buffer
@@ -103,11 +107,14 @@
                          (⋱x c⋱ (/ [transform new-template] t/ t))])
                  ))]
 
-    [(regexp #rx"^[a-z\\]$" c)
+    [(regexp #rx"^[a-z \\]$" c)
      #:when c
      ; hack? otherwise this seems to catch everything?
      ; maybe since we're matching against a key event...
      #;(println `(char ,c pressed))
+     ; BUG: try making a lambda by pressing / then SPACE
+     ; we should be able to then start typing alpha as id
+     ; but we can't until we press backspace...
      (if (equal? "\\" (first c))
          "λ"
          (first c))
@@ -134,7 +141,7 @@
                                                  (perform-selected-transform template-candidate)
                                                  stx "")] ; empty search buffer
                                      r/ reagent))
-                     'seatch-buffer "")
+                     'search-buffer "")
              (update 'stx (⋱x c⋱ (/ [transform template-candidate] t/ t))
                      'search-buffer buffer-candidate)))
      
@@ -424,9 +431,21 @@
 (define (stx-str-match stx str)
   (match stx
     [(/ ref/ `(ref ,(/ id/ `(id ,(/ c/ c) ...))))
-     (string-prefix? (apply string-append (map symbol->string c)) str)]
+     (define id-string (apply string-append (map symbol->string c)))
+     ; basically, a space at the end indicates a terminator
+     ; debatably hacky
+     (if (and (not (equal? "" str))
+              (equal? " " (substring str (- (string-length str) 1) (string-length str))))
+         (equal? id-string (substring str 0 (- (string-length str) 1)))
+         (string-prefix? id-string str))
+     ]
     [(/ form/ `(, as ... ,(? form-id? f) ,bs ...))
-     (string-prefix? (symbol->string f) str)]
+     (define form-string (symbol->string f))
+     (if (and (not (equal? "" str))
+              (equal? " " (substring str (- (string-length str) 1) (string-length str))))
+         (equal? form-string (substring str 0 (- (string-length str) 1)))
+         (string-prefix? form-string str))
+     ]
     [(/ c/ (? symbol? c)) ; should just be chars
      (string-prefix? (symbol->string c) str)]
     ; note fallthrough is true

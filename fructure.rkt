@@ -158,6 +158,7 @@
     stx layout-settings keypresses)
   (define-from layout-settings
     display-keypresses?)
+  
   (match-define (list _ image-out)
     ; second here skips the top (diamond) affo
     ; todo: make this less hacky by going fs

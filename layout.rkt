@@ -66,6 +66,10 @@
         [" " "SPACE"]
         ["\r" "ENTER"]
         ["\b" "BACK"]
+        ["right" "→"]
+        ["left" "←"]
+        ["up" "↑"]
+        ["down" "↓"]
         [else k]))
     (if (empty? keypresses)
         empty-image
