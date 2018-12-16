@@ -1,6 +1,5 @@
 #lang racket
 
-(require lang/posn)
 (require 2htdp/image)
 (require rackunit
          "layout-tests.rkt"
