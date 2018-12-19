@@ -60,29 +60,29 @@
 
 
 (define (display-keypresses keypresses)
-    (define (key-remap k)
-      (match k
-        [" " "SPACE"]
-        ["\r" "ENTER"]
-        ["\b" "BACK"]
-        ["right" "→"]
-        ["left" "←"]
-        ["up" "↑"]
-        ["down" "↓"]
-        [else k]))
-    (if (empty? keypresses)
-        empty-image
-        (beside/align
-         "top"
-         (text/font (string-append " " (key-remap (first keypresses)))
-                    12 (color 255 255 255 220) #f 'modern 'normal 'bold #f)
-         (text/font (apply string-append
-                           (map (λ (x) (string-append " " (key-remap x)))
-                                (if (< (length (rest keypresses)) 10)
-                                    (rest keypresses) (take (rest keypresses) 10))))
-                    12 (color 255 255 255 160) #f 'modern 'normal 'normal #f)
-         (text/font " ..."
-                    12 (color 255 255 255 220) #f 'modern 'normal 'bold #f))))
+  (define (key-remap k)
+    (match k
+      [" " "SPACE"]
+      ["\r" "ENTER"]
+      ["\b" "BACK"]
+      ["right" "→"]
+      ["left" "←"]
+      ["up" "↑"]
+      ["down" "↓"]
+      [else k]))
+  (if (empty? keypresses)
+      empty-image
+      (beside/align
+       "top"
+       (text/font (string-append " " (key-remap (first keypresses)))
+                  12 (color 255 255 255 220) #f 'modern 'normal 'bold #f)
+       (text/font (apply string-append
+                         (map (λ (x) (string-append " " (key-remap x)))
+                              (if (< (length (rest keypresses)) 10)
+                                  (rest keypresses) (take (rest keypresses) 10))))
+                  12 (color 255 255 255 160) #f 'modern 'normal 'normal #f)
+       (text/font " ..."
+                  12 (color 255 255 255 220) #f 'modern 'normal 'bold #f))))
 
 
 ; fructure-layout : syntax -> pixels
@@ -90,6 +90,8 @@
   (define-from layout-settings
     bkg-color text-size popout-transform? popout-menu?)
   (define margin (div-integer text-size 5))
+  (define expander-height
+    (round (* 1/4 text-size))) ; magic af
   
   ; sanity checks
   (match fruct
@@ -107,91 +109,73 @@
      layout-settings))
 
   ; calculate absolute positioning from relative
-  (define newest-fruct
-    (augment-absolute-offsets
-     new-fruct))
+  (define newest-fruct (augment-absolute-offsets new-fruct))
+  
+ 
+  (define (render-in renderer foreground background x-align y-align)
+    (match-define (list _ foreground-image)
+      (renderer foreground
+                layout-settings))
+    (place-image/align foreground-image
+                       x-align y-align
+                       "left" "top"
+                       background))
+
+ 
+
+  (define (stick-transform-in backing-image)
+    (match-define
+      (or (and this-transform
+               (/ [transform _]
+                  [display-absolute-offset
+                   `(,(app (curry + x-offset) x)
+                     ,(app (curry + y-offset) y))] t/ _))
+          (⋱ _ (and this-transform
+                    (/ [transform _]
+                       [display-absolute-offset `(,x ,y)] t/ _))))
+      newest-fruct)
+    (render-in render-transform
+               this-transform backing-image
+               (+ x (- margin))
+               (+ y)))
 
   
+  (define (stick-in-menu backing-image)
+    (match-define
+      (or (/ [transform
+              (⋱ _ (and this-menu
+                        (/ [menu _]
+                           [display-absolute-offset
+                            `(,(app (curry + x-offset) x)
+                              ,(app (curry + y-offset) y))]
+                           m/ _)))] t/ _)
+          (⋱ _ (/ [transform
+                   (⋱ _ (and this-menu
+                             (/ [menu _]
+                                [display-absolute-offset `(,x ,y)]
+                                m/ _)))] t/ _)))
+      newest-fruct)
+    (render-in render-menu
+               this-menu backing-image
+               (+ x (* -2 margin))
+               (+ y (- expander-height))))
+ 
+          
+
+  (define (>>if ? f a)
+    (if ? (f a) a))
+
   (define new-image
-    (overlay/align/offset "left" "top"
-                          scene-image
-                          (- x-offset) (- y-offset)
-                          (rectangle screen-x screen-y "solid" bkg-color)))
-
-  ; overlay transform if in popout mode
-  (define post-procd-image
-    (cond
-      [popout-transform?
-       (match newest-fruct
-         
-         ; HACK: case copied from below but special-cased
-         ; to stop TOP-LEVEL transforms from losing the
-         ; initial pane offset
-         [(and this-transform
-               (/ [transform _]
-                  [display-absolute-offset `(,x ,y)]
-                  t/ _))
-          (match-define (list transform-fr transform-image)
-            (render-transform this-transform #t layout-settings))
-          (place-image/align transform-image
-                             (+ x-offset (- x margin))
-                             (+ y-offset y) "left" "top" new-image)]
-         
-         [(⋱ c⋱ (and this-transform
-                     (/ [transform _]
-                        [display-absolute-offset `(,x ,y)]
-                        t/ _)))
-          (match-define (list transform-fr transform-image)
-            (render-transform this-transform #t layout-settings))
-          (place-image/align transform-image
-                             (- x margin)
-                             y "left" "top" new-image)]
-         [_ new-image])]
-      [else new-image]))
-
-
-  ; overlay menu if in popout mode
-  (define post-post-procd-image
-    (cond
-      [popout-menu?
-       (define expander-height
-         (round (* 1/4 text-size))) ; magic af
-       (match newest-fruct
-
-         ; HACK, see above
-         [(/ [transform
-              (⋱ d⋱ (and this-menu
-                         (/ [menu _]
-                            [display-absolute-offset `(,x ,y)]
-                            m/ _)))] t/ _)
-          (match-define (list menu-fr menu-image)
-            (render-menu this-menu layout-settings))
-          ;todo: factor out to property
-          (place-image/align menu-image
-                             (+ x x-offset (- (+ (* 2 margin)))) ;only slightly magic
-                             (+ y y-offset (- expander-height)) "left" "top"
-                             post-procd-image)]
-         
-         [(⋱ c⋱ (/ [transform
-                    (⋱ d⋱ (and this-menu
-                               (/ [menu _]
-                                  [display-absolute-offset `(,x ,y)]
-                                  m/ _)))]
-                   t/ _))
-          (match-define (list menu-fr menu-image)
-            (render-menu this-menu layout-settings))
-          (place-image/align menu-image
-                             (+ x (- (* 2 margin))) ;only slightly magic
-                             (+ y (- expander-height)) "left" "top"
-                             post-procd-image)]
-         [_ post-procd-image])]
-      [else post-procd-image]))  
-
+    (overlay/align/offset
+     "left" "top"
+     scene-image
+     (- x-offset) (- y-offset)
+     (rectangle screen-x screen-y "solid" bkg-color)))
   
   (list newest-fruct
-        post-post-procd-image))
-
-
+        (>>if popout-menu? stick-in-menu
+              (>>if popout-transform? stick-transform-in
+                    new-image))))
 
 
 
@@ -222,7 +206,7 @@
     [(/ [transform template] t/ target)
      (match-define (list new-fruct new-image)
        (render-transform (/ [transform template] t/ target)
-                         depth layout-settings))
+                         layout-settings))
      (list new-fruct
            (if popout-transform?
                (let ([temp-image (render (/ t/ target) layout-settings)])
@@ -649,7 +633,7 @@
                                                      (max 0 (- (image-height temp) 1))
                                                      radius
                                                      selected-color)
-                                            temp))
+                                                    temp))
                                          (let ([temp (second (render (/ b/ b) override-layout-settings))])
                                            (overlay (rounded-rectangle-outline
                                                      (image-width temp)
@@ -783,7 +767,7 @@
 
 
 
-(define (render-transform fruct depth layout-settings)
+(define (render-transform fruct layout-settings)
   (define-from layout-settings
     text-size grey-one grey-two selected-color
     dodge-enabled?)
@@ -791,7 +775,7 @@
   (define margin (div-integer text-size 5))
   (match-define (/ [transform template] t/ target) fruct)
   (define pat-tem-bkg-color
-    (if depth grey-one grey-two))
+    grey-one #;(if depth grey-one grey-two))
   
   (match-define (list target-fruct target-image)
     (render (/ t/ target) layout-settings))
