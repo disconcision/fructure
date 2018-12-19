@@ -85,6 +85,9 @@
   ; beautify menu selector
   'custom-menu-selector? #t
 
+  ; show parentheses. not fully implemented
+  'show-parens? #f
+
   ; look at the pretty colors
   'selected-atom-color (color 255 255 255)
   'menu-bkg-color (color 112 112 112)

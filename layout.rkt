@@ -37,6 +37,7 @@
         'implicit-forms '(ref app)
         'line-spacing 1 ; 1
         'char-padding-vertical 4 ; 5
+        'show-parens? #f
 
         'selected-atom-color (color 255 255 255)
         'menu-bkg-color (color 112 112 112)
@@ -490,7 +491,7 @@
 
 
 (define (render-horizontal layout-settings children)
-  (define-from layout-settings text-size)
+  (define-from layout-settings text-size show-parens?)
   (define unit-width (image-width (space text-size)))
 
   (define-values (new-children new-image _)
@@ -498,15 +499,29 @@
                 unit-width
                 children))
 
+  (define newer-image
+    (beside new-image
+            (match (first (last children))
+              ; feels slightly hacky
+              ; should bellow be single 'pattern case?
+              [(/ _/ `(,(not (or 'id 'ref)) ,xs ...)) empty-image]
+              [_ (space text-size)])))
+
+  ; experimental : show parentheses option
+  ; misses a parens when we skip the space after a terminal non-atom
+  (define newest-image
+    (if show-parens?
+        (overlay/align "left" "top"
+                   (render-symbol "(" "black" layout-settings)
+                   (overlay/align "right" "top"
+                                  (render-symbol ")" "black" layout-settings)
+                                  newer-image))
+        newer-image))
+
   (list new-children
         ; note special case
         ; if last child is atom, we leave a space on the right
-        (beside new-image
-                (match (first (last children))
-                  ; feels slightly hacky
-                  ; should bellow be single 'pattern case?
-                  [(/ _/ `(,(not (or 'id 'ref)) ,xs ...)) empty-image]
-                  [_ (space text-size)]))))
+        newest-image))
 
 
 
@@ -603,15 +618,17 @@
       (define search-buffer (match item [(/ [search-buffer search-buffer] a/ a)
                                          search-buffer]
                               [_ ""]))
-      (define (overlay-search-buffer item)
-        (match item
-          [(/ a/ `(,(? (curry member implicit-forms) _) ,xs ...))
-           (println "curry member implicit case") item]
+      (define (overlay-search-buffer stx image)
+        (match stx
+          ; sort of hacky exception for ref
+          ; still not really right, r is still going to select refs maybe?
+          [(/ a/ `(,(and (not 'ref) (? (curryr member implicit-forms)) _) ,xs ...))
+           #;(println "curry member implicit case") image]
           [_ (overlay/align
               "left" "top"
               (render-symbol (string->symbol (string-append " " search-buffer))
                              selected-color layout-settings)
-              item)]))
+              image)]))
       (cond
         [custom-menu-selector?
          (match item
@@ -619,53 +636,53 @@
             (list (first (render (/ b/ (▹ b)) override-layout-settings))
                   ; HACK, BUG: get (wrong) positioning data
                   ; also special-cases char menus
-                  (overlay-search-buffer
-                   (if char-menu?
-                       ; hacky color change... is it even working?
-                       ; it's interpreting chars as identifiers for some reason?
-                       (second (render (/ b/ b) (hash-set override-layout-settings
-                                                          'identifier-color "white")))
-                       (overlay/align "left" "top"
-                                      (space text-size)
-                                      (if (or (not (list? b)) (and (member 'ref implicit-forms)
-                                                                   (match b [`(ref ,_) #t][_ #f])))
-                                          ; hacky extra spacing for atoms
-                                          ; extra hacky for implicit refs
-                                          ; HACK below throws off offset alignment
-                                          ; need to refacto as popped layer
-                                          (let ([temp (beside (space text-size)
-                                                              (second (render (/ b/ b) (hash-set override-layout-settings
-                                                                                                 'identifier-color "white")))
-                                                              (space text-size))])
-                                            (overlay (rounded-rectangle-outline
-                                                      (image-width temp)
-                                                      ; slightly hacky adjustment
-                                                      ; to make outline entirely inside line-height
-                                                      (max 0 (- (image-height temp) 1))
-                                                      radius
-                                                      selected-color)
-                                                     temp))
-                                          (let ([temp (second (render (/ b/ b) override-layout-settings))])
-                                            (overlay (rounded-rectangle-outline
-                                                      (image-width temp)
-                                                      ; slightly hacky see above
-                                                      (max 0 (- (image-height temp) 1))
-                                                      radius
-                                                      selected-color)
-                                                     temp)))))))]
+                  (overlay-search-buffer (/ b/ (▹ b))
+                                         (if char-menu?
+                                             ; hacky color change... is it even working?
+                                             ; it's interpreting chars as identifiers for some reason?
+                                             (second (render (/ b/ b) (hash-set override-layout-settings
+                                                                                'identifier-color "white")))
+                                             (overlay/align "left" "top"
+                                                            (space text-size)
+                                                            (if (or (not (list? b)) (and (member 'ref implicit-forms)
+                                                                                         (match b [`(ref ,_) #t][_ #f])))
+                                                                ; hacky extra spacing for atoms
+                                                                ; extra hacky for implicit refs
+                                                                ; HACK below throws off offset alignment
+                                                                ; need to refacto as popped layer
+                                                                (let ([temp (beside (space text-size)
+                                                                                    (second (render (/ b/ b) (hash-set override-layout-settings
+                                                                                                                       'identifier-color "white")))
+                                                                                    (space text-size))])
+                                                                  (overlay (rounded-rectangle-outline
+                                                                            (image-width temp)
+                                                                            ; slightly hacky adjustment
+                                                                            ; to make outline entirely inside line-height
+                                                                            (max 0 (- (image-height temp) 1))
+                                                                            radius
+                                                                            selected-color)
+                                                                           temp))
+                                                                (let ([temp (second (render (/ b/ b) override-layout-settings))])
+                                                                  (overlay (rounded-rectangle-outline
+                                                                            (image-width temp)
+                                                                            ; slightly hacky see above
+                                                                            (max 0 (- (image-height temp) 1))
+                                                                            radius
+                                                                            selected-color)
+                                                                           temp)))))))]
            [(/ b/ b)
             (list (first (render item override-layout-settings))
-                  (overlay-search-buffer
-                   (if (or (not (list? b)) (and (member 'ref implicit-forms)
-                                                (match b [`(ref ,_) #t][_ #f])))
-                       ; hacky extra spacing for atoms
-                       ; extra hacky for implicit refs
-                       (beside (space text-size)
-                               (second (render item (hash-set override-layout-settings
-                                                              'identifier-color "white")))
-                               (space text-size))
-                       ; below is call that should have tint when metavar 666
-                       (second (render item override-layout-settings)))))])]
+                  (overlay-search-buffer (/ b/ b)
+                                         (if (or (not (list? b)) (and (member 'ref implicit-forms)
+                                                                      (match b [`(ref ,_) #t][_ #f])))
+                                             ; hacky extra spacing for atoms
+                                             ; extra hacky for implicit refs
+                                             (beside (space text-size)
+                                                     (second (render item (hash-set override-layout-settings
+                                                                                    'identifier-color "white")))
+                                                     (space text-size))
+                                             ; below is call that should have tint when metavar 666
+                                             (second (render item override-layout-settings)))))])]
         [else (render item override-layout-settings)])))
   
   (define truncated-menu-image
