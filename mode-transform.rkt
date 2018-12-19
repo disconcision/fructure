@@ -415,8 +415,10 @@
   (define matcher
     (match-lambda [`(,t ,r) (stx-str-match r search-buffer)]
                   [a #;(println `(fallthru: ,a)) #f]))
+  (define menu-annotated
+    (map (match-lambda [`(,t ,(/ r/ r)) `(,t ,(/ search-buffer r/ r))]) menu))
   (define menu-candidate
-    (filter matcher menu))
+    (filter matcher menu-annotated))
   (define is-cursor-in-menu?
     (match menu-candidate
       [`(, as ... (,t ,(/ b/ (▹ b))) , cs ...) #t] [_ #f]))

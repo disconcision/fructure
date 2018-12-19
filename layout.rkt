@@ -124,41 +124,41 @@
  
 
   (define (stick-transform-in backing-image)
-    (match-define
-      (or (and this-transform
-               (/ [transform _]
-                  [display-absolute-offset
-                   `(,(app (curry + x-offset) x)
-                     ,(app (curry + y-offset) y))] t/ _))
-          (⋱ _ (and this-transform
-                    (/ [transform _]
-                       [display-absolute-offset `(,x ,y)] t/ _))))
-      newest-fruct)
-    (render-in render-transform
-               this-transform backing-image
-               (+ x (- margin))
-               (+ y)))
+    (match newest-fruct
+      [(or (and this-transform
+                (/ [transform _]
+                   [display-absolute-offset
+                    `(,(app (curry + x-offset) x)
+                      ,(app (curry + y-offset) y))] t/ _))
+           (⋱ _ (and this-transform
+                     (/ [transform _]
+                        [display-absolute-offset `(,x ,y)] t/ _))))
+       (render-in render-transform
+                  this-transform backing-image
+                  (+ x (- margin))
+                  (+ y))]
+      [_ backing-image]))
 
   
-  (define (stick-in-menu backing-image)
-    (match-define
-      (or (/ [transform
-              (⋱ _ (and this-menu
-                        (/ [menu _]
-                           [display-absolute-offset
-                            `(,(app (curry + x-offset) x)
-                              ,(app (curry + y-offset) y))]
-                           m/ _)))] t/ _)
-          (⋱ _ (/ [transform
-                   (⋱ _ (and this-menu
-                             (/ [menu _]
-                                [display-absolute-offset `(,x ,y)]
-                                m/ _)))] t/ _)))
-      newest-fruct)
-    (render-in render-menu
-               this-menu backing-image
-               (+ x (* -2 margin))
-               (+ y (- expander-height))))
+  (define (stick-menu-in backing-image)
+    (match newest-fruct
+      [(or (/ [transform
+               (⋱ _ (and this-menu
+                         (/ [menu _]
+                            [display-absolute-offset
+                             `(,(app (curry + x-offset) x)
+                               ,(app (curry + y-offset) y))]
+                            m/ _)))] t/ _)
+           (⋱ _ (/ [transform
+                    (⋱ _ (and this-menu
+                              (/ [menu _]
+                                 [display-absolute-offset `(,x ,y)]
+                                 m/ _)))] t/ _)))
+       (render-in render-menu
+                  this-menu backing-image
+                  (+ x (* -2 margin))
+                  (+ y (- expander-height)))]
+      [_ backing-image]))
  
           
 
@@ -173,7 +173,7 @@
      (rectangle screen-x screen-y "solid" bkg-color)))
   
   (list newest-fruct
-        (>>if popout-menu? stick-in-menu
+        (>>if popout-menu? stick-menu-in
               (>>if popout-transform? stick-transform-in
                     new-image))))
 
@@ -182,10 +182,9 @@
 
 (define (render fruct layout-settings (depth #t) (bkg 0))
   (define-from layout-settings
-    text-size selected-color hole-color
-    popout-transform? popout-menu? implicit-forms
-    grey-one grey-two pattern-bkg-color
-    pattern-grey-one pattern-grey-two)
+    text-size  popout-transform? popout-menu? implicit-forms
+    pattern-bkg-color pattern-grey-one pattern-grey-two
+    selected-color grey-one grey-two)
     
   (match fruct
 
@@ -601,6 +600,18 @@
                         'force-horizontal-layout? #t
                         'grey-one menu-bkg-color
                         'form-color (color 255 255 255))])) ; magic color
+      (define search-buffer (match item [(/ [search-buffer search-buffer] a/ a)
+                                         search-buffer]
+                              [_ ""]))
+      (define (overlay-search-buffer item)
+        (match item
+          [(/ a/ `(,(? (curry member implicit-forms) _) ,xs ...))
+           (println "curry member implicit case") item]
+          [_ (overlay/align
+              "left" "top"
+              (render-symbol (string->symbol (string-append " " search-buffer))
+                             selected-color layout-settings)
+              item)]))
       (cond
         [custom-menu-selector?
          (match item
@@ -608,52 +619,53 @@
             (list (first (render (/ b/ (▹ b)) override-layout-settings))
                   ; HACK, BUG: get (wrong) positioning data
                   ; also special-cases char menus
-                  (if char-menu?
-                      ; hacky color change... is it even working?
-                      ; it's interpreting chars as identifiers for some reason?
-                      (second (render (/ b/ b) (hash-set override-layout-settings
-                                                         'identifier-color "white")))
-                      (overlay/align "left" "top"
-                                     (space text-size)
-                                     #;(second (render '▹ override-layout-settings))
-                                     (if (or (not (list? b)) (and (member 'ref implicit-forms)
-                                                                  (match b [`(ref ,_) #t][_ #f])))
-                                         ; hacky extra spacing for atoms
-                                         ; extra hacky for implicit refs
-                                         ; HACK below throws off offset alignment
-                                         ; need to refacto as popped layer
-                                         (let ([temp (beside (space text-size)
-                                                             (second (render (/ b/ b) (hash-set override-layout-settings
-                                                                                                'identifier-color "white")))
-                                                             (space text-size))])
-                                           (overlay (rounded-rectangle-outline
-                                                     (image-width temp)
-                                                     ; slightly hacky adjustment
-                                                     ; to make outline entirely inside line-height
-                                                     (max 0 (- (image-height temp) 1))
-                                                     radius
-                                                     selected-color)
-                                                    temp))
-                                         (let ([temp (second (render (/ b/ b) override-layout-settings))])
-                                           (overlay (rounded-rectangle-outline
-                                                     (image-width temp)
-                                                     ; slightly hacky see above
-                                                     (max 0 (- (image-height temp) 1))
-                                                     radius
-                                                     selected-color)
-                                                    temp))))))]
+                  (overlay-search-buffer
+                   (if char-menu?
+                       ; hacky color change... is it even working?
+                       ; it's interpreting chars as identifiers for some reason?
+                       (second (render (/ b/ b) (hash-set override-layout-settings
+                                                          'identifier-color "white")))
+                       (overlay/align "left" "top"
+                                      (space text-size)
+                                      (if (or (not (list? b)) (and (member 'ref implicit-forms)
+                                                                   (match b [`(ref ,_) #t][_ #f])))
+                                          ; hacky extra spacing for atoms
+                                          ; extra hacky for implicit refs
+                                          ; HACK below throws off offset alignment
+                                          ; need to refacto as popped layer
+                                          (let ([temp (beside (space text-size)
+                                                              (second (render (/ b/ b) (hash-set override-layout-settings
+                                                                                                 'identifier-color "white")))
+                                                              (space text-size))])
+                                            (overlay (rounded-rectangle-outline
+                                                      (image-width temp)
+                                                      ; slightly hacky adjustment
+                                                      ; to make outline entirely inside line-height
+                                                      (max 0 (- (image-height temp) 1))
+                                                      radius
+                                                      selected-color)
+                                                     temp))
+                                          (let ([temp (second (render (/ b/ b) override-layout-settings))])
+                                            (overlay (rounded-rectangle-outline
+                                                      (image-width temp)
+                                                      ; slightly hacky see above
+                                                      (max 0 (- (image-height temp) 1))
+                                                      radius
+                                                      selected-color)
+                                                     temp)))))))]
            [(/ b/ b)
             (list (first (render item override-layout-settings))
-                  (if (or (not (list? b)) (and (member 'ref implicit-forms)
-                                               (match b [`(ref ,_) #t][_ #f])))
-                      ; hacky extra spacing for atoms
-                      ; extra hacky for implicit refs
-                      (beside (space text-size)
-                              (second (render item (hash-set override-layout-settings
-                                                             'identifier-color "white")))
-                              (space text-size))
-                      ; below is call that should have tint when metavar 666
-                      (second (render item override-layout-settings))))])]
+                  (overlay-search-buffer
+                   (if (or (not (list? b)) (and (member 'ref implicit-forms)
+                                                (match b [`(ref ,_) #t][_ #f])))
+                       ; hacky extra spacing for atoms
+                       ; extra hacky for implicit refs
+                       (beside (space text-size)
+                               (second (render item (hash-set override-layout-settings
+                                                              'identifier-color "white")))
+                               (space text-size))
+                       ; below is call that should have tint when metavar 666
+                       (second (render item override-layout-settings)))))])]
         [else (render item override-layout-settings)])))
   
   (define truncated-menu-image
