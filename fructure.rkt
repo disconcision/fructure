@@ -56,13 +56,13 @@
   
   ; scaling parameters
   'text-size 30
-  'line-spacing 1 ; 1
+  'line-spacing 0 ; 1
   'char-padding-vertical 3 ; 5
   
   ; hide the heads of these forms
   'implicit-forms '(ref app cp lp mp)
 
-  ; show a list of the 10 last keypresses
+  ; show a list of the n last keypresses
   'display-keypresses? #t
   
   ; maximum completions
@@ -89,6 +89,7 @@
   'show-parens? #f
 
   ; look at the pretty colors
+  'transform-tint-color (color 160 0 0) ;selected-color
   'selected-atom-color (color 255 255 255)
   'menu-bkg-color (color 112 112 112)
   'form-color (color 0 130 214)

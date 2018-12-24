@@ -334,9 +334,10 @@
     (map (λ (x)
            (match (fruct-to-runtime x)
              [`(,a ... / ,b)
+              ; FIX THIS:
               ;  not copying even sort over ...
               `([⋱
-                  (▹ / ⊙)
+                  (▹ [sort expr] / ⊙)
                   (▹ ,@a / ,b)])]))
          (extract-metavars (erase-attrs ambient-stx))))
 

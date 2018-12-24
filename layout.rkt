@@ -39,6 +39,7 @@
         'char-padding-vertical 4 ; 5
         'show-parens? #f
 
+        'transform-tint-color (color 160 0 0) ; selected-color
         'selected-atom-color (color 255 255 255)
         'menu-bkg-color (color 112 112 112)
         'form-color (color 0 130 214)
@@ -73,17 +74,21 @@
       [else k]))
   (if (empty? keypresses)
       empty-image
-      (beside/align
-       "top"
-       (text/font (string-append " " (key-remap (first keypresses)))
-                  12 (color 255 255 255 220) #f 'modern 'normal 'bold #f)
-       (text/font (apply string-append
-                         (map (λ (x) (string-append " " (key-remap x)))
-                              (if (< (length (rest keypresses)) 10)
-                                  (rest keypresses) (take (rest keypresses) 10))))
-                  12 (color 255 255 255 160) #f 'modern 'normal 'normal #f)
-       (text/font " ..."
-                  12 (color 255 255 255 220) #f 'modern 'normal 'bold #f))))
+      (above/align
+       "left"
+       (text/font " " 20 (color 255 255 255) #f 'modern 'normal 'normal #f)
+       (beside/align
+        "top"
+        (text/font " " 20 (color 255 255 255) #f 'modern 'normal 'normal #f)
+        (text/font (string-append " " (key-remap (first keypresses)))
+                   20 (color 255 255 255 220) #f 'modern 'normal 'bold #f)
+        (text/font (apply string-append
+                          (map (λ (x) (string-append " " (key-remap x)))
+                               (if (< (length (rest keypresses)) 10)
+                                   (rest keypresses) (take (rest keypresses) 10))))
+                   20 (color 255 255 255 160) #f 'modern 'normal 'normal #f)
+        (text/font " ..."
+                   20 (color 255 255 255 220) #f 'modern 'normal 'bold #f)))))
 
 
 ; fructure-layout : syntax -> pixels
@@ -98,7 +103,8 @@
   (match fruct
     [`(◇ ,x) (error "strip top before calling")] [_ 0])
 
-  (match-define `(,x-offset ,y-offset) `(,text-size ,text-size))
+  (match-define `(,x-offset ,y-offset) `(,text-size ,(* 3 text-size)))
+  ; magic 3 above leaves room for key display
 
   (match-define `(,new-fruct ,scene-image)
     (render
@@ -512,10 +518,10 @@
   (define newest-image
     (if show-parens?
         (overlay/align "left" "top"
-                   (render-symbol "(" "black" layout-settings)
-                   (overlay/align "right" "top"
-                                  (render-symbol ")" "black" layout-settings)
-                                  newer-image))
+                       (render-symbol "(" "black" layout-settings)
+                       (overlay/align "right" "top"
+                                      (render-symbol ")" "black" layout-settings)
+                                      newer-image))
         newer-image))
 
   (list new-children
@@ -799,7 +805,7 @@
 (define (render-transform fruct layout-settings)
   (define-from layout-settings
     text-size grey-one grey-two selected-color
-    dodge-enabled?)
+    dodge-enabled? transform-tint-color)
   (define radius (sub1 (div-integer text-size 2)))
   (define margin (div-integer text-size 5))
   (match-define (/ [transform template] t/ target) fruct)
@@ -830,7 +836,7 @@
                   (match v
                     [(color _ _ _ _)
                      (values k ((per-color-linear-dodge-tint
-                                 selected-color 0.5) v))]
+                                 transform-tint-color 0.5) v))]
                     [_ (values k v)])))
         (render template layout-settings)))
  
