@@ -414,7 +414,7 @@
 
 (define (filter-menu menu search-buffer)
   (define matcher
-    (match-lambda [`(,t ,r) (stx-str-match r search-buffer)]
+    (match-lambda [`(,t ,r) (stx-str-match? r search-buffer)]
                   [a #;(println `(fallthru: ,a)) #f]))
   (define menu-annotated
     (map (match-lambda [`(,t ,(/ r/ r)) `(,t ,(/ search-buffer r/ r))]) menu))
@@ -431,24 +431,21 @@
         [`() `()])))
 
 
-(define (stx-str-match stx str)
+(define (stx-str-match? stx str)
+  (define (symbols->string c)
+    (apply string-append (map symbol->string c)))
+  (define (str-match? str form-string)
+    (if (and (not (equal? "" str))
+             (equal? " " (substring str (- (string-length str) 1) (string-length str))))
+        (equal? form-string (substring str 0 (- (string-length str) 1)))
+        (string-prefix? form-string str)))
+  ; basically, a space at the end indicates a terminator
+  ; debatably hacky
   (match stx
-    [(/ ref/ `(ref ,(/ id/ `(id ,(/ c/ c) ...))))
-     (define id-string (apply string-append (map symbol->string c)))
-     ; basically, a space at the end indicates a terminator
-     ; debatably hacky
-     (if (and (not (equal? "" str))
-              (equal? " " (substring str (- (string-length str) 1) (string-length str))))
-         (equal? id-string (substring str 0 (- (string-length str) 1)))
-         (string-prefix? id-string str))
-     ]
-    [(/ form/ `(, as ... ,(? form-id? f) ,bs ...))
-     (define form-string (symbol->string f))
-     (if (and (not (equal? "" str))
-              (equal? " " (substring str (- (string-length str) 1) (string-length str))))
-         (equal? form-string (substring str 0 (- (string-length str) 1)))
-         (string-prefix? form-string str))
-     ]
+    [(/ r/ `(ref ,(/ i/ `(id ,(/ c/ c) ...))))
+     (str-match? str (symbols->string c))]
+    [(/ f/ `(, as ... ,(? form-id? f) ,bs ...))
+     (str-match? str (symbol->string f))]
     [(/ c/ (? symbol? c)) ; should just be chars
      (string-prefix? (symbol->string c) str)]
     ; note fallthrough is true

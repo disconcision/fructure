@@ -12,50 +12,50 @@
   
     (match key
 
-      ["up"
-       (update 'stx
+      ["down"
+       (update
+        'stx
         (match stx
-          ; move ▹ up to the closest containing handle
-          [(⋱ c⋱ (and (/ handle as/
-                         (⋱ d⋱ (/ bs/ (▹ b))))
-                      (not (/ handle _/
-                              (⋱ (/ handle _/
-                                    (⋱ (/ _/ (▹ _)))))))))
-           (⋱ c⋱ (/ handle as/
-                    (▹ (⋱ d⋱ (/ bs/ b)))))]
+          ; move cursor ▹ down to closest contained handle ⊃
+          [(⋱ c⋱ (/ ▹ a/
+                       (⋱ d⋱ (/ ⊃ b/ b))))
+              (⋱ c⋱ (/ a/
+                       (⋱ d⋱ (/ ▹ ⊃ b/ b))))]
           [x x]))]
 
-      ["down"
-       (update 'stx
+      ["up"
+       (update
+        'stx
         (match stx
-          ; move ▹ down to the closest contained handle it
-          [(⋱ c⋱ (/ a/
-                    (▹ (⋱ d⋱ (/ handle bs/ b)))))
-           (⋱ c⋱ (/ a/
-                    (⋱ d⋱ (/ handle bs/ (▹ b)))))]
+          ; move cursor ▹ up to closest containing handle ⊃
+          [(⋱ c⋱ (and (/ ⊃ a/ 
+                         (⋱ d⋱ (/ ▹ b/ b)))
+                      (not (/ ⊃ _/
+                              (⋱ (/ ⊃ _/
+                                    (⋱ (/ ▹ _/ _))))))))
+           (⋱ c⋱ (/ ▹ ⊃ a/
+                    (⋱ d⋱ (/ b/ b))))]
           [x x]))]
     
       ["right"
        (update 'stx
-        (match stx
-          ; move ▹ right in a preorder traversal of handles
-          [; if there's a handle under ▹
-           (⋱ c⋱ (/ xs/
-                    (▹ (⋱ d⋱ (/ handle as/ a)))))
-           ; ▹ it
-           (⋱ c⋱ (/ xs/
-                    (⋱ d⋱ (/ handle as/ (▹ a)))))]
-          ; otherwise, imagine the flattened list combining
-          ; (▹ subtree) with its 'sibling' handled subtrees
-          [(⋱+ c⋱ (capture-when
-                   (or (/ _/ (▹ _))
-                       (/ handle _/
-                          (not (⋱ (/ _/ (▹ _)))))))
-               `(,as ... ,(/ bs/ (▹ b)) ,(/ cs/ c) ,ds ...))
-           ; advance ▹ rightwads therein
-           (⋱+ c⋱
-               `(,@as ,(/ bs/ b) ,(/ cs/ (▹ c)) ,@ds))]
-          [x x]))]
+               ; move ▹ right in a preorder traversal of handles ⊃
+               (match stx
+                 [; if there's a ⊃ under ▹
+                  (⋱ c⋱ (/ ▹ a/
+                           (▹ (⋱ d⋱ (/ ⊃ b/ b)))))
+                  ; and ▹ it
+                  (⋱ c⋱ (/ a/
+                           (⋱ d⋱ (/ ▹ ⊃ b/ b))))]
+                 ; otherwise gather the ⊃s in the context of ▹
+                 [(⋱+ c⋱ (capture-when
+                          (or (/ ▹ _/ _)
+                              (/ ⊃ _/ (not (⋱ (/ ▹ _/ _))))))
+                      `(,as ... ,(/ ▹ b/ b) ,(/ ⊃ c/ c) ,ds ...))
+                  ; and move ▹ rightwards therein
+                  (⋱+ c⋱
+                      `(,as ... ,(/ b/ b) ,(/ ▹ ⊃ c/ c) ,ds ...))]
+                 [x x]))]
     
       ["left"
        ; moves the cursor left in a preorder traversal
