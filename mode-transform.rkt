@@ -119,9 +119,9 @@
          "λ"
          (first c))
      (define buffer-candidate
-       (string-append search-buffer (if (equal? "\\" (first c))
-                                        "λ"
-                                        (first c))))
+       (string-append search-buffer
+                      (hash-ref (hash "\\" "λ")
+                                (first c) (first c))))
      (match-define
        (⋱x c⋱ (/ [transform (⋱x d⋱ (/ menu m/ m))] t/ t))
        stx)
@@ -415,7 +415,7 @@
 (define (filter-menu menu search-buffer)
   (define matcher
     (match-lambda [`(,t ,r) (stx-str-match? r search-buffer)]
-                  [a #;(println `(fallthru: ,a)) #f]))
+                  [a #f]))
   (define menu-annotated
     (map (match-lambda [`(,t ,(/ r/ r)) `(,t ,(/ search-buffer r/ r))]) menu))
   (define menu-candidate
