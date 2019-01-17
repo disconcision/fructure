@@ -6,7 +6,6 @@
 
 (define (mode:transform key state)
   ; transformation major mode
-  
   (define-from state
     stx search-buffer history keypresses)
   #;(define update (curry hash-set* state))
@@ -19,6 +18,8 @@
   (match-define (⋱x ctx (/ [transform template] r/ reagent)) stx)
   #;(define template (insert-menu-at-cursor pre-template))
 
+  (define init-buffer "" #;'(▹ ""))
+
   (define hole-selected-in-menu?
     (match-lambda? (⋱x c⋱ (/ [transform (⋱x d⋱ (/ (menu (⋱x (/ h/ (▹ (or '⊙ '⊙+))))) m/ _))] t/ t))))
   
@@ -28,31 +29,21 @@
      ; cancel current transform and restore original syntax
      ; TODO: decide if cursor is conceptually necessary here
      (update 'mode 'nav
-             'search-buffer ""
+             'search-buffer init-buffer
              'stx (⋱x ctx (/ r/ (▹ reagent))))]
 
     ["\r"
      ; perform selected transform, remove menu, and switch to nav mode
      (update 'mode 'nav
-             'search-buffer ""
+             'search-buffer init-buffer
              'stx (⋱x ctx (strip-menu (perform-selected-transform template))))]
-    
-    [#;"\t"
-     " "
-     #:when (hole-selected-in-menu? stx)
-     ; if there's a hole after the cursor, advance the cursor+menu to it
-     ; idea for modification to make this feel more natural
-     (update 'search-buffer ""
-             'stx (⋱x ctx (/ [transform (move-menu-to-next-hole template stx "")]
-                             ; above "" is empty search buffer
-                             r/ reagent)))]
     
     ["right"
      ; apply selected transform and advance the cursor+menu the next hole     
-     (update 'search-buffer ""
+     (update 'search-buffer init-buffer
              'stx (⋱x ctx (/ [transform (move-menu-to-next-hole
                                          (perform-selected-transform template)
-                                         stx "")] ; empty search buffer
+                                         stx init-buffer)] ; empty search buffer
                              r/ reagent)))]
 
     ["left"
@@ -61,7 +52,7 @@
      ; what are the alternatives?
      (update 'stx (if (empty? history) stx (first history))
              'history (if (empty? history) history (rest history))
-             'search-buffer "")]
+             'search-buffer init-buffer)]
     
     ["up"
      ; cycle the cursor to the previous menu item
@@ -88,10 +79,7 @@
      (update 'stx (⋱x ctx (/ (transform new-template) r/ reagent)))]
 
     ["\b"
-     ; BUG. to duplicate, type i f in menu and then \b
-     ; it will got back to full menu, not i-filtered menu
-     ; but the buffer seems to be set right
-     ; also: ideally we'd like to retain current menu selection
+     ; todo: ideally we'd like to retain current menu selection
      ; after pressing bksp
      (define new-search-buffer
        (if (equal? "" search-buffer)
@@ -106,18 +94,48 @@
                            (insert-menu-at-cursor (strip-menu template) stx new-search-buffer))
                          (⋱x c⋱ (/ [transform new-template] t/ t))])
                  ))]
-
+    ; todo: below should be reinterpreted as a search-buffer operation
+    [#;"\t"
+     " "
+     #:when (hole-selected-in-menu? stx)
+     ; below is refactoring draft
+     #; (define new-search-buffer
+          (match search-buffer
+            [(⋱x c⋱ `(,as ... (▹ ,a)))
+             (⋱x c⋱ `(,@as ,a (▹ "")))]))
+     ; if there's a hole after the cursor, advance the cursor+menu to it
+     ; idea for modification to make this feel more natural
+     (update 'search-buffer init-buffer
+             'stx (⋱x ctx (/ [transform (move-menu-to-next-hole template
+                                                                stx init-buffer)]
+                             ; above "" is empty search buffer
+                             r/ reagent)))]
+    ["(" 
+     (define new-search-buffer
+       (match search-buffer
+         [(⋱x c⋱ `(▹ ,a))
+          (⋱x c⋱ `((▹ ,a)))])) ; shouldn't need fallthorugh
+     (update 'search-buffer new-search-buffer
+             'stx (menu-filter-in-stx stx new-search-buffer))]
+    [")" 
+     (define new-search-buffer
+       (match search-buffer
+         [(⋱x c⋱ `(,as ... (,bs ... (▹ ,s))))
+          (⋱x c⋱ `(,@as (,@bs ,s) (▹ "")))]
+         ; otherwise, fallthrough
+         ; do we need special force-completeion case?
+         ; for totally completeing a form?
+         ; no... can always (ish) press space to wrap
+         [x x]))
+     (update 'search-buffer new-search-buffer
+             'stx (menu-filter-in-stx stx new-search-buffer))]
     [(regexp #rx"^[a-z \\]$" c)
      #:when c
      ; hack? otherwise this seems to catch everything?
      ; maybe since we're matching against a key event...
      #;(println `(char ,c pressed))
-     ; BUG: try making a lambda by pressing / then SPACE
-     ; we should be able to then start typing alpha as id
-     ; but we can't until we press backspace...
-     (if (equal? "\\" (first c))
-         "λ"
-         (first c))
+     
+
      (define buffer-candidate
        (string-append search-buffer
                       (hash-ref (hash "\\" "λ")
@@ -133,15 +151,27 @@
 
      (define template-candidate
        (⋱x d⋱ (/ [menu menu-candidate]  m/ m)))
+
+     (define (char-menu? menu-candidate)
+       (match-let ([`((,_ ,resultants) ...) menu-candidate])
+         (match resultants
+           [`(,(/ [sort 'char] _/ _) ...) #t] [_ #f])))
+
+     #;(println `(??? ,(char-menu? menu-candidate) ??? ,menu-candidate))
      
      (if (empty? menu-candidate)
+         ; do nothing
          (update)
-         (if (equal? 1 (length menu-candidate))
+         ; force completion on char 1-menus
+         (if (and (equal? 1 (length menu-candidate))
+                  ; make this an option
+                  ; todo: case where buffer-cursor is on a hole
+                  (char-menu? menu-candidate))
              (update 'stx (⋱x ctx (/ [transform (move-menu-to-next-hole
                                                  (perform-selected-transform template-candidate)
-                                                 stx "")] ; empty search buffer
+                                                 stx init-buffer)] ; empty search buffer
                                      r/ reagent))
-                     'search-buffer "")
+                     'search-buffer init-buffer)
              (update 'stx (⋱x c⋱ (/ [transform template-candidate] t/ t))
                      'search-buffer buffer-candidate)))
      
@@ -450,3 +480,11 @@
      (string-prefix? (symbol->string c) str)]
     ; note fallthrough is true
     [_ (println `(stx-str-match-fallthrough ,stx)) #t]))
+
+
+(define (menu-filter-in-stx stx search-buffer)
+  (match-define
+    (⋱x c⋱ (/ [transform (⋱x d⋱
+                             (/ [menu `((,_ ,resultants) ...)] m/ m))]
+              t/ t)) stx)
+  0)
