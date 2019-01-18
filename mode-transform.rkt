@@ -129,7 +129,7 @@
          [x x]))
      (update 'search-buffer new-search-buffer
              'stx (menu-filter-in-stx stx new-search-buffer))]
-    [(regexp #rx"^[a-z \\]$" c)
+    [(regexp #rx"^[0-9a-z \\]$" c)
      #:when c
      ; hack? otherwise this seems to catch everything?
      ; maybe since we're matching against a key event...
@@ -152,10 +152,10 @@
      (define template-candidate
        (⋱x d⋱ (/ [menu menu-candidate]  m/ m)))
 
-     (define (char-menu? menu-candidate)
+     (define (single-char-menu? menu-candidate)
        (match-let ([`((,_ ,resultants) ...) menu-candidate])
          (match resultants
-           [`(,(/ [sort 'char] _/ _) ...) #t] [_ #f])))
+           [`(,(/ [sort (or 'digit 'char)] _/ _) ...) #t] [_ #f])))
 
      #;(println `(??? ,(char-menu? menu-candidate) ??? ,menu-candidate))
      
@@ -166,7 +166,7 @@
          (if (and (equal? 1 (length menu-candidate))
                   ; make this an option
                   ; todo: case where buffer-cursor is on a hole
-                  (char-menu? menu-candidate))
+                  (single-char-menu? menu-candidate))
              (update 'stx (⋱x ctx (/ [transform (move-menu-to-next-hole
                                                  (perform-selected-transform template-candidate)
                                                  stx init-buffer)] ; empty search buffer
@@ -463,7 +463,7 @@
 
 (define (stx-str-match? stx str)
   (define (symbols->string c)
-    (apply string-append (map symbol->string c)))
+    (apply string-append (map ~a c)))
   (define (str-match? str form-string)
     (if (and (not (equal? "" str))
              (equal? " " (substring str (- (string-length str) 1) (string-length str))))
@@ -473,11 +473,11 @@
   ; debatably hacky
   (match stx
     [(/ r/ `(ref ,(/ i/ `(id ,(/ c/ c) ...))))
-     (str-match? str (symbols->string c))]
+     (str-match? str (~a c))]
     [(/ f/ `(, as ... ,(? form-id? f) ,bs ...))
-     (str-match? str (symbol->string f))]
-    [(/ c/ (? symbol? c)) ; should just be chars
-     (string-prefix? (symbol->string c) str)]
+     (str-match? str (~a f))]
+    [(/ c/ (? (disjoin symbol? number?) c)) ; should just be chars, digits
+     (string-prefix? (~a c) str)]
     ; note fallthrough is true
     [_ (println `(stx-str-match-fallthrough ,stx)) #t]))
 

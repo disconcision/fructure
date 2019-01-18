@@ -34,7 +34,7 @@
         'length-conditional-layout? #t
         'length-conditional-cutoff 14
         'dodge-enabled? #t
-        'implicit-forms '(ref app)
+        'implicit-forms '(ref num app)
         'line-spacing 1 ; 1
         'char-padding-vertical 4 ; 5
         'show-parens? #f
@@ -270,11 +270,6 @@
      (list (/ ref/ `(ref ,id-fruct))
            (if (selected? (/ ref/ `(ref ,id)))
                (overlay id-image
-                        #;(rounded-rectangle
-                           (image-width id-image)
-                           (image-height id-image)
-                           radius
-                           selected-color)
                         (overlay
                          (rounded-rectangle
                           (+ (- 0 margin) (image-width id-image))
@@ -298,6 +293,13 @@
      (define-values (new-frs my-new-image _)
        (layout-row (list 0 0) 0 children))
      (list (/ id/ `(id ,@new-frs)) my-new-image)]
+
+    [(/ n/ `(num ,xs ...))
+     (define children
+       (map (curryr render layout-settings) xs))
+     (define-values (new-frs my-new-image _)
+       (layout-row (list 0 0) 0 children))
+     (list (/ n/ `(num ,@new-frs)) my-new-image)]
     
     [(/ a/ (? list? a))
      (define local-layout-settings
@@ -358,7 +360,8 @@
 (define (get-atomic-children stx child-images)  
   (foldl (λ (x y acc)
            (if (or (atomic? x)
-                   (match x [(/ _/ `(ref ,_)) #t][_ #f]))
+                   (match x [(/ _/ `(ref ,_)) #t][_ #f])
+                   (match x [(/ _/ `(num ,_)) #t][_ #f]))
                (cons y acc)
                acc))
          '() stx child-images))
@@ -367,7 +370,8 @@
 (define (get-non-atomic-children stx child-images)
   (foldl (λ (x y acc)
            (if (not (or (atomic? x)
-                        (match x [(/ _/ `(ref ,_)) #t][_ #f])))
+                        (match x [(/ _/ `(ref ,_)) #t][_ #f])
+                        (match x [(/ _/ `(num ,_)) #t][_ #f])))
                (cons y acc)
                acc))
          '() stx child-images))
@@ -583,12 +587,12 @@
      not just the ones displated.
      tagged: performance, optimization |#
 
-  (define char-menu?
+  (define (single-char-menu? resultants)
     (match resultants
-      [`(,(/ (sort 'char) _/ _) ...) #t] [_ #f]))
+      [`(,(/ [sort (or 'digit 'char)] _/ _) ...) #t] [_ #f]))
 
   (define local-max-menu-length
-    (if char-menu?
+    (if (single-char-menu? resultants)
         max-menu-length-chars
         max-menu-length))
 
@@ -628,7 +632,7 @@
         (match stx
           ; sort of hacky exception for ref
           ; still not really right, r is still going to select refs maybe?
-          [(/ a/ `(,(and (not 'ref) (? (curryr member implicit-forms)) _) ,xs ...))
+          [(/ a/ `(,(and (not 'ref) (not 'num) (? (curryr member implicit-forms)) _) ,xs ...))
            #;(println "curry member implicit case") image]
           [_ (overlay/align
               "left" "top"
@@ -643,15 +647,17 @@
                   ; HACK, BUG: get (wrong) positioning data
                   ; also special-cases char menus
                   (overlay-search-buffer (/ b/ (▹ b))
-                                         (if char-menu?
+                                         (if (single-char-menu? resultants)
                                              ; hacky color change... is it even working?
                                              ; it's interpreting chars as identifiers for some reason?
                                              (second (render (/ b/ b) (hash-set override-layout-settings
                                                                                 'identifier-color "white")))
                                              (overlay/align "left" "top"
                                                             (space text-size)
-                                                            (if (or (not (list? b)) (and (member 'ref implicit-forms)
-                                                                                         (match b [`(ref ,_) #t][_ #f])))
+                                                            (if (or (not (list? b)) (or (and (member 'ref implicit-forms)
+                                                                                             (match b [`(ref ,_) #t][_ #f]))
+                                                                                        (and (member 'num implicit-forms)
+                                                                                             (match b [`(num ,_) #t][_ #f]))))
                                                                 ; hacky extra spacing for atoms
                                                                 ; extra hacky for implicit refs
                                                                 ; HACK below throws off offset alignment
@@ -679,8 +685,10 @@
            [(/ b/ b)
             (list (first (render item override-layout-settings))
                   (overlay-search-buffer (/ b/ b)
-                                         (if (or (not (list? b)) (and (member 'ref implicit-forms)
-                                                                      (match b [`(ref ,_) #t][_ #f])))
+                                         (if (or (not (list? b)) (or (and (member 'ref implicit-forms)
+                                                                          (match b [`(ref ,_) #t][_ #f]))
+                                                                     (and (member 'num implicit-forms)
+                                                                          (match b [`(num ,_) #t][_ #f]))))
                                              ; hacky extra spacing for atoms
                                              ; extra hacky for implicit refs
                                              (beside (space text-size)
@@ -723,7 +731,7 @@
   (define new-image
     ; if char menu, supress drawing of left-side
     ; highlight 'cause jankiness.
-    (if char-menu?
+    (if (single-char-menu? resultants)
         (overlay/align/offset
          "left" "top"
          cool-menu
@@ -905,6 +913,7 @@
   (define candidate
     (render-symbol
      (match (/ s/ s) [(or (/ (sort 'char) _/ '⊙)
+                          (/ (sort 'digit) _/ '⊙)
                           (/ _/ '⊙+)) '+] [_ s])
      (if selected?
          (if (form-id? s)

@@ -22,11 +22,11 @@
     ; don't recurse into metavariables
     ; whoops, but what about old handles. need to erase them first...
     [(/ [metavar m]
-        [sort (and my-sort (or 'expr 'char))] a/ a)
+        [sort (and my-sort (or 'expr 'char 'digit))] a/ a)
      (/ [metavar m] [sort my-sort] [handle #t] a/ a)]
     [(/ [metavar m] a/ a)
      (/ [metavar m] a/ a)]
-    [(/ [sort (and my-sort (or 'expr 'char))] a/ a)
+    [(/ [sort (and my-sort (or 'expr 'char 'digit))] a/ a)
      (/ [sort my-sort] [handle #t] a/ (paint-handle a))]
     [(/ a/ a)
      (/ a/ (paint-handle a))]

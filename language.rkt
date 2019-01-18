@@ -41,6 +41,9 @@
                                        ([sort expr] / ⊙)))]))
    (list '([⋱
              (▹ [sort expr] xs ... / ⊙)
+             (▹ [sort expr] xs ... / (num ([sort digit] / ⊙)))]
+           [⋱
+             (▹ [sort expr] xs ... / ⊙)
              (▹ [sort expr] xs ... / (λm ([sort params]
                                           / (([sort pat]
                                               / ⊙+)))
@@ -58,8 +61,8 @@
          '([⋱
              (▹ [sort expr] xs ... / ⊙)
              (▹ [sort expr] xs ... / (iff ([sort expr] / ⊙)
-                                         ([sort expr] / ⊙)
-                                         ([sort expr] / ⊙)))])
+                                          ([sort expr] / ⊙)
+                                          ([sort expr] / ⊙)))])
          '([⋱
              (▹ [sort expr] xs ... / ⊙)
              (▹ [sort expr] xs ... / (begin
@@ -144,8 +147,8 @@
 (define base-destructors
   ; destructors for all syntactic forms
   (list
-    (append
-     '([⋱
+   (append
+    '([⋱
         (▹ xs ... / (ref a))
         (▹ xs ... / ⊙)]
       [⋱
@@ -154,7 +157,7 @@
       [⋱
         (▹ xs ... / (λ a b))
         (▹ xs ... / ⊙)])
-     '(
+    '(
       #;#;#;#;#;#;
       [⋱
         (▹ xs ... / (if a b c))
@@ -193,7 +196,6 @@
   '(😗 🤟 😮 🤛 😉 ✌ 😏 👌 😎 👈 👉 😣 🤙 😁
       a b c d e f g h i j k l m n o p q r s t u v w x y z))
 
-
 (define alpha-constructors
   ; char constructors for each letter in the alphabet
   (cons
@@ -207,10 +209,31 @@
          (xs ... / (id as ... (▹ [sort char] ys ... / ',x) ([sort char] / ⊙) bs ...))]))))
 
 
+(define non-zero-digits
+  '(1 2 3 4 5 6 7 8 9))
+
+(define digits
+  (cons 0 non-zero-digits))
+
+(define digit-constructors
+  ; char constructors for each letter in the alphabet
+  (cons
+   ; identity
+   '()
+   #;`([⋱
+         (xs ... / (num as ... (▹ [sort digit] ys ... / ⊙) bs ...))
+         (xs ... / (num as ... (▹ [sort digit] ys ... / ⊙) bs ...))])
+   (for/list ([x digits])
+     `([⋱
+         (xs ... / (num as ... (▹ [sort digit] ys ... / ⊙) bs ...))
+         (xs ... / (num as ... (▹ [sort digit] ys ... / ',x) ([sort digit] / ⊙) bs ...))]))))
+
+
 (define base-transforms
   (append base-destructors
           base-constructors
-          alpha-constructors))
+          alpha-constructors
+          digit-constructors))
 
 
 ; -------------------------------------------------
@@ -225,7 +248,7 @@
 (define cond-like-ids '(cond match-λ λm))
 
 (define affordances '(▹ ⊙ ⊙+ ◇ →))
-(define sort-names (append '(expr char pat params) '(MP LP CP def)))
+(define sort-names (append '(expr char digit pat params) '(MP LP CP def)))
 
 
 ; derived symbol functions
@@ -325,10 +348,10 @@
                     (p/
                      #hash()
                      (and
-                      (p/ #hash() x)
-                      (p/
-                       #hash()
-                       (and
-                        (p/ #hash() true)
-                        (p/ #hash() false)))))))))
+                       (p/ #hash() x)
+                       (p/
+                        #hash()
+                        (and
+                          (p/ #hash() true)
+                          (p/ #hash() false)))))))))
 
