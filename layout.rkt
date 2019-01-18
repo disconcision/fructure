@@ -627,7 +627,10 @@
                         'form-color (color 255 255 255))])) ; magic color
       (define search-buffer (match item [(/ [search-buffer search-buffer] a/ a)
                                          search-buffer]
-                              [_ ""]))
+                              ; todo: fix hardcoded init-buffer here:
+                              [_ '(▹ "")]))
+      (println `(in layout search-buffer is: ,search-buffer))
+      
       (define (overlay-search-buffer stx image)
         (match stx
           ; sort of hacky exception for ref
@@ -636,8 +639,12 @@
            #;(println "curry member implicit case") image]
           [_ (overlay/align
               "left" "top"
-              (render-symbol (string->symbol (string-append " " search-buffer))
-                             selected-color layout-settings)
+              (match search-buffer
+                [`(▹ ,(? string? s))
+                 (render-symbol (string->symbol (string-append " " s))
+                                selected-color layout-settings)]
+                [_ (error "complex search buffer layout not implemented")])
+              
               image)]))
       (cond
         [custom-menu-selector?

@@ -116,7 +116,7 @@
   ; with a selected hole
   'stx (fruct-augment initial-stx)
   ; new: current selection filter
-  'search-buffer ""
+  'search-buffer '(▹ "")
   ; new: initial layout settings
   'layout-settings initial-layout
   ; transforms: history, currently broken

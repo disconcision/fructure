@@ -3,6 +3,7 @@
 (provide mode:transform
          insert-menu-at-cursor)
 
+(define init-buffer #;"" '(▹ ""))
 
 (define (mode:transform key state)
   ; transformation major mode
@@ -17,8 +18,6 @@
     (apply hash-set* base-state stuff))
   (match-define (⋱x ctx (/ [transform template] r/ reagent)) stx)
   #;(define template (insert-menu-at-cursor pre-template))
-
-  (define init-buffer "" #;'(▹ ""))
 
   (define hole-selected-in-menu?
     (match-lambda? (⋱x c⋱ (/ [transform (⋱x d⋱ (/ (menu (⋱x (/ h/ (▹ (or '⊙ '⊙+))))) m/ _))] t/ t))))
@@ -81,35 +80,35 @@
     ["\b"
      ; todo: ideally we'd like to retain current menu selection
      ; after pressing bksp
-     (define new-search-buffer
-       (if (equal? "" search-buffer)
-           ""
-           (substring search-buffer 0 (sub1 (string-length search-buffer)))))
-     (if (equal? "" search-buffer)
-         (update)
-         (update 'search-buffer new-search-buffer
-                 'stx (match stx
-                        [(⋱x c⋱ (/ [transform template] t/ t))
-                         (define new-template
-                           (insert-menu-at-cursor (strip-menu template) stx new-search-buffer))
-                         (⋱x c⋱ (/ [transform new-template] t/ t))])
-                 ))]
+     (define buffer-candidate
+       (match search-buffer
+         [(⋱x c⋱ `(▹ ,s))
+          (⋱x c⋱ `(▹ ,(if (equal? "" s)
+                          ""
+                          (substring s 0 (sub1 (string-length s))))))]))
+     ; note: need case for backspacing sexpr, and out of sexpr
+     (define-values (new-stx-candidate newest-buffer-candidate)
+       (menu-filter-in-stx stx search-buffer buffer-candidate))
+     (update 'stx new-stx-candidate
+             'search-buffer newest-buffer-candidate)]
     ; todo: below should be reinterpreted as a search-buffer operation
     [#;"\t"
      " "
      #:when (hole-selected-in-menu? stx)
      ; below is refactoring draft
-     #; (define new-search-buffer
-          (match search-buffer
-            [(⋱x c⋱ `(,as ... (▹ ,a)))
-             (⋱x c⋱ `(,@as ,a (▹ "")))]))
+     (define new-search-buffer
+       (match search-buffer
+         [(⋱x c⋱ `(,as ... (▹ ,a)))
+          (⋱x c⋱ `(,@as ,a (▹ "")))]))
+     (update 'search-buffer new-search-buffer
+             'stx (menu-filter-in-stx stx new-search-buffer))
      ; if there's a hole after the cursor, advance the cursor+menu to it
      ; idea for modification to make this feel more natural
-     (update 'search-buffer init-buffer
-             'stx (⋱x ctx (/ [transform (move-menu-to-next-hole template
-                                                                stx init-buffer)]
-                             ; above "" is empty search buffer
-                             r/ reagent)))]
+     #;(update 'search-buffer init-buffer
+               'stx (⋱x ctx (/ [transform (move-menu-to-next-hole template
+                                                                  stx init-buffer)]
+                               ; above "" is empty search buffer
+                               r/ reagent)))]
     ["(" 
      (define new-search-buffer
        (match search-buffer
@@ -129,61 +128,22 @@
          [x x]))
      (update 'search-buffer new-search-buffer
              'stx (menu-filter-in-stx stx new-search-buffer))]
-    [(regexp #rx"^[0-9a-z \\]$" c)
+    [(regexp #rx"^[0-9a-z\\]$" c)
      #:when c
      ; hack? otherwise this seems to catch everything?
      ; maybe since we're matching against a key event...
-     #;(println `(char ,c pressed))
-     
 
      (define buffer-candidate
-       (string-append search-buffer
-                      (hash-ref (hash "\\" "λ")
-                                (first c) (first c))))
-     (match-define
-       (⋱x c⋱ (/ [transform (⋱x d⋱ (/ menu m/ m))] t/ t))
-       stx)
-     
-     (define menu-candidate
-       (filter-menu menu buffer-candidate))
+       (match search-buffer
+         [(⋱x c⋱ `(▹ ,(? string? s)))
+          (⋱x c⋱ `(▹ ,(string-append s
+                                     (hash-ref (hash "\\" "λ")
+                                               (first c) (first c)))))]))
 
-     #;(println `(menu-candidate ,menu-candidate))
-
-     (define template-candidate
-       (⋱x d⋱ (/ [menu menu-candidate]  m/ m)))
-
-     (define (single-char-menu? menu-candidate)
-       (match-let ([`((,_ ,resultants) ...) menu-candidate])
-         (match resultants
-           [`(,(/ [sort (or 'digit 'char)] _/ _) ...) #t] [_ #f])))
-
-     #;(println `(??? ,(char-menu? menu-candidate) ??? ,menu-candidate))
-     
-     (if (empty? menu-candidate)
-         ; do nothing
-         (update)
-         ; force completion on char 1-menus
-         (if (and (equal? 1 (length menu-candidate))
-                  ; make this an option
-                  ; todo: case where buffer-cursor is on a hole
-                  (single-char-menu? menu-candidate))
-             (update 'stx (⋱x ctx (/ [transform (move-menu-to-next-hole
-                                                 (perform-selected-transform template-candidate)
-                                                 stx init-buffer)] ; empty search buffer
-                                     r/ reagent))
-                     'search-buffer init-buffer)
-             (update 'stx (⋱x c⋱ (/ [transform template-candidate] t/ t))
-                     'search-buffer buffer-candidate)))
-     
-     ; we want to add it to buffer, but only if it doesn't make the menu of zero length
-     ; so just add it to buffer,
-     ; then filter the menu by the buffer
-     ; if the length is zero, we remove a character from the buffer
-
-     ; also: we need to send the buffer to the renderer somehow
-     ; idea: annotate all menu items with it? seems wasteful
-
-     ]
+     (define-values (new-stx-candidate newest-buffer-candidate)
+       (menu-filter-in-stx stx search-buffer buffer-candidate))
+     (update 'stx new-stx-candidate
+             'search-buffer newest-buffer-candidate)]
     
     [_ (println "warning: transform-mode: no programming for that key") state]))
 
@@ -444,7 +404,7 @@
 
 (define (filter-menu menu search-buffer)
   (define matcher
-    (match-lambda [`(,t ,r) (stx-str-match? r search-buffer)]
+    (match-lambda [`(,t ,r) (stx-buf-match? r search-buffer)]
                   [a #f]))
   (define menu-annotated
     (map (match-lambda [`(,t ,(/ r/ r)) `(,t ,(/ search-buffer r/ r))]) menu))
@@ -460,8 +420,27 @@
          `((,t ,(/ r/ (▹ r))) ,@xs)]
         [`() `()])))
 
+(define (stx-buf-match? stx buf)
+  (match buf
+    [`(▹ ,(? string? s))
+     (stx-str-match? stx s)]
+    [(? string? s)
+     ; should this case actually be exact match?
+     (stx-str-match? stx s)]
+    [(? list?)
+     ; todo: assuming non-empty
+     (match-define (/ a/ raw-stx) stx)
+     (if (or #;((match-lambda? (/ r/ `(ref ,(/ i/ `(id ,(/ c/ c) ...))))) stx)
+             #;((match-lambda? (/ f/ `(, as ... ,(? form-id? f) ,bs ...))) stx)
+             (not (list? raw-stx))
+             (< (length raw-stx) (length buf)))
+         #f
+         (andmap stx-buf-match?
+                 (take raw-stx (length buf))
+                 buf))]))
 
 (define (stx-str-match? stx str)
+  #;(println `(stx-str-match? ,stx ,str))
   (define (symbols->string c)
     (apply string-append (map ~a c)))
   (define (str-match? str form-string)
@@ -473,18 +452,56 @@
   ; debatably hacky
   (match stx
     [(/ r/ `(ref ,(/ i/ `(id ,(/ c/ c) ...))))
-     (str-match? str (~a c))]
+     (str-match? str (symbols->string c))]
     [(/ f/ `(, as ... ,(? form-id? f) ,bs ...))
-     (str-match? str (~a f))]
+     (str-match? str (symbol->string f))]
     [(/ c/ (? (disjoin symbol? number?) c)) ; should just be chars, digits
      (string-prefix? (~a c) str)]
     ; note fallthrough is true
     [_ (println `(stx-str-match-fallthrough ,stx)) #t]))
 
 
-(define (menu-filter-in-stx stx search-buffer)
+(define (menu-filter-in-stx init-stx old-buffer buffer-candidate)
+
+  ; this hacky little guy restores the original menu prior to filtering
+  (define stx
+    (match init-stx
+      [(⋱x ctx (/ [transform template] r/ reagent))
+       (define new-template
+         (insert-menu-at-cursor (strip-menu template) init-stx init-buffer))
+       (⋱x ctx (/ [transform new-template] r/ reagent))]))
+  
   (match-define
-    (⋱x c⋱ (/ [transform (⋱x d⋱
-                             (/ [menu `((,_ ,resultants) ...)] m/ m))]
-              t/ t)) stx)
-  0)
+    (⋱x c⋱ (/ [transform (⋱x d⋱ (/ menu m/ m))] t/ t)) stx)
+  (match-define
+    (⋱x ctx (/ [transform template] r/ reagent)) stx)
+  
+  (define menu-candidate
+    (filter-menu menu buffer-candidate))
+
+  (define template-candidate
+    (⋱x d⋱ (/ [menu menu-candidate]  m/ m)))
+
+  (define (single-char-menu? menu-candidate)
+    (match-let ([`((,_ ,resultants) ...) menu-candidate])
+      (match resultants
+        [`(,(/ [sort (or 'digit 'char)] _/ _) ...) #t] [_ #f])))
+
+  (cond
+    [(empty? menu-candidate)
+     (values stx
+             old-buffer)]
+    [(and (equal? 1 (length menu-candidate))
+          ; make this an option
+          ; todo: case where buffer-cursor is on a hole
+          (single-char-menu? menu-candidate))
+     (values (⋱x ctx (/ [transform (move-menu-to-next-hole
+                                    (perform-selected-transform template-candidate)
+                                    stx init-buffer)] ; empty search buffer
+                        r/ reagent))
+             init-buffer)]
+    [else
+     (values (⋱x c⋱ (/ [transform template-candidate] t/ t))
+             buffer-candidate)])
+ 
+  )
