@@ -82,26 +82,33 @@
      ; after pressing bksp
      (define buffer-candidate
        (match search-buffer
-         [(⋱x c⋱ `(▹ ,s))
-          (⋱x c⋱ `(▹ ,(if (equal? "" s)
-                          ""
-                          (substring s 0 (sub1 (string-length s))))))]))
+         [`(▹ "")
+          `(▹ "")]
+         [(⋱x c⋱ `((▹ "")))
+          (⋱x c⋱ `(▹ ""))]
+         [(⋱x c⋱ `(,as ... ,a (▹ "")))
+          (⋱x c⋱ `(,@as (▹ ,a)))]
+         [(⋱x c⋱ `(▹ ,(and s (? string?) (not (== "")))))
+          (⋱x c⋱ `(▹ ,(substring s 0 (sub1 (string-length s)))))]
+         [x (error "backspace sux dood duhhhhhh" x)]))
      ; note: need case for backspacing sexpr, and out of sexpr
      (define-values (new-stx-candidate newest-buffer-candidate)
        (menu-filter-in-stx stx search-buffer buffer-candidate))
      (update 'stx new-stx-candidate
              'search-buffer newest-buffer-candidate)]
     ; todo: below should be reinterpreted as a search-buffer operation
-    [#;"\t"
-     " "
-     #:when (hole-selected-in-menu? stx)
-     ; below is refactoring draft
+    [" "
      (define new-search-buffer
        (match search-buffer
          [(⋱x c⋱ `(,as ... (▹ ,a)))
-          (⋱x c⋱ `(,@as ,a (▹ "")))]))
-     (update 'search-buffer new-search-buffer
-             'stx (menu-filter-in-stx stx new-search-buffer))
+          (⋱x c⋱ `(,@as ,a (▹ "")))]
+         [(⋱x c⋱ `(▹ ,a))
+          (⋱x c⋱ `(,a (▹ "")))]))
+     (define-values (new-stx-candidate
+                     newest-buffer-candidate)
+       (menu-filter-in-stx stx search-buffer new-search-buffer))
+     (update 'search-buffer newest-buffer-candidate
+             'stx new-stx-candidate)
      ; if there's a hole after the cursor, advance the cursor+menu to it
      ; idea for modification to make this feel more natural
      #;(update 'search-buffer init-buffer
@@ -114,8 +121,11 @@
        (match search-buffer
          [(⋱x c⋱ `(▹ ,a))
           (⋱x c⋱ `((▹ ,a)))])) ; shouldn't need fallthorugh
-     (update 'search-buffer new-search-buffer
-             'stx (menu-filter-in-stx stx new-search-buffer))]
+     (define-values (new-stx-candidate
+                     newest-buffer-candidate)
+       (menu-filter-in-stx stx search-buffer new-search-buffer))
+     (update 'search-buffer newest-buffer-candidate
+             'stx new-stx-candidate)]
     [")" 
      (define new-search-buffer
        (match search-buffer
@@ -126,8 +136,11 @@
          ; for totally completeing a form?
          ; no... can always (ish) press space to wrap
          [x x]))
-     (update 'search-buffer new-search-buffer
-             'stx (menu-filter-in-stx stx new-search-buffer))]
+     (define-values (new-stx-candidate
+                     newest-buffer-candidate)
+       (menu-filter-in-stx stx search-buffer new-search-buffer))
+     (update 'search-buffer newest-buffer-candidate
+             'stx new-stx-candidate)]
     [(regexp #rx"^[0-9a-z\\]$" c)
      #:when c
      ; hack? otherwise this seems to catch everything?
@@ -422,32 +435,43 @@
 
 (define (stx-buf-match? stx buf)
   (match buf
+    [`(▹ ,"")
+     #t]
     [`(▹ ,(? string? s))
      (stx-str-match? stx s)]
     [(? string? s)
      ; should this case actually be exact match?
-     (stx-str-match? stx s)]
+     (stx-str-match? stx s #t)]
     [(? list?)
-     ; todo: assuming non-empty
+     #:when (and (list? stx) (match stx [(/ a/ (? list? raw-stx)) #t][_ #f]))
      (match-define (/ a/ raw-stx) stx)
-     (if (or #;((match-lambda? (/ r/ `(ref ,(/ i/ `(id ,(/ c/ c) ...))))) stx)
-             #;((match-lambda? (/ f/ `(, as ... ,(? form-id? f) ,bs ...))) stx)
-             (not (list? raw-stx))
-             (< (length raw-stx) (length buf)))
-         #f
-         (andmap stx-buf-match?
-                 (take raw-stx (length buf))
-                 buf))]))
+     (define res
+       (if ((length raw-stx) . < . (length buf))
+           #f
+           (andmap stx-buf-match?
+                   (take raw-stx (length buf))
+                   buf)))
+     (println `(MUSMATCH (res) ,raw-stx ,buf))
+     res]
+    ; false fallthrough
+    [_ #f]))
 
-(define (stx-str-match? stx str)
+
+(define (stx-str-match? stx str (exact? #f))
   #;(println `(stx-str-match? ,stx ,str))
+  (unless (string? str)
+    (error "npt string"))
+  (define matcher?
+    (if exact?
+        equal?
+        string-prefix?))
   (define (symbols->string c)
     (apply string-append (map ~a c)))
   (define (str-match? str form-string)
     (if (and (not (equal? "" str))
              (equal? " " (substring str (- (string-length str) 1) (string-length str))))
         (equal? form-string (substring str 0 (- (string-length str) 1)))
-        (string-prefix? form-string str)))
+        (matcher? form-string str)))
   ; basically, a space at the end indicates a terminator
   ; debatably hacky
   (match stx
@@ -456,9 +480,20 @@
     [(/ f/ `(, as ... ,(? form-id? f) ,bs ...))
      (str-match? str (symbol->string f))]
     [(/ c/ (? (disjoin symbol? number?) c)) ; should just be chars, digits
-     (string-prefix? (~a c) str)]
-    ; note fallthrough is true
-    [_ (println `(stx-str-match-fallthrough ,stx)) #t]))
+     (matcher? (~a c) str)]
+    ; below case is actually necessary
+    ; might be hacky due to str-buf-match problems
+    [(? (disjoin symbol? number?) c)
+     (matcher? (~a c) str)]
+    ; note fallthrough is now FALSE!!!
+    [_ #f]
+    #;[_ (println `(stx-str-match-fallthrough ,stx)) #t]))
+
+
+(define (single-char-menu? menu-candidate)
+  (match-let ([`((,_ ,resultants) ...) menu-candidate])
+    (match resultants
+      [`(,(/ [sort (or 'digit 'char)] _/ _) ...) #t] [_ #f])))
 
 
 (define (menu-filter-in-stx init-stx old-buffer buffer-candidate)
@@ -482,14 +517,10 @@
   (define template-candidate
     (⋱x d⋱ (/ [menu menu-candidate]  m/ m)))
 
-  (define (single-char-menu? menu-candidate)
-    (match-let ([`((,_ ,resultants) ...) menu-candidate])
-      (match resultants
-        [`(,(/ [sort (or 'digit 'char)] _/ _) ...) #t] [_ #f])))
-
+ 
   (cond
     [(empty? menu-candidate)
-     (values stx
+     (values init-stx
              old-buffer)]
     [(and (equal? 1 (length menu-candidate))
           ; make this an option

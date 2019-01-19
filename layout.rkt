@@ -146,24 +146,34 @@
                   (+ y))]
       [_ backing-image]))
 
+  ; from mode-transform:
+  (define (single-char-menu? menu-candidate)
+    (match-let ([`((,_ ,resultants) ...) menu-candidate])
+      (match resultants
+        [`(,(/ [sort (or 'digit 'char)] _/ _) ...) #t] [_ #f])))
   
   (define (stick-menu-in backing-image)
     (match newest-fruct
       [(or (/ [transform
                (⋱ _ (and this-menu
-                         (/ [menu _]
+                         (/ [menu menu]
                             [display-absolute-offset
                              `(,(app (curry + x-offset) x)
                                ,(app (curry + y-offset) y))]
                             m/ _)))] t/ _)
            (⋱ _ (/ [transform
                     (⋱ _ (and this-menu
-                              (/ [menu _]
+                              (/ [menu menu]
                                  [display-absolute-offset `(,x ,y)]
                                  m/ _)))] t/ _)))
        (render-in render-menu
                   this-menu backing-image
-                  (+ x (* -2 margin))
+                  (+ x (if (single-char-menu? menu)
+                           ; ULTRA MAGIC NUMBER
+                           ; empirically -12 works for text-size 30 (width is 18)
+                           (* -12/30 text-size)
+                           #;(- (image-width (space text-size)))
+                           0)#;(* -1 margin))
                   (+ y (- expander-height)))]
       [_ backing-image]))
  
@@ -630,6 +640,12 @@
                               ; todo: fix hardcoded init-buffer here:
                               [_ '(▹ "")]))
       (println `(in layout search-buffer is: ,search-buffer))
+
+      (define (strip▹ buf)
+        (match buf
+          [`(▹ ,s) s]
+          [(? list?) (map strip▹ buf)]
+          [x x]))
       
       (define (overlay-search-buffer stx image)
         (match stx
@@ -643,6 +659,12 @@
                 [`(▹ ,(? string? s))
                  (render-symbol (string->symbol (string-append " " s))
                                 selected-color layout-settings)]
+                [x (render-symbol (string->symbol
+                                   ; todo: once implemented ")" properly
+                                   ; then make below work
+                                   #;(substring (~a (strip▹ x)) 0 (+ -1 (string-length (~a (strip▹ x)))))
+                                   (string-replace (~a (strip▹ x)) ")" " "))
+                                  selected-color layout-settings)]
                 [_ (error "complex search buffer layout not implemented")])
               
               image)]))

@@ -23,7 +23,7 @@
 
 #|
 
-  structured interaction engine
+  structured interaction engine :
 
   Fructure is transforming, conversing with, and being transformed by structure.
 
@@ -44,7 +44,6 @@
   contextual cues to inform further interaction. These (morally)
   represent an attribute grammar, permitting context-free
   rewriting to respect context-sensitive properties.
-
 
 |#
 
