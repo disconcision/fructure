@@ -451,7 +451,7 @@
            (andmap stx-buf-match?
                    (take raw-stx (length buf))
                    buf)))
-     (println `(MUSMATCH (res) ,raw-stx ,buf))
+     #;(println `(MUSMATCH (res) ,raw-stx ,buf))
      res]
     ; false fallthrough
     [_ #f]))
@@ -460,7 +460,7 @@
 (define (stx-str-match? stx str (exact? #f))
   #;(println `(stx-str-match? ,stx ,str))
   (unless (string? str)
-    (error "npt string"))
+    (error "not string"))
   (define matcher?
     (if exact?
         equal?

@@ -310,24 +310,25 @@
      (define-values (new-frs my-new-image _)
        (layout-row (list 0 0) 0 children))
      (list (/ n/ `(num ,@new-frs)) my-new-image)]
-    
-    [(/ a/ (? list? a))
+
+    [(and ps (/ (sort 'params) a/ a))
+     (println `(params case activates))
      (define local-layout-settings
-       (match (/ a/ a)
-         [(/ (sort 'params) _/ _)
-          (hash-set* layout-settings
-                     ; TODO magic colors
-                     'identifier-color pattern-bkg-color
-                     ; hack, need to update when patterns move beyond chars
-                     'hole-color (color 170 170 170 120)
-                     'grey-one pattern-grey-one
-                     'grey-two pattern-grey-two)]
-         [_ layout-settings]))
-     (render-list (/ a/ a)
-                  ; hack to reset depth for params-list
-                  (match (/ a/ a)
-                    [(/ (sort 'params) _/ _) #t] [_ depth])
+       (hash-set* layout-settings
+                  ; TODO magic colors
+                  'identifier-color pattern-bkg-color
+                  ; HACK need to update when patterns move beyond chars
+                  'hole-color (color 170 170 170 120)
+                  'grey-one pattern-grey-one
+                  'grey-two pattern-grey-two))
+     (render-list ps
+                  ; HACK reset depth for params-list
+                  #t
                   bkg local-layout-settings (selected? fruct))]
+
+    [(/ a/ (? list? a))
+     (render-list (/ a/ a)
+                  depth bkg layout-settings (selected? fruct))]
 
     [(/ a/ a)
      (render-atom (/ a/ a) (selected? fruct) layout-settings)]
@@ -414,6 +415,13 @@
 
   (overlay
    (cond
+     [(equal? s '⊙+)
+      (text/font "+"
+                 (round (* 5/12 text-size))
+                 my-color
+                 #f 'modern 'normal 'normal #f)
+      #;(circle (* 1/15 text-size) "solid"
+               (color 180 180 180))]
      [(equal? s '⊙)
       (define my-radius
         ; TODO: magic numbers
@@ -525,16 +533,16 @@
               ; feels slightly hacky
               ; should bellow be single 'pattern case?
               [(/ _/ `(,(not (or 'id 'ref)) ,xs ...)) empty-image]
-              [_ (space text-size)])))
+              [_ empty-image #;(space text-size)]))) ; 666
 
   ; experimental : show parentheses option
   ; misses a parens when we skip the space after a terminal non-atom
   (define newest-image
     (if show-parens?
         (overlay/align "left" "top"
-                       (render-symbol "(" "black" layout-settings)
-                       (overlay/align "right" "top"
-                                      (render-symbol ")" "black" layout-settings)
+                       (render-symbol "(" (color 255 255 255 90) layout-settings)
+                       (overlay/align "right" "bottom"
+                                      (render-symbol ")" (color 255 255 255 90) layout-settings)
                                       newer-image))
         newer-image))
 
@@ -943,7 +951,7 @@
     (render-symbol
      (match (/ s/ s) [(or (/ (sort 'char) _/ '⊙)
                           (/ (sort 'digit) _/ '⊙)
-                          (/ _/ '⊙+)) '+] [_ s])
+                          (/ _/ '⊙+)) '⊙+] [_ s])
      (if selected?
          (if (form-id? s)
              selected-color
@@ -982,7 +990,8 @@
   (define-from layout-settings
     selected-color text-size implicit-forms
     length-conditional-layout? length-conditional-cutoff
-    force-horizontal-layout?)
+    force-horizontal-layout? show-parens?)
+  
   (define unit-width (image-width (space text-size)))
   
   (match-define (/ a/ `(,first-stx ,rest-stx ...)) fruct)
@@ -991,6 +1000,10 @@
   (define if-like? (if-like-id? first-stx))
   (define lambda-like? (lambda-like-id? first-stx))
   (define cond-like? (cond-like-id? first-stx))
+  (define params-like?
+    (match fruct
+      [(/ [sort 'params] _/ _) #t][_ #f]))
+  #;(when params-like? (println 'paramslike!!!!!!))
 
   ; forms may lose their identities here
   (define possibly-truncated-stx
@@ -1017,7 +1030,15 @@
       [else (match-define `((,_ ,child-images) ...) children)
             (define total-length (div-integer (apply + (map image-width child-images))
                                               unit-width))
-            (total-length . < . length-conditional-cutoff)]))
+            (define horiz-width-approx total-length)
+            (define vertical-width-approx
+              (apply max (map image-width child-images)))
+            (and (total-length . < . length-conditional-cutoff)
+                 ; below is broken
+                 ; suppose to prevent vertical layout
+                 ; in case where savings is small
+                 #;(vertical-width-approx . > .
+                    (+ -5 horiz-width-approx)))]))
 
   ; choose an algorithm to layout the children
   (define layout-renderer
@@ -1037,13 +1058,19 @@
               2)]
       [(and cond-like? (not render-this-horizontally?))
        (curry render-vertical unit-width 1)]
+      #;[params-like? (render-horizontal #t)]
       [else render-horizontal]))
 
   ; choose an algorithm to back the layout
   (define backer
     (cond
       [render-this-horizontally?
-       (λ (x) (add-horizontal-backing x selected? depth layout-settings))]
+       (if params-like?
+           (λ (x) (add-horizontal-backing 
+                   x #f selected? depth layout-settings))
+           (λ (x) (add-horizontal-backing 
+                   x #t selected? depth layout-settings)))
+       ]
       [else
        (λ (x) (add-vertical-backing possibly-truncated-stx selected? depth
                                     children x layout-settings))]))
@@ -1051,13 +1078,22 @@
   (match-define (list new-kids-local new-layout-local)
     (layout-renderer layout-settings children))
 
+  (define newer-image (backer new-layout-local))
+  (define newest-image
+    (if show-parens?
+        (overlay/align "left" "top"
+                       (render-symbol "(" (color 255 255 255 90) layout-settings)
+                       (overlay/align "right" "bottom"
+                                      (render-symbol ")" (color 255 255 255 90) layout-settings)
+                                      newer-image))
+        newer-image))
   ; possible BUG
   ; put back in the implicit form
   ; dunno if this is working properly and or necessary at all
   (list (/ a/ (if (member first-stx implicit-forms)
                   (cons first-stx new-kids-local)
                   new-kids-local))
-        (backer new-layout-local)))
+        newest-image))
 
 
 
@@ -1125,6 +1161,7 @@
      (define header-length
        (+ (image-width (first child-images))
           (image-width (second child-images))
+          ; lambda-headers (only) front-padded by a space
           (* 2 unit-width)))
 
      (define header-height
@@ -1201,14 +1238,17 @@
        new-backing)))
 
 
-(define (add-horizontal-backing new-layout selected? depth layout-settings)
+(define (add-horizontal-backing new-layout rear-padded? selected? depth layout-settings)
   (define-from layout-settings
     selected-color text-size grey-one grey-two)
   (define radius (sub1 (div-integer text-size 2)))
   (define margin (div-integer text-size 5))
   (define new-backing
     (rounded-rectangle
-     (image-width new-layout)
+     ; hacky padding option for ids
+     (if rear-padded?
+         (+ (image-width new-layout) (image-width (space text-size)))
+         (image-width new-layout))
      (image-height new-layout)
      radius
      (if depth grey-one grey-two)))
@@ -1218,7 +1258,7 @@
    (if selected?
        (overlay (overlay
                  (rounded-rectangle
-                  (+ (- 0 margin) (image-width new-backing))
+                  (+ margin (image-width new-backing))
                   (image-height new-layout)
                   radius
                   (if depth grey-one grey-two))

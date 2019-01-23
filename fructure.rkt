@@ -29,11 +29,11 @@
 
   Modes determine the mapping between input and pure functions of state.
   input modes are each defined in seperate modules, indicated above.
-  The fruits of our labors are realized visually, by a layout lens indicated above.
+  The fruits of our labors are realized visually, by a layout fn indicated above.
 
   Language.rkt determines the shape of possible mappings, and hence possible structure.
 
-  Our object 'in itself' is a syntax object, a composite of
+  Our object  is a syntax object, a composite of
   labelled sexprs called fructs. The UI is itself part of the syntax,
   as both syntactic annotation and an encompassing metagrammar.
 
@@ -85,7 +85,7 @@
   'custom-menu-selector? #t
 
   ; show parentheses. not fully implemented
-  'show-parens? #f
+  'show-parens? #t
 
   ; look at the pretty colors
   'transform-tint-color (color 160 0 0) ;selected-color

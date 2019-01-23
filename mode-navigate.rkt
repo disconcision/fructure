@@ -130,7 +130,6 @@
      (mode:legacy key state) ]))
 
 
-
 (require "common.rkt"
          "mode-legacy.rkt"
          "mode-transform.rkt") ; for insert-menu; refactor todo
