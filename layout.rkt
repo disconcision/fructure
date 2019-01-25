@@ -421,7 +421,7 @@
                  my-color
                  #f 'modern 'normal 'normal #f)
       #;(circle (* 1/15 text-size) "solid"
-               (color 180 180 180))]
+                (color 180 180 180))]
      [(equal? s '⊙)
       (define my-radius
         ; TODO: magic numbers
@@ -527,14 +527,6 @@
                 unit-width
                 children))
 
-  (define newer-image
-    (beside new-image
-            (match (first (last children))
-              ; feels slightly hacky
-              ; should bellow be single 'pattern case?
-              [(/ _/ `(,(not (or 'id 'ref)) ,xs ...)) empty-image]
-              [_ empty-image #;(space text-size)]))) ; 666
-
   ; experimental : show parentheses option
   ; misses a parens when we skip the space after a terminal non-atom
   (define newest-image
@@ -543,8 +535,8 @@
                        (render-symbol "(" (color 255 255 255 90) layout-settings)
                        (overlay/align "right" "bottom"
                                       (render-symbol ")" (color 255 255 255 90) layout-settings)
-                                      newer-image))
-        newer-image))
+                                      new-image))
+        new-image))
 
   (list new-children
         ; note special case
@@ -1005,6 +997,14 @@
       [(/ [sort 'params] _/ _) #t][_ #f]))
   #;(when params-like? (println 'paramslike!!!!!!))
 
+  (define ends-in-atom?
+    (match rest-stx
+      ; HACK: properly abstract atomic definition
+      [`(,xs ... ,(/ _/ (or (? (negate list?))
+                            '⊙ `(,(or 'id 'ref 'num) ,_ ...)))) #t]
+      [_ #f]))
+  #;(when ends-in-atom? (println 'ends-in-atom!!))
+  
   ; forms may lose their identities here
   (define possibly-truncated-stx
     (if (member first-stx implicit-forms)
@@ -1038,7 +1038,7 @@
                  ; suppose to prevent vertical layout
                  ; in case where savings is small
                  #;(vertical-width-approx . > .
-                    (+ -5 horiz-width-approx)))]))
+                                          (+ -5 horiz-width-approx)))]))
 
   ; choose an algorithm to layout the children
   (define layout-renderer
@@ -1065,7 +1065,9 @@
   (define backer
     (cond
       [render-this-horizontally?
-       (if params-like?
+       (if (or params-like?
+               (not ends-in-atom?))
+           ; omit trailing space
            (λ (x) (add-horizontal-backing 
                    x #f selected? depth layout-settings))
            (λ (x) (add-horizontal-backing 
@@ -1246,9 +1248,10 @@
   (define new-backing
     (rounded-rectangle
      ; hacky padding option for ids
-     (if rear-padded?
-         (+ (image-width new-layout) (image-width (space text-size)))
-         (image-width new-layout))
+     (+ (image-width new-layout)
+        (if rear-padded?
+            (image-width (space text-size))
+            0))
      (image-height new-layout)
      radius
      (if depth grey-one grey-two)))
@@ -1258,7 +1261,7 @@
    (if selected?
        (overlay (overlay
                  (rounded-rectangle
-                  (+ margin (image-width new-backing))
+                  (+ (- margin) (image-width new-backing))
                   (image-height new-layout)
                   radius
                   (if depth grey-one grey-two))

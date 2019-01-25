@@ -77,7 +77,7 @@
   ; invade the second dimension 
   'length-conditional-layout? #t
   ; but only if our children weigh more than
-  'length-conditional-cutoff 8
+  'length-conditional-cutoff 14
   
   ; beautify menu
   'dodge-enabled? #t
@@ -85,7 +85,7 @@
   'custom-menu-selector? #t
 
   ; show parentheses. not fully implemented
-  'show-parens? #t
+  'show-parens? #f
 
   ; look at the pretty colors
   'transform-tint-color (color 160 0 0) ;selected-color
