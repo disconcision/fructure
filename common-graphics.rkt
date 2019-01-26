@@ -59,6 +59,11 @@
 (define (rounded-backing source-right-profile
                          source-left-profile
                          r my-color mode outline-w)
+  ; ATTENTION:
+  ; the way this is currently implemented,
+  ; both profiles must have the same length
+  ; and same total height
+  
   ; todo: enforce precondition:
   ; radius is no greater than 1/2 min row height/width
 
@@ -117,21 +122,23 @@
                     (pen my-color outline-w "solid" "round" "bevel"))))
 
 ; test
-#; (rounded-backing (list '(300 20)
-                          '(100 20)
-                          '(400 20)
-                          '(400 20)
-                          '(300 20)
-                          '(150 20)
-                          '(250 20))
-                    (list '(0 20)
-                          '(0 20)
-                          '(300 20)
-                          '(100 20)
-                          '(150 20)
-                          '(150 20)
-                          '(150 20))
-                    10 "red" "outline")
+#; (overlay (rounded-backing
+            (list '(300 50)
+                  '(100 50)
+                  '(400 50)
+                  '(400 50)
+                  '(300 50)
+                  '(150 50)
+                  '(250 50))
+            (list '(0 50)
+                  '(0 50)
+                  '(300 50)
+                  '(100 50)
+                  '(150 50)
+                  '(150 50)
+                  '(150 50))
+            10 "red" "outline" 12)
+           (rectangle 600 600 "solid" (color 0 0 0 0)))
 
 (define (rounded-rectangle width height init-r my-color)
   (rounded-rectangle-internal width height init-r "solid" my-color))

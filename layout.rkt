@@ -1060,6 +1060,37 @@
        (curry render-vertical unit-width 1)]
       [else render-horizontal]))
 
+  ; START OF BACKING REBUILD
+  #; (rounded-backing source-right-profile
+                      source-left-profile
+                      r my-color mode outline-w)
+  #; (rounded-backing
+      (list '(300 50)
+            '(100 50)
+            '(400 50)
+            '(400 50)
+            '(300 50)
+            '(150 50)
+            '(250 50))
+      (list '(0   50)
+            '(0   50)
+            '(300 50)
+            '(100 50)
+            '(150 50)
+            '(150 50)
+            '(150 50))
+      10 "red" "outline" 2)
+  ; org option: (constant) line-height
+  ; plus pairs of start/end posns on that line
+  #; (list 50
+           (list '(300 0)
+                 '(100 0)
+                 '(400 300)
+                 '(400 100)
+                 '(300 150)
+                 '(150 150)
+                 '(250 150)))
+
   ; choose an algorithm to back the layout
   (define backer
     (cond
