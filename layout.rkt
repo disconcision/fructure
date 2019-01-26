@@ -1058,7 +1058,6 @@
               2)]
       [(and cond-like? (not render-this-horizontally?))
        (curry render-vertical unit-width 1)]
-      #;[params-like? (render-horizontal #t)]
       [else render-horizontal]))
 
   ; choose an algorithm to back the layout
@@ -1081,6 +1080,8 @@
     (layout-renderer layout-settings children))
 
   (define newer-image (backer new-layout-local))
+
+  ; experimental parens option
   (define newest-image
     (if show-parens?
         (overlay/align "left" "top"

@@ -29,69 +29,109 @@
 
 
 
-(define (rounded-backing source-rows r my-color mode)
-  ; enforce precondition:
-  ; radius is no greater than 1/2 min row height/width
-  ; this is bugged right now; radius is getting added to height
-  #;(define r (apply min init-r
-                   (map (λ (x) (inexact->exact (round (* 1/2 x))))
-                        (apply append source-rows))))
-  (define t 0.39)
-  (define (corner a c sl b d h rot)
-    (list (make-pulled-point 0 0
-                             (+ (* a r) sl) (+ (* b r) h)
-                             t rot)
-          (make-pulled-point t (- rot)
-                             (+ (* c r) sl) (+ (* d r) h)
-                             0 0)))
-  (define (row n sl ltp ltn init-h final-h)
-    ; ltp - longer than previous
-    ; ltn - longer than next
-    (append
-     (corner (- ltp) 0 sl
-             (+ 0 (* 2 n)) (+ 1 (* 2 n)) init-h
-             (* ltp -45))
-     (corner 0 (- ltn) sl
-             (+ 1 (* 2 n)) (+ 2 (* 2 n)) final-h
-             (* ltn -45))))
-  (define (left-side num-rows total-height)
-    (append
-     (corner 1 0 0 (* 2 num-rows) (+ -1 (* 2 num-rows)) total-height -45)
-     (corner 0 1 0 1 0 0 -45)))
+
+
+
+
+
+
+(define (augment polarity init-width source-rows)
   (define (3> a b)
     (cond
-      [(> a b) 1]
+      [(> a b) polarity]
       [(= a b) 0]
-      [else -1]))
+      [else (- polarity)]))
   (define-values (rows-with-ltp _)
     (for/fold ([acc '()]
-               [prev-w 0])
+               [prev-w init-width])
               ([r source-rows])
       (match-define (list w h) r)
       (values `(,@acc ,(list w h (3> w prev-w))) w)))
   (define-values (rows-with-ltp-ltn __)
     (for/fold ([acc '()]
-               [prev-w 0])
+               [prev-w init-width])
               ([r (reverse rows-with-ltp)])
       (match-define (list w h ltp) r)
       (values `(,@acc ,(list w h ltp (3> w prev-w))) w)))
-  (define rows-with-both-augs
-    (reverse rows-with-ltp-ltn))
-  (define-values (rows num-rows total-h)
-    (for/fold ([acc '()]
-               [n 0]
-               [h 0])
-              ([r rows-with-both-augs])
-      (match-define (list c-w c-h ltp ltn) r)
-      (values `(,@acc ,(row n c-w ltp ltn h (+ h c-h)))
-              (add1 n)
-              (+ h c-h))))
-  (polygon (append
-            (apply append rows)
-            (left-side num-rows total-h))
-           mode
-           my-color))
+  (reverse rows-with-ltp-ltn))
 
+
+(define (rounded-backing source-right-profile
+                         source-left-profile
+                         r my-color mode outline-w)
+  ; todo: enforce precondition:
+  ; radius is no greater than 1/2 min row height/width
+
+  (define t 0.39) ; empirical roundness parameter
+  
+  (define (4-point-row p n offset
+                       ltp ltn
+                       init-h final-h)
+    ; p +1 for top-down, -1 for bottom-up
+    ; n-th row
+    ; offset - x from right
+    ; ltp - longer than previous
+    ; ltn - longer than next
+    ; init-h - initial height of row
+    ; final-h - final height of row
+    
+    (define y1 (+ (* 2 n r) init-h))
+    (define y2 (+ (* 2 n r) (* p r) init-h))
+    (define y3 (+ (* 2 n r) (* p r) final-h))
+    (define y4 (+ (* 2 n r) (* p (* 2 r)) final-h))
+
+    (define x1 (+ offset (* (- p) ltp r)))
+    (define x2 offset)  
+    (define x3 offset)
+    (define x4 (+ offset (* (- p) ltn r)))
+
+    (list
+     (make-pulled-point 0 0 x1 y1 t (* ltp -45))
+     (make-pulled-point t (* ltp +45) x2 y2 0 0)
+     (make-pulled-point 0 0 x3 y3 t (* ltn -45))
+     (make-pulled-point t (* ltn +45) x4 y4 0 0)))
+  
+  (define (calc-rows p init num-rows total-h
+                     augged-rows)
+    (for/fold ([acc '()]
+               [n num-rows]
+               [h total-h])
+              ([r (augment p init augged-rows)])
+      (match-define (list c-w c-h ltp ltn) r)
+      (values `(,@acc ,(4-point-row p n c-w ltp ltn h
+                                    (+ h (* p c-h))))
+              (+ p n)
+              (+ h (* p c-h)))))
+
+  (define-values (right-profile num-rows total-h)
+    (calc-rows +1 0 0 0
+               source-right-profile))
+  (define-values (left-profile _ __)
+    (calc-rows -1 +inf.f num-rows total-h
+               (reverse source-left-profile)))
+
+  (polygon (append
+            (apply append right-profile)
+            (apply append left-profile))
+           mode (if (zero? outline-w) my-color
+                    (pen my-color outline-w "solid" "round" "bevel"))))
+
+; test
+#; (rounded-backing (list '(300 20)
+                          '(100 20)
+                          '(400 20)
+                          '(400 20)
+                          '(300 20)
+                          '(150 20)
+                          '(250 20))
+                    (list '(0 20)
+                          '(0 20)
+                          '(300 20)
+                          '(100 20)
+                          '(150 20)
+                          '(150 20)
+                          '(150 20))
+                    10 "red" "outline")
 
 (define (rounded-rectangle width height init-r my-color)
   (rounded-rectangle-internal width height init-r "solid" my-color))
