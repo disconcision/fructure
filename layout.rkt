@@ -35,7 +35,7 @@
         'length-conditional-cutoff 14
         'dodge-enabled? #t
         'implicit-forms '(ref num app)
-        'line-spacing 1 ; 1
+        'line-spacing 0 ; 1
         'char-padding-vertical 4 ; 5
         'show-parens? #f
 
@@ -205,6 +205,7 @@
     
   (match fruct
 
+    ; menu render specially
     [(and this-menu
           (/ [menu `((,transforms ,resultants) ...)] m/ m))
      (match-define (list fruct-with-positions new-image)
@@ -218,7 +219,8 @@
                             (image-height (second temp-image))
                             "solid" invisible))
                new-image))]
-    
+
+    ; transform renders specially
     [(/ [transform template] t/ target)
      (match-define (list new-fruct new-image)
        (render-transform (/ [transform template] t/ target)
@@ -588,7 +590,7 @@
 (define (render-menu stx layout-settings)
   (define-from layout-settings
     text-size max-menu-length max-menu-length-chars implicit-forms
-    custom-menu-selector? selected-color menu-bkg-color)
+    custom-menu-selector? line-spacing selected-color menu-bkg-color)
   (define radius (sub1 (div-integer text-size 2)))
   (define margin (div-integer text-size 5))
   (match-define (/ [menu `((,transforms ,resultants) ...)] p/ place) stx)
@@ -616,7 +618,7 @@
         resultants-wraparound
         (take resultants-wraparound local-max-menu-length)))
   
-  (match-define `((,child-fructs ,child-images) ...)
+  (match-define fruct-image-pairs
     (for/list ([item truncated-menu])
       (define override-layout-settings
         ; slight hack to remove form backings
@@ -639,7 +641,7 @@
                                          search-buffer]
                               ; todo: fix hardcoded init-buffer here:
                               [_ '(▹ "")]))
-      (println `(in layout search-buffer is: ,search-buffer))
+      #;(println `(in layout search-buffer is: ,search-buffer))
 
       (define (strip▹ buf)
         (match buf
@@ -727,10 +729,12 @@
                                              ; below is call that should have tint when metavar 666
                                              (second (render item override-layout-settings)))))])]
         [else (render item override-layout-settings)])))
+
+
+  (define-values (truncated-menu-fruct
+                  truncated-menu-image _)
+    (layout-column '(0 0) line-spacing fruct-image-pairs))
   
-  (define truncated-menu-image
-    (apply above/align* "left"
-           child-images))
 
   ; magic number, colors
   (define expander-height
@@ -740,6 +744,7 @@
   (define expander-ellipses-color
     (color 200 200 200))
 
+  ; stylish backing
   (define cool-menu
     (overlay
      (above (ellipses expander-height expander-ellipses-color)
@@ -755,55 +760,15 @@
       (+ (* 2 expander-height)
          (image-height truncated-menu-image))
       radius
-      (color 125 125 125))))
+      (color 125 125 125)))) ; magic color
   
   (define new-image
     ; if char menu, supress drawing of left-side
     ; highlight 'cause jankiness.
-    (if (single-char-menu? resultants)
-        (overlay/align/offset
-         "left" "top"
-         cool-menu
-         (- (* 2 margin)) 0 
-         empty-image)
-        (overlay/align/offset
-         "right" "top"
-         cool-menu
-         (- (* 2 margin)) 0
-         ; lets skip out on adornment while we get the basics down
-         ; makes offset more complicated
-         ; espc forces special-casing of offset for char menu
-         #;#;(- (div-integer margin 2)) 0 ; slighly magic number
-         empty-image
-         #;(rounded-rectangle
-            (+ 0 (image-width truncated-menu-image))
-            (+ (* 2 expander-height)
-               (image-height truncated-menu-image))
-            radius
-            selected-color))))
+    (overlay/align/offset
+     (if (single-char-menu? resultants) "left" "right") "top"
+     cool-menu (* -2 margin) 0  empty-image))
 
-  ; calculate REAL position data
-  (define-values (post-new-fruct _)
-    (for/fold ([output '()]
-               [running-offset `(,(- (* 2 margin)) 0)])
-              ; BUG, HACK: dubious initial offset above!
-              ; alignment not quite right AND conceptually suspect
-              ([s child-fructs] [i child-images])
-      (match-define (list offset-x offset-y) running-offset)
-      (define new-child
-        (match s
-          [(? (disjoin symbol? number?)) s]
-          [(/ a/ a)
-           (/ [display-offset (list offset-x offset-y)]
-              [display-box (list (image-width i) (image-height i))]
-              a/ a) ]))
-      (define new-running-offset
-        (list offset-x
-              (+ offset-y
-                 0 #;line-spacing
-                 (image-height i))))
-      (values `(,@output ,new-child)
-              new-running-offset)))
   
   ; all this is just to put the rewritten fructs back in the right place
   ; TODO: check to make sure the data is going in the right place!!
@@ -819,15 +784,13 @@
   (define num-items-from-cursor-to-end
     (length menu-from-cursor))
   (define replace-in-wrapparound
-    (append post-new-fruct
+    (append truncated-menu-fruct
             (list-tail resultants-wraparound
-                       (length post-new-fruct))))
+                       (length truncated-menu-fruct))))
   
   (define new-fruct
     (append (list-tail replace-in-wrapparound num-items-from-cursor-to-end)
             (take replace-in-wrapparound num-items-from-cursor-to-end)))
-
-  
   
   
   (list (/ [menu `(,@(map list transforms new-fruct))] p/ place)
@@ -1045,16 +1008,18 @@
     (cond
       [(and lambda-like? (not render-this-horizontally?))
        (curry render-vertical (* 2 unit-width) 2)]         
-      [(and if-like? (not render-this-horizontally?)
+      [(and if-like?
+            (not render-this-horizontally?)
             (member first-stx implicit-forms))
        ; if the form is implicit and we're rendering it vertically
        ; the header is just child 1, and the indent-width is space-width
        (curry render-vertical unit-width 1)]
       [(and if-like? (not render-this-horizontally?))
        ; indent length is 2 plus the length of the form name
+       (define image-from second)
        (curry render-vertical
               (+ (* 2 unit-width)
-                 (image-width (second (first children))))
+                 (image-width (image-from (first children))))
               2)]
       [(and cond-like? (not render-this-horizontally?))
        (curry render-vertical unit-width 1)]
