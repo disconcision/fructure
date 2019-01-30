@@ -68,24 +68,34 @@
              (▹ [sort expr] xs ... / (begin
                                        ([sort expr] / ⊙)
                                        ([sort expr] / ⊙+)))])
+         #;`([⋱
+               (xs ... / (id as ... (▹ [sort char] ys ... / ⊙) bs ...))
+               (xs ... / (id as ... (▹ [sort char] ys ... / ',x) ([sort char] / ⊙) bs ...))])
          '([⋱
-             ([sort expr] xs ... / (begin
-                                     a ...
-                                     (bs ... / b)
-                                     (▹ [sort expr] / ⊙+)))
-             ([sort expr] xs ... / (begin
-                                     a ...
-                                     ; does this work? or does transform traversal
-                                     ; just skip past it...
-                                     ; might need to start with cursor before...
-                                     ; ie match as ... a above, put cursor last in a here
-                                     ; hacky af...
-                                     ; doesn;t even work; need to select last element of that
-                                     ; waay too hacky
-                                     #;(▹ bs ... / b)
-                                     (▹ [sort expr] / ⊙+)
-                                     ([sort expr] / ⊙)
-                                     ([sort expr] / ⊙+)))])
+             (xs ... / (begin
+                         as ...
+                         #;(AS ... / a)
+                         (▹ bs ... / ⊙+)
+                         #;([sort expr] / ⊙+)))
+             (xs ... / (begin
+                         as ...
+                         #;(▹ AS ... / a) ; hacky, will fuck up as will step into a if holes inside
+                         ; problem we're trying to solve: autoadvances to next hole
+                         ; after transformation
+                         (▹ [sort expr] / ⊙) ; placeholder
+                         ([sort expr] / ⊙)
+                         (bs ... / ⊙+)
+                         ; does this work? or does transform traversal
+                         ; just skip past it...
+                         ; might need to start with cursor before...
+                         ; ie match as ... a above, put cursor last in a here
+                         ; hacky af...
+                         ; doesn;t even work; need to select last element of that
+                         ; waay too hacky
+                         #;(▹ bs ... / b)
+                         #;(▹ [sort expr] / ⊙+)
+                         #;([sort expr] / ⊙)
+                         #;([sort expr] / ⊙+)))])
 
          '([⋱
              (▹ [sort expr] xs ... / ⊙)

@@ -22,9 +22,11 @@
   (inexact->exact (round (div x y))))
 
 
+
 ; TODO: rework as default settings?
-(define test-settings
-  (hash 'text-size 30
+(define test-settings-init 
+  (hash 'text-size 34
+        'typeface "Iosevka, Light"
         'max-menu-length 3
         'max-menu-length-chars 1
         'popout-transform? #t
@@ -36,7 +38,7 @@
         'dodge-enabled? #t
         'implicit-forms '(ref num app)
         'line-spacing 0 ; 1
-        'char-padding-vertical 4 ; 5
+        'char-padding-vertical 0 ; 5
         'show-parens? #f
 
         'transform-tint-color (color 160 0 0) ; selected-color
@@ -56,9 +58,26 @@
         'pattern-grey-one (color 76 76 76)
         'pattern-grey-two (color 110 110 110)
 
-        #;#;'radius (λ (text-size) (sub1 (div-integer text-size 2)))
-        #;#;'margin (λ (text-size) (div-integer text-size 5))
         ))
+
+; COPIED from fructure.rkt TODO REFACTOR
+(define (add-dynamic-settings layout)
+  (define-from layout
+    text-size typeface
+    char-padding-vertical)
+  (define (div-integer x y)
+    (inexact->exact (round (div x y))))
+  (define space-image
+    (text/font " " text-size "black"
+               typeface 'modern 'normal 'normal #f))
+  (hash-set* layout
+             'radius (sub1 (div-integer text-size 2))
+             'margin (div-integer text-size 5)
+             'unit-width (image-width space-image)
+             'unit-height (+ char-padding-vertical (image-height space-image))))
+
+; add dynamic settings to layout
+(define test-settings (add-dynamic-settings test-settings-init))
 
 
 (define (display-keypresses keypresses)
@@ -94,8 +113,8 @@
 ; fructure-layout : syntax -> pixels
 (define (fructure-layout fruct layout-settings (screen-x 800) (screen-y 400))
   (define-from layout-settings
-    bkg-color text-size popout-transform? popout-menu?)
-  (define margin (div-integer text-size 5))
+    margin bkg-color text-size popout-transform? popout-menu?)
+ 
   (define expander-height
     (round (* 1/4 text-size))) ; magic af
   
@@ -171,9 +190,7 @@
                   (+ x (if (single-char-menu? menu)
                            ; ULTRA MAGIC NUMBER
                            ; empirically -12 works for text-size 30 (width is 18)
-                           (* -12/30 text-size)
-                           #;(- (image-width (space text-size)))
-                           0)#;(* -1 margin))
+                           (* -12/30 text-size) 0))
                   (+ y (- expander-height)))]
       [_ backing-image]))
  
@@ -262,8 +279,7 @@
       ; in any case, we need to make sure we're not loosing attributes..
       (/ [metavar m] a/ a)
       (second (render (/ a/ a) (metavar-tint-colors m layout-settings))))]
-     
-    
+
     [(/ ref/ `(ref ,id))
      #:when (member 'ref implicit-forms)
      ; bug: this is losing location information
@@ -272,8 +288,7 @@
      ; need to make the selector overlaid so can
      ; draw this like parens, but space it out a bit
      ; it's too tight as-is
-     (define margin (div-integer text-size 5))
-     (define radius (sub1 (div-integer text-size 2)))
+     (define-from layout-settings radius margin)
      (match-define (list id-fruct id-image)
        (if (selected? (/ ref/ `(ref ,id)))
            (render id layout-settings)
@@ -314,7 +329,7 @@
      (list (/ n/ `(num ,@new-frs)) my-new-image)]
 
     [(and ps (/ (sort 'params) a/ a))
-     (println `(params case activates))
+     #;(println `(params case activates))
      (define local-layout-settings
        (hash-set* layout-settings
                   ; TODO magic colors
@@ -365,9 +380,9 @@
           (circle (div-integer expander-height 6) "solid" color)))
 
 
-(define (space text-size)
+(define (space text-size typeface)
   (text/font " " text-size "black"
-             #f 'modern 'normal 'normal #f))
+             typeface 'modern 'normal 'normal #f))
   
 
 (define (get-atomic-children stx child-images)  
@@ -380,14 +395,14 @@
          '() stx child-images))
 
 
-(define (get-non-atomic-children stx child-images)
-  (foldl (λ (x y acc)
-           (if (not (or (atomic? x)
-                        (match x [(/ _/ `(ref ,_)) #t][_ #f])
-                        (match x [(/ _/ `(num ,_)) #t][_ #f])))
-               (cons y acc)
-               acc))
-         '() stx child-images))
+#;(define (get-non-atomic-children stx child-images)
+    (foldl (λ (x y acc)
+             (if (not (or (atomic? x)
+                          (match x [(/ _/ `(ref ,_)) #t][_ #f])
+                          (match x [(/ _/ `(num ,_)) #t][_ #f])))
+                 (cons y acc)
+                 acc))
+           '() stx child-images))
 
 
 (define (shortest img-list)
@@ -407,21 +422,15 @@
 
 (define (render-symbol s my-color layout-settings)
   (define-from layout-settings
-    text-size char-padding-vertical)
-
-  ; todo: factor out
-  (define unit-width (image-width (space text-size)))
-  (define unit-height
-    (+ char-padding-vertical
-       (image-height (space text-size))))
+    typeface text-size char-padding-vertical unit-width unit-height)
 
   (overlay
    (cond
      [(equal? s '⊙+)
       (text/font "+"
-                 (round (* 5/12 text-size))
+                 (round (* 7/12 text-size))
                  my-color
-                 #f 'modern 'normal 'normal #f)
+                 typeface 'modern 'normal 'normal #f)
       #;(circle (* 1/15 text-size) "solid"
                 (color 180 180 180))]
      [(equal? s '⊙)
@@ -444,7 +453,8 @@
                      (round (* 0.8 text-size))
                      text-size)
                  my-color
-                 #f 'modern 'normal 'normal #f)])
+                 typeface #;#f
+                 'modern 'normal 'normal #f)])
    ; padding
    (rectangle unit-width
               unit-height
@@ -521,8 +531,8 @@
 
 
 (define (render-horizontal layout-settings children)
-  (define-from layout-settings text-size show-parens?)
-  (define unit-width (image-width (space text-size)))
+  (define-from layout-settings
+    typeface text-size unit-width show-parens?)
 
   (define-values (new-children new-image _)
     (layout-row (list unit-width 0)
@@ -548,14 +558,8 @@
 
 
 (define (render-vertical indent-width header-items layout-settings children)
-  (define-from layout-settings
-    text-size line-spacing char-padding-vertical)
-
-  ; todo: factor out
-  (define unit-width (image-width (space text-size)))
-  (define unit-height
-    (+ char-padding-vertical
-       (image-height (space text-size))))
+  (define-from layout-settings 
+    unit-width unit-height line-spacing)
   
   (define indent-image
     (rectangle indent-width unit-height
@@ -589,10 +593,8 @@
 
 (define (render-menu stx layout-settings)
   (define-from layout-settings
-    text-size max-menu-length max-menu-length-chars implicit-forms
-    custom-menu-selector? line-spacing selected-color menu-bkg-color)
-  (define radius (sub1 (div-integer text-size 2)))
-  (define margin (div-integer text-size 5))
+    text-size typeface max-menu-length max-menu-length-chars implicit-forms
+    custom-menu-selector? line-spacing selected-color menu-bkg-color radius margin)
   (match-define (/ [menu `((,transforms ,resultants) ...)] p/ place) stx)
 
   #| this function currently renders ALL menu items
@@ -684,7 +686,7 @@
                                              (second (render (/ b/ b) (hash-set override-layout-settings
                                                                                 'identifier-color "white")))
                                              (overlay/align "left" "top"
-                                                            (space text-size)
+                                                            (space text-size typeface)
                                                             (if (or (not (list? b)) (or (and (member 'ref implicit-forms)
                                                                                              (match b [`(ref ,_) #t][_ #f]))
                                                                                         (and (member 'num implicit-forms)
@@ -693,10 +695,10 @@
                                                                 ; extra hacky for implicit refs
                                                                 ; HACK below throws off offset alignment
                                                                 ; need to refacto as popped layer
-                                                                (let ([temp (beside (space text-size)
+                                                                (let ([temp (beside (space text-size typeface)
                                                                                     (second (render (/ b/ b) (hash-set override-layout-settings
                                                                                                                        'identifier-color "white")))
-                                                                                    (space text-size))])
+                                                                                    (space text-size typeface))])
                                                                   (overlay (rounded-rectangle-outline
                                                                             (image-width temp)
                                                                             ; slightly hacky adjustment
@@ -722,10 +724,10 @@
                                                                           (match b [`(num ,_) #t][_ #f]))))
                                              ; hacky extra spacing for atoms
                                              ; extra hacky for implicit refs
-                                             (beside (space text-size)
+                                             (beside (space text-size typeface)
                                                      (second (render item (hash-set override-layout-settings
                                                                                     'identifier-color "white")))
-                                                     (space text-size))
+                                                     (space text-size typeface))
                                              ; below is call that should have tint when metavar 666
                                              (second (render item override-layout-settings)))))])]
         [else (render item override-layout-settings)])))
@@ -804,13 +806,11 @@
 
 (define (render-transform fruct layout-settings)
   (define-from layout-settings
-    text-size grey-one grey-two selected-color
-    dodge-enabled? transform-tint-color)
-  (define radius (sub1 (div-integer text-size 2)))
-  (define margin (div-integer text-size 5))
+    text-size typeface grey-one grey-two selected-color
+    dodge-enabled? transform-tint-color radius margin)
   (match-define (/ [transform template] t/ target) fruct)
-  (define pat-tem-bkg-color
-    grey-one #;(if depth grey-one grey-two))
+  #;(define pat-tem-bkg-color
+      grey-one #;(if depth grey-one grey-two))
   
   (match-define (list target-fruct target-image)
     (render (/ t/ target) layout-settings))
@@ -846,9 +846,9 @@
       [(/ a/ a)
        (/ [display-offset (list (apply + (map image-width
                                               (list target-image
-                                                    (space text-size)
+                                                    (space text-size typeface)
                                                     arrow-image
-                                                    (space text-size))))
+                                                    (space text-size typeface))))
                                 0)]
           [display-box (list (image-width template-image)
                              (image-height template-image))]
@@ -864,9 +864,9 @@
                      (image-height target-image)
                      radius
                      selected-color))
-     (space text-size)
+     (space text-size typeface)
      arrow-image 
-     (space text-size)
+     (space text-size typeface)
      (overlay/align "left" "top"
                     template-image
                     (rounded-rectangle
@@ -897,9 +897,8 @@
   (define-from layout-settings
     text-size selected-color literal-color
     form-color hole-color transform-arrow-color 
-    identifier-color selected-atom-color)
-  (define radius (sub1 (div-integer text-size 2)))
-  (define margin (div-integer text-size 5))
+    identifier-color selected-atom-color
+    radius margin)
   (define literal? (disjoin boolean? number? string?))
   
   (define candidate
@@ -941,15 +940,21 @@
 
 
 
-(define (render-list fruct depth bkg layout-settings selected?)
-  (define-from layout-settings
-    selected-color text-size implicit-forms
+(define (render-list fruct depth bkg init-layout-settings selected?)
+  (define-from init-layout-settings
+    selected-color unit-width implicit-forms
     length-conditional-layout? length-conditional-cutoff
     force-horizontal-layout? show-parens?)
   
-  (define unit-width (image-width (space text-size)))
-  
   (match-define (/ a/ `(,first-stx ,rest-stx ...)) fruct)
+
+  (define layout-settings
+    (if selected?
+        (hash-set* init-layout-settings
+                   'grey-one (color 230 230 230)
+                   'grey-two (color 215 215 215)
+                   )
+        init-layout-settings))
 
   ; figure this out here in case we truncate the names below
   (define if-like? (if-like-id? first-stx))
@@ -1098,13 +1103,8 @@
 
 (define (render-vertical-backing stx new-layout depth child-images layout-settings)
   (define-from layout-settings
-    text-size grey-one grey-two implicit-forms
-    line-spacing char-padding-vertical)
-
-  ; todo: factor out
-  (define radius (sub1 (div-integer text-size 2)))
-  (define unit-height (+ char-padding-vertical (image-height (space text-size))))
-  (define unit-width (image-width (space text-size)))
+    unit-height unit-width line-spacing radius
+    implicit-forms grey-one grey-two )
 
   (define (calculate-height effective-stx effective-child-images)
     (apply +
@@ -1212,9 +1212,7 @@
   (define new-backing
     (render-vertical-backing stx new-layout depth (map second children) layout-settings))
   (define-from layout-settings
-    selected-color text-size grey-one grey-two)
-  (define radius (sub1 (div-integer text-size 2)))
-  (define margin (div-integer text-size 5))
+    selected-color grey-one grey-two radius margin)
   
   (overlay/align
    "left" "top"
@@ -1239,15 +1237,14 @@
 
 (define (add-horizontal-backing new-layout rear-padded? selected? depth layout-settings)
   (define-from layout-settings
-    selected-color text-size grey-one grey-two)
-  (define radius (sub1 (div-integer text-size 2)))
-  (define margin (div-integer text-size 5))
+    text-size typeface radius margin
+    selected-color grey-one grey-two unit-width)
   (define new-backing
     (rounded-rectangle
      ; hacky padding option for ids
      (+ (image-width new-layout)
         (if rear-padded?
-            (image-width (space text-size))
+            unit-width
             0))
      (image-height new-layout)
      radius
@@ -1333,7 +1330,7 @@
      
      (define new-scene
        (place-image/align
-        (rectangle width height "outline" "blue")
+        (rectangle width height "outline" "white")
         x y "left" "top" running-scene))
 
      (match fruct

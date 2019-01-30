@@ -23,25 +23,25 @@
 
 #|
 
-  structured interaction engine :
+  fructure, a structured interaction engine.
 
-  Fructure is transforming, conversing with, and being transformed by structure.
+  Fructure is concerned with transforming, conversing with, and being transformed by structure.
 
   Modes determine the mapping between input and pure functions of state.
   input modes are each defined in seperate modules, indicated above.
-  The fruits of our labors are realized visually, by a layout fn indicated above.
+  The current state is projected visually by layout.rkt.
 
   Language.rkt determines the shape of possible mappings, and hence possible structure.
 
-  Our object  is a syntax object, a composite of
-  labelled sexprs called fructs. The UI is itself part of the syntax,
-  as both syntactic annotation and an encompassing metagrammar.
+  Our syntax object is a composite of attributed sexprs called fructs.
+  The UI is itself part of the syntax, as both syntactic annotation
+  and as an encompassing metagrammar.
 
   Extensional aspects of the object, including history, logging, and
   interaction buffers with external devices, are represented in the state.
 
   Between interactions, we automatically annotate our structure with
-  contextual cues to inform further interaction. These (morally)
+  contextual cues (attributes.rkt) to inform further interaction. These (morally)
   represent an attribute grammar, permitting context-free
   rewriting to respect context-sensitive properties.
 
@@ -52,9 +52,10 @@
 ; DISPLAY SETTINGS
 
 (define-map initial-layout
-  
+
   ; scaling parameters
   'text-size 30
+  'typeface "Iosevka, Light"
   'line-spacing 0 ; 1
   'char-padding-vertical 3 ; 5
   ; BUG: menus don't respect line-spacing
@@ -107,6 +108,24 @@
   'pattern-grey-two (color 110 110 110))
 
 
+; calculates dynamic settings derived from the above
+(define (add-dynamic-settings layout)
+  (define-from layout
+    text-size typeface
+    char-padding-vertical)
+  (define (div-integer x y)
+    (inexact->exact (round (/ x y))))
+  (define space-image
+    (text/font " " text-size "black"
+               typeface 'modern 'normal 'normal #f))
+  (hash-set* layout
+             'radius (sub1 (div-integer text-size 2))
+             'margin (div-integer text-size 5)
+             'unit-width (image-width space-image)
+             'unit-height (+ char-padding-vertical
+                             (image-height space-image))))
+
+
 ; -------------------------------------------------
 ; SEED
 
@@ -118,7 +137,7 @@
   ; new: current selection filter
   'search-buffer '(▹ "")
   ; new: initial layout settings
-  'layout-settings initial-layout
+  'layout-settings (add-dynamic-settings initial-layout)
   ; transforms: history, currently broken
   'transforms '()
   'history '()
@@ -133,7 +152,9 @@
 (define (input-keyboard state key)
   ; mode-loop : key x state -> state
   ; determines the effect of key based on mode
-  (define-from state stx mode search-buffer keypresses)
+  (define-from state
+    stx mode search-buffer
+    keypresses layout-settings)
   
   ; print debugging information
   #;(displayln `(mode: ,mode  key: ,key))
@@ -149,8 +170,15 @@
       ['nav  (mode:navigate key state)]))
   
   ; augment syntax with attributes
+  ; calculate dynamic settings
+  #;(define newer-state
+      (hash-set new-state
+                'layout-settings
+                (add-dynamic-settings layout-settings)))
+  
   (update-map new-state
-              [stx fruct-augment]))
+              [stx fruct-augment]
+              [layout-settings add-dynamic-settings]))
 
 
 ; -------------------------------------------------
@@ -181,6 +209,7 @@
 ; FRUCTURE CORE
 
 (big-bang initial-state
+  
   ; MY LOVE FOR YOU IS LIKE A TRUCK
   [name 'fructure]
   [on-key input-keyboard]
