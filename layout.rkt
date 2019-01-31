@@ -84,7 +84,7 @@
   (define (key-remap k)
     (match k
       [" " "SPACE"]
-      ["\r" "ENTER"]
+      ["\r" "↪"]
       ["\b" "BACK"]
       ["right" "→"]
       ["left" "←"]
@@ -1068,36 +1068,46 @@
        (if (or params-like?
                (not ends-in-atom?))
            ; omit trailing space
-           (λ (x) (add-horizontal-backing 
-                   x #f selected? depth layout-settings))
-           (λ (x) (add-horizontal-backing 
-                   x #t selected? depth layout-settings)))
+           (λ (x y) (add-horizontal-backing 
+                     x y #f selected? depth layout-settings))
+           (λ (x y) (add-horizontal-backing 
+                     x y #t selected? depth layout-settings)))
        ]
       [else
-       (λ (x) (add-vertical-backing possibly-truncated-stx selected? depth
-                                    children x layout-settings))]))
+       (λ (x y) (add-vertical-backing-new x y selected? depth
+                                          children layout-settings))]))
 
   (match-define (list new-kids-local new-layout-local)
     (layout-renderer layout-settings children))
 
-  (define newer-image (backer new-layout-local))
 
-  ; experimental parens option
-  (define newest-image
-    (if show-parens?
-        (overlay/align "left" "top"
-                       (render-symbol "(" (color 255 255 255 90) layout-settings)
-                       (overlay/align "right" "bottom"
-                                      (render-symbol ")" (color 255 255 255 90) layout-settings)
-                                      newer-image))
-        newer-image))
+  #;(define newer-image (backer new-layout-local))
+
+  (match-define (list almost-final-stx final-image)
+    (backer (/ a/ new-kids-local) new-layout-local))
+
   ; possible BUG
   ; put back in the implicit form
   ; dunno if this is working properly and or necessary at all
-  (list (/ a/ (if (member first-stx implicit-forms)
-                  (cons first-stx new-kids-local)
-                  new-kids-local))
-        newest-image))
+  (list (if (member first-stx implicit-forms)
+            (match almost-final-stx
+              [(/ a/ thing)
+               (/ a/ (cons first-stx thing))])
+            almost-final-stx)
+        final-image)
+  
+  ; experimental parens option
+  #;(define newest-image
+      (if show-parens?
+          (overlay/align "left" "top"
+                         (render-symbol "(" (color 255 255 255 90) layout-settings)
+                         (overlay/align "right" "bottom"
+                                        (render-symbol ")" (color 255 255 255 90) layout-settings)
+                                        newer-image))
+          newer-image))
+
+  #;(list new-stx-before-backer
+          newer-image))
 
 
 
@@ -1210,6 +1220,7 @@
 
 (define (add-vertical-backing stx selected? depth children new-layout layout-settings)
   (define new-backing
+    ; note map second below: this is where we strip of stx
     (render-vertical-backing stx new-layout depth (map second children) layout-settings))
   (define-from layout-settings
     selected-color grey-one grey-two radius margin)
@@ -1234,8 +1245,135 @@
                 new-backing)
        new-backing)))
 
+(define (render-vertical-backing-new init-stx selected? depth children layout-settings)
+  (define-from layout-settings
+    unit-height unit-width line-spacing radius
+    implicit-forms grey-one grey-two )
 
-(define (add-horizontal-backing new-layout rear-padded? selected? depth layout-settings)
+  (define child-images
+    (map second children))
+  
+  (define stx
+    (match init-stx
+      [(/ a/ this) this]))
+
+  (define (calculate-height effective-stx effective-child-images)
+    (apply +
+           (if (not (empty? (get-atomic-children (list (last effective-stx))
+                                                 (list (last effective-child-images)))))
+               (map image-height effective-child-images)
+               (cons unit-height
+                     (map image-height (drop-right effective-child-images 1))))))
+  
+  (define new-image
+    (match stx
+    [`(,(? cond-like-id? id) ,xs ...)
+          
+     (define atomic-children
+       (get-atomic-children (rest stx) (rest child-images)))
+     
+     (rounded-rectangle
+      (+ (* 2 unit-width)
+         ; front and back margins
+         (max (+ (longest atomic-children)
+                 unit-width)
+              (image-width (first child-images))))
+      (apply + unit-height
+             (map image-height (rest (rest child-images))))
+      radius
+      (if depth grey-one grey-two))]
+    
+    [`(,(? if-like-id? id) ,xs ...)
+          
+     (define atomic-children
+       (get-atomic-children (rest stx) (rest child-images)))
+     
+     (define header-length
+       ; width of form-name e.g. 'and'
+       ; plus spaces before/after
+       (+ (image-width (first child-images))
+          (* 2 unit-width)))
+     
+     (rounded-rectangle
+      (+ header-length  
+         (max (+ (longest atomic-children)
+                 unit-width)
+              unit-width))
+      (calculate-height stx (rest child-images))
+      radius
+      (if depth grey-one grey-two))]
+         
+    [`(,(? lambda-like-id?) ,x ,xs ...)
+
+     (define atomic-children
+       (get-atomic-children (rest (rest stx))
+                            (rest (rest child-images))))
+          
+     (define header-length
+       (+ (image-width (first child-images))
+          (image-width (second child-images))
+          ; lambda-headers (only) front-padded by a space
+          (* 2 unit-width)))
+
+     (define header-height
+       (max (image-height (first child-images))
+            (image-height (second child-images))))
+          
+     (define backing-candidate
+       (overlay/align
+        "left" "top"
+        ; todo: make local-atomic. use to condition
+        ; below rectangle width of if last child is atomic
+        (rounded-rectangle (+ -2 header-length) ; hack magic -2, prevents aliasing
+                           header-height
+                           radius (if depth grey-one grey-two))
+        (rounded-rectangle (+ (* 2 unit-width) ; indentation                              
+                              (+ unit-width ; just looks good
+                                 (longest atomic-children))) ; cover any atoms 
+                           (+ header-height
+                              ; accounts for line-spacing   
+                              (* line-spacing
+                                 (length (rest (rest child-images))))
+                              (calculate-height stx (rest (rest child-images))))
+                           radius (if depth grey-one grey-two))))
+     backing-candidate]
+    [_
+     ; this case is only implicit app
+     ; refactor to avoid potential bugs
+     (define atomic-children
+       (if (and (list? stx) (cond-like-id? (first stx)))
+           (get-atomic-children stx child-images)
+           (get-atomic-children stx child-images))
+       )
+     (define header-length
+       unit-width)
+     
+     (rounded-rectangle
+      (+ header-length  
+         (max (+ (longest atomic-children)
+                 (* 2 unit-width)) ; MAGIC 2 for debatable looks
+              unit-width))
+      (calculate-height stx child-images)
+      radius
+      (if depth grey-one grey-two))]))
+
+  
+  (list init-stx
+        new-image))
+
+
+
+(define (add-vertical-backing-new stx new-layout-layout selected? depth children layout-settings)
+  (match-define (list new-stx new-backing)
+    (render-vertical-backing-new stx selected? depth children layout-settings))
+  (define-from layout-settings
+    selected-color grey-one grey-two radius margin)
+  ; if selected?, outline backing in selected-color, and possibly use selected-color as bkg
+  (list new-stx
+        (overlay/align "left" "top" new-layout-layout new-backing)))
+
+
+(define (add-horizontal-backing new-stx new-layout rear-padded? selected? depth layout-settings)
   (define-from layout-settings
     text-size typeface radius margin
     selected-color grey-one grey-two unit-width)
@@ -1249,24 +1387,26 @@
      (image-height new-layout)
      radius
      (if depth grey-one grey-two)))
-  (overlay/align
-   "left" "top"
-   new-layout
-   (if selected?
-       (overlay (overlay
-                 (rounded-rectangle
-                  (+ (- margin) (image-width new-backing))
-                  (image-height new-layout)
-                  radius
-                  (if depth grey-one grey-two))
-                 (rounded-rectangle
-                  (image-width new-backing)
-                  (image-height new-backing)
-                  radius
-                  selected-color)
-                 )
-                new-backing)
-       new-backing)))
+  (define new-image
+    (overlay/align
+     "left" "top"
+     new-layout
+     (if selected?
+         (overlay (overlay
+                   (rounded-rectangle
+                    (+ (- margin) (image-width new-backing))
+                    (image-height new-layout)
+                    radius
+                    (if depth grey-one grey-two))
+                   (rounded-rectangle
+                    (image-width new-backing)
+                    (image-height new-backing)
+                    radius
+                    selected-color)
+                   )
+                  new-backing)
+         new-backing)))
+  (list new-stx new-image))
 
 
 

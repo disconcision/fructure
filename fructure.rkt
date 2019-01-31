@@ -25,7 +25,8 @@
 
   fructure, a structured interaction engine.
 
-  Fructure is concerned with transforming, conversing with, and being transformed by structure.
+  Fructure is concerned with transforming, considering,
+  conversing with, and being transformed by structure.
 
   Modes determine the mapping between input and pure functions of state.
   input modes are each defined in seperate modules, indicated above.
@@ -57,8 +58,7 @@
   'text-size 30
   'typeface "Iosevka, Light"
   'line-spacing 0 ; 1
-  'char-padding-vertical 3 ; 5
-  ; BUG: menus don't respect line-spacing
+  'char-padding-vertical 2 ; 5
   
   ; hide the heads of these forms
   'implicit-forms '(ref num app cp lp mp)
