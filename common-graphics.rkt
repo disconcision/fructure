@@ -56,8 +56,8 @@
   (reverse rows-with-ltp-ltn))
 
 
-(define (rounded-backing source-right-profile
-                         source-left-profile
+(define (rounded-backing init-source-right-profile
+                         init-source-left-profile
                          r my-color mode outline-w)
   ; ATTENTION:
   ; the way this is currently implemented,
@@ -66,6 +66,14 @@
   
   ; todo: enforce precondition:
   ; radius is no greater than 1/2 min row height/width
+  (define source-right-profile
+    (for/list ([row init-source-right-profile])
+      (match row
+        [`(,x ,y) `(,(- x 0) ,(- y (* 2 r)))])))
+  (define source-left-profile
+    (for/list ([row init-source-left-profile])
+      (match row
+        [`(,x ,y) `(,(- x 0) ,(- y (* 2 r)))])))
 
   (define t 0.39) ; empirical roundness parameter
   

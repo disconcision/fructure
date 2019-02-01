@@ -225,6 +225,7 @@
     ; menu render specially
     [(and this-menu
           (/ [menu `((,transforms ,resultants) ...)] m/ m))
+     ; TODO: bounds??
      (match-define (list fruct-with-positions new-image)
        (render-menu this-menu
                     layout-settings))
@@ -239,6 +240,7 @@
 
     ; transform renders specially
     [(/ [transform template] t/ target)
+     ; TODO: bounds???
      (match-define (list new-fruct new-image)
        (render-transform (/ [transform template] t/ target)
                          layout-settings))
@@ -270,6 +272,8 @@
                           [_ (color 0 255 0)])
                         0.4) v))]
            [_ (values k v)])))
+     (match-define (list new-fruct new-img)
+       (render (/ a/ a) (metavar-tint-colors m layout-settings)))
      (list
       ; hack
       ; this took forever to figure out
@@ -277,8 +281,12 @@
       ; so when we try to render the item in a menu...
       ; actually what exactly is going on?
       ; in any case, we need to make sure we're not loosing attributes..
-      (/ [metavar m] a/ a)
-      (second (render (/ a/ a) (metavar-tint-colors m layout-settings))))]
+      ; update: attribute issue should be taken care of by below:
+      ; (BOUNDS should be taken care of by this)
+      (match new-fruct
+        [(/ b/ b)
+         (/ [metavar m] b/ b)])
+      new-img)]
 
     [(/ ref/ `(ref ,id))
      #:when (member 'ref implicit-forms)
@@ -294,7 +302,13 @@
            (render id layout-settings)
            (render id layout-settings)))
      ; need to add position information here
-     (list (/ ref/ `(ref ,id-fruct))
+     (define new-bounds
+       ;(left-profile right-profile)
+       `(((0
+           ,(image-height id-image)))
+         ((,(image-width id-image)
+           ,(image-height id-image)))))
+     (list (/ [bounds new-bounds] ref/ `(ref ,id-fruct))
            (if (selected? (/ ref/ `(ref ,id)))
                (overlay id-image
                         (overlay
@@ -319,14 +333,27 @@
        (map (curryr render layout-settings) xs))
      (define-values (new-frs my-new-image _)
        (layout-row (list 0 0) 0 children))
-     (list (/ id/ `(id ,@new-frs)) my-new-image)]
+     
+     (define new-bounds
+       ;(left-profile right-profile)
+       `(((0
+           ,(image-height my-new-image)))
+         ((,(image-width my-new-image)
+           ,(image-height my-new-image)))))
+     (list (/ [bounds new-bounds] id/ `(id ,@new-frs)) my-new-image)]
 
     [(/ n/ `(num ,xs ...))
      (define children
        (map (curryr render layout-settings) xs))
      (define-values (new-frs my-new-image _)
        (layout-row (list 0 0) 0 children))
-     (list (/ n/ `(num ,@new-frs)) my-new-image)]
+     (define new-bounds
+       ;(left-profile right-profile)
+       `(((0
+           ,(image-height my-new-image)))
+         ((,(image-width my-new-image)
+           ,(image-height my-new-image)))))
+     (list (/ [bounds new-bounds] n/ `(num ,@new-frs)) my-new-image)]
 
     [(and ps (/ (sort 'params) a/ a))
      #;(println `(params case activates))
@@ -353,13 +380,14 @@
     [(? (disjoin form-id? symbol?) a)
      ; TODO: MAGIC symbol include, investigate this
      ; this case SHOULD be only for form headers
-     #; (println `(fallthru ,a))
+     #;(println `(fallthru ,a))
      ; but actually catching at least:
      #; (? → ▹ λ app)
      ; TODO: factor out all these cases
      ; slight hack; adding blank attributes to a
      ; WARNING: DO NOT REPLACE THE LIST WITH JUST THE RENDER CALL
      ; form-ids will get wrapped and layout will get screwy
+     ; BOUNDS: gonna try not doing anything here, hope for the best...
      (list
       a
       (second (render-atom (/ a) (selected? fruct) layout-settings)))]
@@ -933,7 +961,14 @@
          selected-color))]
       [else candidate]))
   
-  (list (/ s/ s)
+  (define new-bounds
+    ;(left-profile right-profile)
+    `(((0
+        ,(image-height new-image)))
+      ((,(image-width new-image)
+        ,(image-height new-image)))))
+  
+  (list (/ [bounds new-bounds] s/ s)
         new-image))
 
 
@@ -1030,37 +1065,6 @@
        (curry render-vertical unit-width 1)]
       [else render-horizontal]))
 
-  ; START OF BACKING REBUILD
-  #; (rounded-backing source-right-profile
-                      source-left-profile
-                      r my-color mode outline-w)
-  #; (rounded-backing
-      (list '(300 50)
-            '(100 50)
-            '(400 50)
-            '(400 50)
-            '(300 50)
-            '(150 50)
-            '(250 50))
-      (list '(0   50)
-            '(0   50)
-            '(300 50)
-            '(100 50)
-            '(150 50)
-            '(150 50)
-            '(150 50))
-      10 "red" "outline" 2)
-  ; org option: (constant) line-height
-  ; plus pairs of start/end posns on that line
-  #; (list 50
-           (list '(300 0)
-                 '(100 0)
-                 '(400 300)
-                 '(400 100)
-                 '(300 150)
-                 '(150 150)
-                 '(250 150)))
-
   ; choose an algorithm to back the layout
   (define backer
     (cond
@@ -1110,11 +1114,51 @@
           newer-image))
 
 
-
-(define (render-vertical-backing stx new-layout depth child-images layout-settings)
+(define (render-vertical-backing-new fruct selected? depth children layout-settings)
   (define-from layout-settings
     unit-height unit-width line-spacing radius
     implicit-forms grey-one grey-two )
+
+  (define child-images
+    (map second children))
+  
+  (define child-fructs
+    (map first children))
+  
+  (define stx
+    (match fruct [(/ a/ this) this]))
+
+  
+  ; START OF BACKING REBUILD
+  #; (rounded-backing source-right-profile
+                      source-left-profile
+                      r my-color mode outline-w)
+  #; (rounded-backing
+      (list '(300 50)
+            '(100 50)
+            '(400 50)
+            '(400 50)
+            '(300 50)
+            '(150 50)
+            '(250 50))
+      (list '(0   50)
+            '(0   50)
+            '(300 50)
+            '(100 50)
+            '(150 50)
+            '(150 50)
+            '(150 50))
+      10 "red" "outline" 2)
+  ; org option: (constant) line-height
+  ; plus pairs of start/end posns on that line
+  #; (list 50
+           (list '(300 0)
+                 '(100 0)
+                 '(400 300)
+                 '(400 100)
+                 '(300 150)
+                 '(150 150)
+                 '(250 150)))
 
   (define (calculate-height effective-stx effective-child-images)
     (apply +
@@ -1125,242 +1169,118 @@
                      (map image-height (drop-right effective-child-images 1))))))
   
   (match stx
+    [`(,(and id (? lambda-like-id?)) ,params ,body ...)
+     
+     (define num-header-items 2)
+     (define indent (* 2 unit-width))
+     (make-rounded-backing fruct children unit-width radius indent num-header-items)]
+    
     [`(,(? cond-like-id? id) ,xs ...)
           
      (define atomic-children
        (get-atomic-children (rest stx) (rest child-images)))
-     
-     (rounded-rectangle
-      (+ (* 2 unit-width)
-         ; front and back margins
-         (max (+ (longest atomic-children)
-                 unit-width)
-              (image-width (first child-images))))
-      (apply + unit-height
-             (map image-height (rest (rest child-images))))
-      radius
-      (if depth grey-one grey-two))]
+
+     (define num-header-items 1)
+     (define indent (* 2 unit-width))
+     (make-rounded-backing fruct children unit-width radius indent num-header-items)]
     
     [`(,(? if-like-id? id) ,xs ...)
           
-     (define atomic-children
-       (get-atomic-children (rest stx) (rest child-images)))
-     
-     (define header-length
-       ; width of form-name e.g. 'and'
-       ; plus spaces before/after
-       (+ (image-width (first child-images))
-          (* 2 unit-width)))
-     
-     (rounded-rectangle
-      (+ header-length  
-         (max (+ (longest atomic-children)
-                 unit-width)
-              unit-width))
-      (calculate-height stx (rest child-images))
-      radius
-      (if depth grey-one grey-two))]
+     (define num-header-items 2)
+     (define indent (+ (image-width (second (first children)))
+                       (* 2 unit-width)))
+     (make-rounded-backing fruct children unit-width radius indent num-header-items)]
          
-    [`(,(? lambda-like-id?) ,x ,xs ...)
-
-     (define atomic-children
-       (get-atomic-children (rest (rest stx))
-                            (rest (rest child-images))))
-          
-     (define header-length
-       (+ (image-width (first child-images))
-          (image-width (second child-images))
-          ; lambda-headers (only) front-padded by a space
-          (* 2 unit-width)))
-
-     (define header-height
-       (max (image-height (first child-images))
-            (image-height (second child-images))))
-          
-     (define backing-candidate
-       (overlay/align
-        "left" "top"
-        ; todo: make local-atomic. use to condition
-        ; below rectangle width of if last child is atomic
-        (rounded-rectangle (+ -2 header-length) ; hack magic -2, prevents aliasing
-                           header-height
-                           radius (if depth grey-one grey-two))
-        (rounded-rectangle (+ (* 2 unit-width) ; indentation                              
-                              (+ unit-width ; just looks good
-                                 (longest atomic-children))) ; cover any atoms 
-                           (+ header-height
-                              ; accounts for line-spacing   
-                              (* line-spacing
-                                 (length (rest (rest child-images))))
-                              (calculate-height stx (rest (rest child-images))))
-                           radius (if depth grey-one grey-two))))
-     backing-candidate]
     [_
      ; this case is only implicit app
      ; refactor to avoid potential bugs
-     (define atomic-children
-       (if (and (list? stx) (cond-like-id? (first stx)))
-           (get-atomic-children stx child-images)
-           (get-atomic-children stx child-images))
-       )
-     (define header-length
-       unit-width)
-     
-     (rounded-rectangle
-      (+ header-length  
-         (max (+ (longest atomic-children)
-                 (* 2 unit-width)) ; MAGIC 2 for debatable looks
-              unit-width))
-      (calculate-height stx child-images)
-      radius
-      (if depth grey-one grey-two))]))
+     (define num-header-items 1)
+     (define indent (* 1 unit-width))
+     (make-rounded-backing fruct children unit-width radius indent num-header-items)])
+  )
 
 
-
-
-(define (add-vertical-backing stx selected? depth children new-layout layout-settings)
-  (define new-backing
-    ; note map second below: this is where we strip of stx
-    (render-vertical-backing stx new-layout depth (map second children) layout-settings))
-  (define-from layout-settings
-    selected-color grey-one grey-two radius margin)
+(define (make-rounded-backing fruct children unit-width radius indent num-header-items)
+  (define header-children (take children num-header-items))
+  (define body-children (drop children num-header-items))
+  ; assuming header isn't empty
+  (define last-header-child (last header-children))
+  ; assuming body-children isn't empty
+  (define middle-rows-children (drop-right body-children 1))
+  (define last-row-child (last body-children))
   
-  (overlay/align
-   "left" "top"
-   new-layout
-   (if selected?
-       (overlay (overlay
-                 (rounded-rectangle
-                  (max 0 (+ (- margin)
-                            (image-width new-backing)))
-                  (image-height new-backing)
-                  radius
-                  (if depth grey-one grey-two))
-                 (rounded-rectangle
-                  (image-width new-backing)
-                  (image-height new-backing)
-                  radius
-                  selected-color)
-                 )
-                new-backing)
-       new-backing)))
+  (match-define `(,(/ [bounds `(,params-left-bounds
+                                ,params-right-bounds)] _ _) ,_)
+    last-header-child)
+  (match-define `(,(/ [bounds `(,last-left-bounds
+                                ,last-right-bounds)] _ _) ,_)
+    last-row-child)
+  ; assume for now that the id always has unit height
+  ; and that params have at least unit height
+  #;(println `(params-left-bounds ,params-left-bounds))
+  #;(println `(params-right-bounds ,params-right-bounds))
+  #;(println `(last-left-bounds ,last-left-bounds))
+  #;(println `(last-right-bounds ,last-right-bounds))
 
-(define (render-vertical-backing-new init-stx selected? depth children layout-settings)
-  (define-from layout-settings
-    unit-height unit-width line-spacing radius
-    implicit-forms grey-one grey-two )
+  (define total-params-height
+    (apply + (second (apply map list params-left-bounds))))
+  (when (not (equal? total-params-height
+                     (apply + (second (apply map list params-right-bounds)))))
+    (error "left and right parameter profiles have different total heights"))
+  (define first-row-left-bounds
+    (for/list ([r params-left-bounds])
+      (match r
+        [`(,x ,y) `(0 ,y)])))
+  (define offset
+    ; is this the indent we actually want? or constant...?
+    (+ (apply + (map (compose image-width second) (drop-right header-children 1)))
+       (* unit-width (length header-children))))
+  (define first-row-right-bounds
+    (for/list ([r params-right-bounds])
+      (match r
+        [`(,x ,y) `(,(+ x offset) ,y)])))
 
-  (define child-images
-    (map second children))
-  
-  (define stx
-    (match init-stx
-      [(/ a/ this) this]))
-
-  (define (calculate-height effective-stx effective-child-images)
-    (apply +
-           (if (not (empty? (get-atomic-children (list (last effective-stx))
-                                                 (list (last effective-child-images)))))
-               (map image-height effective-child-images)
-               (cons unit-height
-                     (map image-height (drop-right effective-child-images 1))))))
-  
-  (define new-image
-    (match stx
-    [`(,(? cond-like-id? id) ,xs ...)
-          
-     (define atomic-children
-       (get-atomic-children (rest stx) (rest child-images)))
+  (when (not (empty? middle-rows-children))
+    (error "bounds: not empty middle rows case not implemented"))
+  (define middle-rows-left-bounds '())
+  (define middle-rows-right-bounds '())
+       
+  #;(define indentation (* 2 unit-width))
      
-     (rounded-rectangle
-      (+ (* 2 unit-width)
-         ; front and back margins
-         (max (+ (longest atomic-children)
-                 unit-width)
-              (image-width (first child-images))))
-      (apply + unit-height
-             (map image-height (rest (rest child-images))))
-      radius
-      (if depth grey-one grey-two))]
-    
-    [`(,(? if-like-id? id) ,xs ...)
-          
-     (define atomic-children
-       (get-atomic-children (rest stx) (rest child-images)))
+  (define almost-last-row-left-bounds
+    (for/list ([r last-left-bounds])
+      (match r
+        [`(,x ,y) `(,(+ x indent) ,y)])))
+  (define last-row-left-bounds
+    ; first should be in-line with header
+    ; which is currently fixed at 0
+    (match almost-last-row-left-bounds
+      [`((,x ,y) ,as ...) `((0 ,y) ,@as)]))
+  (define last-row-right-bounds
+    (for/list ([r last-right-bounds])
+      (match r
+        [`(,x ,y) `(,(+ x indent) ,y)])))
+       
+  (define final-left-bounds
+    (append first-row-left-bounds
+            middle-rows-left-bounds
+            last-row-left-bounds))
+  (define final-right-bounds
+    (append first-row-right-bounds
+            middle-rows-right-bounds
+            last-row-right-bounds))
+
+  #;(println `(final-right-bounds ,final-right-bounds))
+  #;(println `(final-left-bounds ,final-left-bounds))
      
-     (define header-length
-       ; width of form-name e.g. 'and'
-       ; plus spaces before/after
-       (+ (image-width (first child-images))
-          (* 2 unit-width)))
-     
-     (rounded-rectangle
-      (+ header-length  
-         (max (+ (longest atomic-children)
-                 unit-width)
-              unit-width))
-      (calculate-height stx (rest child-images))
-      radius
-      (if depth grey-one grey-two))]
-         
-    [`(,(? lambda-like-id?) ,x ,xs ...)
-
-     (define atomic-children
-       (get-atomic-children (rest (rest stx))
-                            (rest (rest child-images))))
-          
-     (define header-length
-       (+ (image-width (first child-images))
-          (image-width (second child-images))
-          ; lambda-headers (only) front-padded by a space
-          (* 2 unit-width)))
-
-     (define header-height
-       (max (image-height (first child-images))
-            (image-height (second child-images))))
-          
-     (define backing-candidate
-       (overlay/align
-        "left" "top"
-        ; todo: make local-atomic. use to condition
-        ; below rectangle width of if last child is atomic
-        (rounded-rectangle (+ -2 header-length) ; hack magic -2, prevents aliasing
-                           header-height
-                           radius (if depth grey-one grey-two))
-        (rounded-rectangle (+ (* 2 unit-width) ; indentation                              
-                              (+ unit-width ; just looks good
-                                 (longest atomic-children))) ; cover any atoms 
-                           (+ header-height
-                              ; accounts for line-spacing   
-                              (* line-spacing
-                                 (length (rest (rest child-images))))
-                              (calculate-height stx (rest (rest child-images))))
-                           radius (if depth grey-one grey-two))))
-     backing-candidate]
-    [_
-     ; this case is only implicit app
-     ; refactor to avoid potential bugs
-     (define atomic-children
-       (if (and (list? stx) (cond-like-id? (first stx)))
-           (get-atomic-children stx child-images)
-           (get-atomic-children stx child-images))
-       )
-     (define header-length
-       unit-width)
-     
-     (rounded-rectangle
-      (+ header-length  
-         (max (+ (longest atomic-children)
-                 (* 2 unit-width)) ; MAGIC 2 for debatable looks
-              unit-width))
-      (calculate-height stx child-images)
-      radius
-      (if depth grey-one grey-two))]))
-
-  
-  (list init-stx
-        new-image))
-
+  (list (match fruct
+          [(/ a/ a)
+           (/ [bounds `(,final-left-bounds
+                        ,final-right-bounds)] a/ a)])
+        (rounded-backing
+         final-right-bounds
+         final-left-bounds
+         radius (color 25 167 84) "outline" 2)))
 
 
 (define (add-vertical-backing-new stx new-layout-layout selected? depth children layout-settings)
@@ -1373,10 +1293,10 @@
         (overlay/align "left" "top" new-layout-layout new-backing)))
 
 
-(define (add-horizontal-backing new-stx new-layout rear-padded? selected? depth layout-settings)
+(define (add-horizontal-backing whole-stx new-layout rear-padded? selected? depth layout-settings)
   (define-from layout-settings
     text-size typeface radius margin
-    selected-color grey-one grey-two unit-width)
+    selected-color grey-one grey-two unit-width unit-height)
   (define new-backing
     (rounded-rectangle
      ; hacky padding option for ids
@@ -1406,7 +1326,19 @@
                    )
                   new-backing)
          new-backing)))
-  (list new-stx new-image))
+  
+  (define new-bounds
+    ;(left-profile right-profile)
+    `(((0
+        ,(image-height new-backing)))
+      ((,(image-width new-backing)
+        ,(image-height new-backing)))))
+
+  #;(println new-bounds)
+  
+  (list (match whole-stx
+          [(/ a/ a) (/ [bounds new-bounds] a/ a)])
+        new-image))
 
 
 
@@ -1515,10 +1447,11 @@
     data-2
     test-settings))
 
-(second
- (render
-  data-3
-  test-settings))
+; THIS IS THE ONE WE WERE TESTING UNITL 2019.jan31
+#;(second
+   (render
+    data-3
+    test-settings))
 
 #;(second
    (render
@@ -1575,6 +1508,9 @@
 
 (second
  (fructure-layout data-14 test-settings))
+
+(second
+ (fructure-layout data-15 test-settings))
 
 
 ; temp work on search
