@@ -171,11 +171,6 @@
   
   ; augment syntax with attributes
   ; calculate dynamic settings
-  #;(define newer-state
-      (hash-set new-state
-                'layout-settings
-                (add-dynamic-settings layout-settings)))
-  
   (update-map new-state
               [stx fruct-augment]
               [layout-settings add-dynamic-settings]))

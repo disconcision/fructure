@@ -974,9 +974,9 @@
 
 
 
-
 (define (render-list fruct depth bkg init-layout-settings selected?)
   (define-from init-layout-settings
+    radius
     selected-color unit-width implicit-forms
     length-conditional-layout? length-conditional-cutoff
     force-horizontal-layout? show-parens?)
@@ -1040,55 +1040,37 @@
                  ; below is broken
                  ; suppose to prevent vertical layout
                  ; in case where savings is small
-                 #;(vertical-width-approx . > .
-                                          (+ -5 horiz-width-approx)))]))
+                 #;(vertical-width-approx . > . (+ -5 horiz-width-approx)))]))
 
-  ; choose an algorithm to layout the children
-  (define layout-renderer
-    (cond
-      [(and lambda-like? (not render-this-horizontally?))
-       (curry render-vertical (* 2 unit-width) 2)]         
-      [(and if-like?
-            (not render-this-horizontally?)
-            (member first-stx implicit-forms))
-       ; if the form is implicit and we're rendering it vertically
-       ; the header is just child 1, and the indent-width is space-width
-       (curry render-vertical unit-width 1)]
-      [(and if-like? (not render-this-horizontally?))
-       ; indent length is 2 plus the length of the form name
-       (define image-from second)
-       (curry render-vertical
-              (+ (* 2 unit-width)
-                 (image-width (image-from (first children))))
-              2)]
-      [(and cond-like? (not render-this-horizontally?))
-       (curry render-vertical unit-width 1)]
-      [else render-horizontal]))
-
-  ; choose an algorithm to back the layout
-  (define backer
+  (define (local-render-vertical num-header-items indent)
+    (match-define (list new-kids-local new-layout-local)
+      (render-vertical indent num-header-items layout-settings children))
+    (add-vertical-backing (/ a/ new-kids-local) children layout-settings
+                          indent num-header-items  new-layout-local selected?))
+  
+  (match-define (list almost-final-stx final-image)
     (cond
       [render-this-horizontally?
+       (match-define (list new-kids-local new-layout-local)
+         (render-horizontal layout-settings children))
+       
        (if (or params-like?
                (not ends-in-atom?))
            ; omit trailing space
-           (λ (x y) (add-horizontal-backing 
-                     x y #f selected? depth layout-settings))
-           (λ (x y) (add-horizontal-backing 
-                     x y #t selected? depth layout-settings)))
-       ]
-      [else
-       (λ (x y) (add-vertical-backing-new x y selected? depth
-                                          children layout-settings))]))
+           (add-horizontal-backing 
+            (/ a/ new-kids-local) new-layout-local #f selected? depth layout-settings)
+           (add-horizontal-backing 
+            (/ a/ new-kids-local) new-layout-local #t selected? depth layout-settings))]
 
-  (match-define (list new-kids-local new-layout-local)
-    (layout-renderer layout-settings children))
-
-
-  #;(define newer-image (backer new-layout-local))
-
-  (match-define (list almost-final-stx final-image)
-    (backer (/ a/ new-kids-local) new-layout-local))
+      ; (local-render-vertical num-header-items ident-width)
+      [lambda-like?
+       (local-render-vertical 2 (* 2 unit-width))]    
+      [(and if-like? (member first-stx implicit-forms))
+       (local-render-vertical 1 unit-width)]      
+      [if-like?
+       (local-render-vertical 2 (+ (image-width (second (first children))) (* 2 unit-width)))]
+      [cond-like?
+       (local-render-vertical 1 (* 2 unit-width))]))
 
   ; possible BUG
   ; put back in the implicit form
@@ -1109,98 +1091,14 @@
                                         (render-symbol ")" (color 255 255 255 90) layout-settings)
                                         newer-image))
           newer-image))
-
-  #;(list new-stx-before-backer
-          newer-image))
-
-
-(define (render-vertical-backing-new fruct selected? depth children layout-settings)
-  (define-from layout-settings
-    unit-height unit-width line-spacing radius
-    implicit-forms grey-one grey-two )
-
-  (define child-images
-    (map second children))
-  
-  (define child-fructs
-    (map first children))
-  
-  (define stx
-    (match fruct [(/ a/ this) this]))
-
-  
-  ; START OF BACKING REBUILD
-  #; (rounded-backing source-right-profile
-                      source-left-profile
-                      r my-color mode outline-w)
-  #; (rounded-backing
-      (list '(300 50)
-            '(100 50)
-            '(400 50)
-            '(400 50)
-            '(300 50)
-            '(150 50)
-            '(250 50))
-      (list '(0   50)
-            '(0   50)
-            '(300 50)
-            '(100 50)
-            '(150 50)
-            '(150 50)
-            '(150 50))
-      10 "red" "outline" 2)
-  ; org option: (constant) line-height
-  ; plus pairs of start/end posns on that line
-  #; (list 50
-           (list '(300 0)
-                 '(100 0)
-                 '(400 300)
-                 '(400 100)
-                 '(300 150)
-                 '(150 150)
-                 '(250 150)))
-
-  (define (calculate-height effective-stx effective-child-images)
-    (apply +
-           (if (not (empty? (get-atomic-children (list (last effective-stx))
-                                                 (list (last effective-child-images)))))
-               (map image-height effective-child-images)
-               (cons unit-height
-                     (map image-height (drop-right effective-child-images 1))))))
-  
-  (match stx
-    [`(,(and id (? lambda-like-id?)) ,params ,body ...)
-     
-     (define num-header-items 2)
-     (define indent (* 2 unit-width))
-     (make-rounded-backing fruct children unit-width radius indent num-header-items)]
-    
-    [`(,(? cond-like-id? id) ,xs ...)
-          
-     (define atomic-children
-       (get-atomic-children (rest stx) (rest child-images)))
-
-     (define num-header-items 1)
-     (define indent (* 2 unit-width))
-     (make-rounded-backing fruct children unit-width radius indent num-header-items)]
-    
-    [`(,(? if-like-id? id) ,xs ...)
-          
-     (define num-header-items 2)
-     (define indent (+ (image-width (second (first children)))
-                       (* 2 unit-width)))
-     (make-rounded-backing fruct children unit-width radius indent num-header-items)]
-         
-    [_
-     ; this case is only implicit app
-     ; refactor to avoid potential bugs
-     (define num-header-items 1)
-     (define indent (* 1 unit-width))
-     (make-rounded-backing fruct children unit-width radius indent num-header-items)])
   )
 
 
-(define (make-rounded-backing fruct children unit-width radius indent num-header-items)
+
+(define (add-vertical-backing fruct children layout-settings indent num-header-items
+                              new-layout-local selected?)
+  (define-from layout-settings
+    unit-width radius)
   (define header-children (take children num-header-items))
   (define body-children (drop children num-header-items))
   ; assuming header isn't empty
@@ -1217,10 +1115,6 @@
     last-row-child)
   ; assume for now that the id always has unit height
   ; and that params have at least unit height
-  #;(println `(params-left-bounds ,params-left-bounds))
-  #;(println `(params-right-bounds ,params-right-bounds))
-  #;(println `(last-left-bounds ,last-left-bounds))
-  #;(println `(last-right-bounds ,last-right-bounds))
 
   (define total-params-height
     (apply + (second (apply map list params-left-bounds))))
@@ -1244,8 +1138,6 @@
     (error "bounds: not empty middle rows case not implemented"))
   (define middle-rows-left-bounds '())
   (define middle-rows-right-bounds '())
-       
-  #;(define indentation (* 2 unit-width))
      
   (define almost-last-row-left-bounds
     (for/list ([r last-left-bounds])
@@ -1270,27 +1162,31 @@
             middle-rows-right-bounds
             last-row-right-bounds))
 
-  #;(println `(final-right-bounds ,final-right-bounds))
-  #;(println `(final-left-bounds ,final-left-bounds))
+  (define basic-image
+    (overlay/align "left" "top" new-layout-local
+                       (rounded-backing
+                        final-right-bounds
+                        final-left-bounds
+                        radius (color 25 167 84) "outline" 2)))
+
+  (define possibly-selected-image
+    (if selected?
+        (overlay/align "left" "top"
+                       (rounded-backing
+                        final-right-bounds
+                        final-left-bounds
+                        radius (color 240 0 0) "outline" 3)
+                       basic-image)
+        basic-image))
      
   (list (match fruct
           [(/ a/ a)
            (/ [bounds `(,final-left-bounds
                         ,final-right-bounds)] a/ a)])
-        (rounded-backing
-         final-right-bounds
-         final-left-bounds
-         radius (color 25 167 84) "outline" 2)))
+        possibly-selected-image))
 
 
-(define (add-vertical-backing-new stx new-layout-layout selected? depth children layout-settings)
-  (match-define (list new-stx new-backing)
-    (render-vertical-backing-new stx selected? depth children layout-settings))
-  (define-from layout-settings
-    selected-color grey-one grey-two radius margin)
-  ; if selected?, outline backing in selected-color, and possibly use selected-color as bkg
-  (list new-stx
-        (overlay/align "left" "top" new-layout-layout new-backing)))
+
 
 
 (define (add-horizontal-backing whole-stx new-layout rear-padded? selected? depth layout-settings)
@@ -1333,8 +1229,6 @@
         ,(image-height new-backing)))
       ((,(image-width new-backing)
         ,(image-height new-backing)))))
-
-  #;(println new-bounds)
   
   (list (match whole-stx
           [(/ a/ a) (/ [bounds new-bounds] a/ a)])
