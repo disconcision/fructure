@@ -41,21 +41,23 @@
         'char-padding-vertical 0 ; 5
         'show-parens? #f
 
+        'hole-bottom-color (color 252 225 62)
+        'hole-side-color (color 193 115 23)
+        'background-block-color (color 25 80 84)
         'transform-tint-color (color 160 0 0) ; selected-color
         'selected-atom-color (color 255 255 255)
         'menu-bkg-color (color 112 112 112)
         'form-color (color 0 130 214)
-        'literal-color (color 255 131 50)
+        'literal-color (color 228 150 34)
         'grey-one (color 230 230 230)
         'grey-two (color 215 215 215)
-        'pattern-grey-one (color 84 84 84)
         'identifier-color (color 0 0 0)
         'selected-color (color 230 0 0)
-        'hole-color (color 0 180 140)
+        '+hole-color (color 25 80 84)
         'transform-arrow-color (color 255 255 255)
         'bkg-color (color 0 47 54)
         'pattern-bkg-color (color 230 230 230)
-        'pattern-grey-one (color 76 76 76)
+        'pattern-grey-one (color 17 39 46)#;(color 76 76 76)
         'pattern-grey-two (color 110 110 110)
 
         ))
@@ -216,9 +218,10 @@
 
 (define (render fruct layout-settings (depth #t) (bkg 0))
   (define-from layout-settings
-    text-size  popout-transform? popout-menu? implicit-forms
+    text-size popout-transform? popout-menu? implicit-forms
     pattern-bkg-color pattern-grey-one pattern-grey-two
-    selected-color grey-one grey-two unit-width)
+    bkg-color background-block-color
+    selected-color grey-one grey-two unit-width radius)
     
   (match fruct
 
@@ -260,7 +263,11 @@
     ; probably related to below hack
     [(/ [metavar m] a/ a)
      (define (metavar-tint-colors m layout-settings)
-       (for/hash ([(k v) layout-settings])
+       (for/hash ([(k v) (hash-set* layout-settings
+                                    ; hacky color overrides
+                                    'pattern-grey-one (color 0 0 0)
+                                    'grey-one bkg-color
+                                    'grey-two background-block-color)])
          (match v
            [(color _ _ _ _)
             (values k ((per-color-linear-dodge-tint
@@ -289,6 +296,7 @@
       new-img)]
 
     [(/ ref/ `(ref ,id))
+     ; hacky or condition
      #:when (member 'ref implicit-forms)
      ; bug: this is losing location information
      ; reproduce: try to transform a letter in a reference
@@ -299,33 +307,37 @@
      (define-from layout-settings radius margin)
      (match-define (list id-fruct id-image)
        (if (selected? (/ ref/ `(ref ,id)))
-           (render id layout-settings)
+           (render id (hash-set layout-settings
+                                ; todo: magic color
+                                'identifier-color "white"))
            (render id layout-settings)))
      ; need to add position information here
+     (define id-height (image-height id-image))
+     (define id-width (image-width id-image))
      (define new-bounds
        ;(left-profile right-profile)
        `(((0
-           ,(image-height id-image)))
-         ((,(+ unit-width (image-width id-image))
+           ,id-height))
+         ((,(+ id-width unit-width)
            ; +unit-width for right-padding
            ; this is probably a hack; refactor
            ,(image-height id-image)))))
+     ; hacky smaller radii for looks
+     (define radius-adj (div-integer radius 7/5))
      (list (/ [bounds new-bounds] ref/ `(ref ,id-fruct))
            (if (selected? (/ ref/ `(ref ,id)))
-               (overlay id-image
-                        (overlay
-                         (rounded-rectangle
-                          (+ (- 0 margin) (image-width id-image))
-                          (image-height id-image)
-                          radius
-                          ; hacky: skip depth level
-                          (if (not depth) grey-one grey-two))
-                         (rounded-rectangle
-                          (image-width id-image)
-                          (image-height id-image)
-                          radius
-                          selected-color))
-                        )
+               (overlay/align
+                "left" "top"
+                ; outline if selected
+                #;(rounded-rectangle-outline
+                   id-width id-height
+                   radius-adj selected-color 2)
+                ; layout goes inbetween
+                id-image
+                ; backing
+                (rounded-rectangle
+                 id-width id-height radius-adj
+                 selected-color #;(if depth grey-one grey-two)))
                id-image))]
     
     [(/ id/ `(id ,xs ...))
@@ -346,15 +358,37 @@
 
     [(/ n/ `(num ,xs ...))
      (define children
-       (map (curryr render layout-settings) xs))
-     (define-values (new-frs my-new-image _)
+       (map (curryr render (if (selected? (/ n/ `(num ,xs ...)))
+                               (hash-set* layout-settings
+                                          ; todo: magic colors
+                                          '+hole-color (color 130 0 0)
+                                          'literal-color "white")
+                               layout-settings))
+            xs))
+     (define-values (new-frs between-image _)
        (layout-row (list 0 0) 0 children))
      (define new-bounds
        ;(left-profile right-profile)
        `(((0
-           ,(image-height my-new-image)))
-         ((,(image-width my-new-image)
-           ,(image-height my-new-image)))))
+           ,(image-height between-image)))
+         ((,(image-width between-image)
+           ,(image-height between-image)))))
+     (define radius-adj (div-integer radius 7/5))
+     (define my-new-image
+       (if (selected? (/ n/ `(num ,xs ...)))
+           (overlay/align
+            "left" "top"
+            ; outline
+            #;(rounded-rectangle-outline
+               id-width id-height
+               radius-adj selected-color 2)
+            ; layout goes inbetween
+            between-image
+            ; backing
+            (rounded-rectangle
+             (image-width between-image) (image-height between-image) radius-adj
+             selected-color #;(if depth grey-one grey-two)))
+           between-image))
      (list (/ [bounds new-bounds] n/ `(num ,@new-frs)) my-new-image)]
 
     [(and ps (/ (sort 'params) a/ a))
@@ -364,7 +398,7 @@
                   ; TODO magic colors
                   'identifier-color pattern-bkg-color
                   ; HACK need to update when patterns move beyond chars
-                  'hole-color (color 170 170 170 120)
+                  '+hole-color (color 170 170 170 120)
                   'grey-one pattern-grey-one
                   'grey-two pattern-grey-two))
      (render-list ps
@@ -452,7 +486,8 @@
 
 (define (render-symbol s my-color layout-settings)
   (define-from layout-settings
-    typeface text-size char-padding-vertical unit-width unit-height)
+    typeface text-size char-padding-vertical unit-width unit-height
+    hole-bottom-color hole-side-color)
 
   (overlay
    (cond
@@ -469,12 +504,18 @@
         ; TODO: render transform arrow, menu cursor in this way
         ; TODO (aside): try red outline instead of arrow for menu selection
         (min (* 3/11 text-size)
-             (* 1/2 unit-width))) 
-      (overlay
-       (circle my-radius "outline"
-               (color 74 241 237))
+             (* 1/2 unit-width)))
+      (overlay/align
+       "right" "bottom"
+       (circle (+ -0.5 (div-integer my-radius 29/26)) "solid"
+               hole-bottom-color)
        (circle my-radius "solid"
-               "white"))]
+               hole-side-color))
+      #;(overlay
+         (circle my-radius "outline"
+                 (color 74 241 237))
+         (circle my-radius "solid"
+                 "white"))]
      [else
       (text/font (string-append (~a s))
                  ; HACK: hole char is slightly weird
@@ -663,11 +704,13 @@
           ; but it doesn't work either way...
           [(/ [metavar m] b/ b)
            (hash-set* layout-settings
-                      'force-horizontal-layout? #t
+                      'force-horizontal-layout? #f
+                      ; just turned this off for giggles
                       #;#;'form-color (color 255 255 255))]
           [_ (hash-set* layout-settings
                         'force-horizontal-layout? #t
                         'grey-one menu-bkg-color
+                        'pattern-grey-one (color 76 76 76)
                         'form-color (color 255 255 255))])) ; magic color
       (define search-buffer (match item [(/ [search-buffer search-buffer] a/ a)
                                          search-buffer]
@@ -735,7 +778,7 @@
                                                                             ; to make outline entirely inside line-height
                                                                             (max 0 (- (image-height temp) 1))
                                                                             radius
-                                                                            selected-color)
+                                                                            selected-color 2)
                                                                            temp))
                                                                 (let ([temp (second (render (/ b/ b) override-layout-settings))])
                                                                   (overlay (rounded-rectangle-outline
@@ -743,7 +786,7 @@
                                                                             ; slightly hacky see above
                                                                             (max 0 (- (image-height temp) 1))
                                                                             radius
-                                                                            selected-color)
+                                                                            selected-color 2)
                                                                            temp)))))))]
            [(/ b/ b)
             (list (first (render item override-layout-settings))
@@ -837,7 +880,8 @@
 (define (render-transform fruct layout-settings)
   (define-from layout-settings
     text-size typeface grey-one grey-two selected-color
-    dodge-enabled? transform-tint-color radius margin)
+    dodge-enabled? transform-tint-color radius margin
+    unit-width)
   (match-define (/ [transform template] t/ target) fruct)
   #;(define pat-tem-bkg-color
       grey-one #;(if depth grey-one grey-two))
@@ -884,6 +928,13 @@
                              (image-height template-image))]
           a/ a) ]))
 
+  (define template-bounds
+    (match template-fruct
+      [(/ [bounds b] _ _) b]
+      ; todo: figure out what is triggering fallthrough here
+      [_ `(((0 0)) ((,(image-width template-image) ,(image-height template-image))))]))
+  #;(match-define (/ [bounds bounds] _ _)
+      template-fruct)
   (define new-layout
     (beside/align
      "top"
@@ -898,7 +949,13 @@
      arrow-image 
      (space text-size typeface)
      (overlay/align "left" "top"
+                    (rounded-backing
+                     (second template-bounds)
+                     (first template-bounds)
+                     radius (color 240 0 0) "outline" 2
+                     #f)
                     template-image
+                    #;
                     (rounded-rectangle
                      (+ margin (image-width template-image))
                      (image-height template-image)
@@ -907,13 +964,15 @@
   
   (define new-backing
     (rounded-rectangle
-     (image-width new-layout)
+     ;hacky size: made this smaller when switched from full-width boc back
+     (+ (* 6 unit-width)(image-width target-image))
+     #;(image-width new-layout)
      (min (image-height target-image)
           (image-height template-image))
      radius
      selected-color))  
   (define new-image
-    (overlay/align "middle" "top"
+    (overlay/align "left" "top"
                    new-layout
                    new-backing))
   
@@ -926,7 +985,7 @@
   (match-define (/ s/ s) a)
   (define-from layout-settings
     selected-color literal-color
-    form-color hole-color transform-arrow-color 
+    form-color +hole-color transform-arrow-color 
     identifier-color selected-atom-color
     radius unit-width)
   (define literal? (disjoin boolean? number? string?))
@@ -935,16 +994,17 @@
     (render-symbol
      (match (/ s/ s) [(or (/ (sort 'char) _/ '⊙)
                           (/ (sort 'digit) _/ '⊙)
-                          (/ _/ '⊙+)) '⊙+] [_ s])
+                          (/ _/ '⊙+))
+                      '⊙+] [_ s])
      (if selected?
          (if (form-id? s)
              selected-color
              selected-atom-color)
          (cond
            [(equal? s '→) transform-arrow-color]
-           [(equal? s '⊙) hole-color]
-           [(equal? s '⊙+) hole-color]
-           [(equal? s '+) hole-color]
+           [(equal? s '⊙) +hole-color]
+           [(equal? s '⊙+) +hole-color]
+           [(equal? s '+) +hole-color]
            [(literal? s) literal-color]
            [(form-id? s) form-color]
            [(equal? s '▹) selected-color]
@@ -1104,7 +1164,7 @@
                               new-layout-local selected? depth
                               straight-left? header-exception?)
   (define-from layout-settings
-    unit-width radius grey-one grey-two bkg-color)
+    unit-width radius grey-one grey-two bkg-color background-block-color)
   (define header-children (take children num-header-items))
   (define body-children (drop children num-header-items))
   ; assuming header isn't empty
@@ -1116,9 +1176,24 @@
   (match-define `(,(/ [bounds `(,params-left-bounds
                                 ,params-right-bounds)] _ _) ,_)
     last-header-child)
-  (match-define `(,(/ [bounds `(,last-left-bounds
-                                ,last-right-bounds)] _ _) ,_)
+  ; hacky error checking
+  (match last-row-child
+    [(not `(,(/ [bounds `(,last-left-bounds
+                          ,last-right-bounds)] _ _) ,_))
+     (println `(vertical-backing-error ,(first children)))] [_ 0])
+  
+  (match-define `(,(/ [bounds bounds] _ _) ,_)
     last-row-child)
+  ; why does the below screw things up:...
+  #;(define bounds
+      (match last-row-child
+        [(/ [bounds b] _ _) b]
+        ; todo: figure out what is triggering fallthrough here
+        [_
+         (println "BAD vertical layout no-bounds fallthough!")
+         `(((0 ,unit-height)) ((,unit-width ,unit-height)))]))
+  (define last-left-bounds (first bounds))
+  (define last-right-bounds (second bounds))
   ; assume for now that the id always has unit height
   ; and that params have at least unit height
 
@@ -1173,32 +1248,50 @@
             middle-rows-right-bounds
             last-row-right-bounds))
   #;(when #t #;(equal? 1 num-header-items)
-    (begin (println `(final-left-bounds ,final-left-bounds))
-           (println `(final-right-bounds ,final-right-bounds))
-           (println (rounded-backing
-                     final-right-bounds
-                     final-left-bounds
-                     radius "green" "outline" 2
-                     header-exception?))))
+      (begin (println `(final-left-bounds ,final-left-bounds))
+             (println `(final-right-bounds ,final-right-bounds))
+             (println (rounded-backing
+                       final-right-bounds
+                       final-left-bounds
+                       radius "green" "outline" 2
+                       header-exception?))))
+  
   (define basic-image
-    (overlay/align "left" "top" new-layout-local
-                   (if depth
-                       (overlay
-                        (rounded-backing
-                         final-right-bounds
-                         final-left-bounds
-                         radius (color 25 80 84) "outline" 1
-                         header-exception?)
-                        (rounded-backing
-                         final-right-bounds
-                         final-left-bounds
-                         radius bkg-color "solid" 2
-                         header-exception?))
-                       (rounded-backing
-                        final-right-bounds
-                        final-left-bounds
-                        radius (color 25 80 84) "solid" 2
-                        header-exception?))))
+    (overlay/align "left" "top"
+                   (if (and selected? (symbol? (first (first header-children))))
+                       (begin
+                         #;(println `(the thing: ,(first (first header-children))))
+                         ; SUPER HACKY way of changing form symbol color
+                         ; only works if symbol is first thing in form
+                         (overlay/align
+                          "left" "top"
+                          (beside (render-symbol '| |
+                                                 "white" ; todo: magic colors
+                                                 layout-settings)
+                                  (render-symbol (first (first header-children))
+                                                 "white"
+                                                 layout-settings))
+                          new-layout-local))
+                       new-layout-local)
+                   (if selected?
+                       empty-image
+                       (if depth
+                           (overlay
+                            (rounded-backing
+                             final-right-bounds
+                             final-left-bounds
+                             radius background-block-color "outline" 1
+                             header-exception?)
+                            (rounded-backing
+                             final-right-bounds
+                             final-left-bounds
+                             radius bkg-color "solid" 2
+                             header-exception?))
+                           (rounded-backing
+                            final-right-bounds
+                            final-left-bounds
+                            radius background-block-color "solid" 2
+                            header-exception?)))))
   
   (define possibly-selected-image
     (if selected?
@@ -1206,9 +1299,15 @@
                        (rounded-backing
                         final-right-bounds
                         final-left-bounds
-                        radius (color 240 0 0) "outline" 3
+                        radius (color 240 0 0) "outline" 2
                         header-exception?)
-                       basic-image)
+                       basic-image
+                       ; if we want red backgrounds
+                       (rounded-backing
+                        final-right-bounds
+                        final-left-bounds
+                        radius (color 240 0 0) "solid" 0
+                        header-exception?))
         basic-image))
      
   (list (match fruct
@@ -1224,43 +1323,37 @@
 (define (add-horizontal-backing whole-stx new-layout rear-padded? selected? depth layout-settings)
   (define-from layout-settings
     text-size typeface radius margin
-    selected-color grey-one grey-two unit-width unit-height)
-  (define new-backing
-    (rounded-rectangle
-     ; hacky padding option for ids
-     (+ (image-width new-layout)
-        (if rear-padded?
-            unit-width
-            0))
-     (image-height new-layout)
-     radius
-     (if depth grey-one grey-two)))
+    selected-color background-block-color bkg-color grey-one grey-two unit-width unit-height)
+  (define width
+    (+ (image-width new-layout)
+       (if rear-padded? unit-width 0)))
+  (define height
+    (image-height new-layout))
   (define new-image
     (overlay/align
      "left" "top"
-     new-layout
+     ; outline if selected
      (if selected?
-         (overlay (overlay
-                   (rounded-rectangle
-                    (+ (- margin) (image-width new-backing))
-                    (image-height new-layout)
-                    radius
-                    (if depth grey-one grey-two))
-                   (rounded-rectangle
-                    (image-width new-backing)
-                    (image-height new-backing)
-                    radius
-                    selected-color)
-                   )
-                  new-backing)
-         new-backing)))
+         (rounded-rectangle-outline width height radius selected-color 2)
+         ; todo: create arg here for width
+         empty-image)
+     ; layout goes inbetween
+     new-layout
+     ; backing
+     (if #t #;selected?
+         (rounded-rectangle width height radius
+                            (if depth grey-one grey-two))
+         (overlay (rounded-rectangle-outline
+                   width height radius
+                   background-block-color 1)
+                  (rounded-rectangle
+                   width height radius
+                   (if depth background-block-color bkg-color))))))
   
   (define new-bounds
     ;(left-profile right-profile)
-    `(((0
-        ,(image-height new-backing)))
-      ((,(image-width new-backing)
-        ,(image-height new-backing)))))
+    `(((0 ,height))
+      ((,width ,height))))
   
   (list (match whole-stx
           [(/ a/ a) (/ [bounds new-bounds] a/ a)])
@@ -1437,6 +1530,9 @@
 
 (second
  (fructure-layout data-15 test-settings))
+
+(second
+ (fructure-layout data-16 test-settings))
 
 
 ; temp work on search

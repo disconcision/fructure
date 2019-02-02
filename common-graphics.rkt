@@ -97,10 +97,10 @@
   ; init-h - initial height of row
   ; final-h - final height of row
     
-  (define y1 (+ (* 2 n r) init-h))
-  (define y2 (+ (* 2 n r) (* p r) init-h))
-  (define y3 (+ (* 2 n r) (* p r) final-h))
-  (define y4 (+ (* 2 n r) (* p (* 2 r)) final-h))
+  (define y1 (+ #;(* 2 n r) init-h))
+  (define y2 (+ #;(* 2 n r) (* p r) init-h))
+  (define y3 (+ #;(* 2 n r) (* p r) final-h))
+  (define y4 (+ #;(* 2 n r) (* p (* 2 r)) final-h))
 
   (define x1 (+ offset (* (- p) ltp r)))
   (define x2 offset)  
@@ -130,8 +130,8 @@
              [h total-h])
             ([row new-augmented-rows])
     (match-define (list c-w c-h ltp ltn) row)
-    (values `(,@acc ,@(profile-row p n c-w ltp ltn h
-                                   (+ h (* p c-h)) r t))
+    (values `(,@acc ,@(profile-row p n c-w ltp ltn
+                                   (+ (* 2 n r) h) (+ (* 2 n r) h (* p c-h)) r t))
             (+ p n)
             (+ h (* p c-h)))))
 
@@ -265,8 +265,10 @@
 (define (rounded-rectangle width height init-r my-color)
   (rounded-rectangle-internal width height init-r "solid" my-color))
 
-(define (rounded-rectangle-outline width height init-r my-color)
-  (rounded-rectangle-internal width height init-r "outline" my-color))
+(define (rounded-rectangle-outline width height init-r my-color thickness)
+  (define my-pen
+    (pen my-color thickness "solid" "butt" "round"))
+  (rounded-rectangle-internal width height init-r "outline" my-pen))
 
 (define (rounded-rectangle-internal width height init-r mode my-color)
   (define r (if (width . < . (* 2 init-r))

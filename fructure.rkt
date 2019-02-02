@@ -90,6 +90,9 @@
   'show-parens? #f
 
   ; look at the pretty colors
+  'hole-bottom-color (color 252 225 62)
+  'hole-side-color (color 193 115 23)
+  'background-block-color (color 25 80 84)
   'transform-tint-color (color 160 0 0) ;selected-color
   'selected-atom-color (color 255 255 255)
   'menu-bkg-color (color 112 112 112)
@@ -97,14 +100,13 @@
   'literal-color (color 255 131 50)
   'grey-one (color 0 47 54)#;(color 230 230 230)
   'grey-two (color 0 47 54)#;(color 215 215 215)
-  'pattern-grey-one (color 84 84 84)
-  'identifier-color (color 48 161 182) #;(color 0 0 0)
+  'identifier-color (color 48 161 182)#;(color 0 0 0)
   'selected-color (color 230 0 0)
-  'hole-color (color 0 180 140)
+  '+hole-color (color 25 80 84)
   'transform-arrow-color (color 255 255 255)
   'bkg-color (color 0 47 54)
   'pattern-bkg-color (color 230 230 230)
-  'pattern-grey-one (color 76 76 76)
+  'pattern-grey-one (color 17 39 46)#;(color 84 84 84)
   'pattern-grey-two (color 110 110 110))
 
 
