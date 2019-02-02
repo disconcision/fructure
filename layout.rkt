@@ -218,7 +218,7 @@
   (define-from layout-settings
     text-size  popout-transform? popout-menu? implicit-forms
     pattern-bkg-color pattern-grey-one pattern-grey-two
-    selected-color grey-one grey-two)
+    selected-color grey-one grey-two unit-width)
     
   (match fruct
 
@@ -306,7 +306,9 @@
        ;(left-profile right-profile)
        `(((0
            ,(image-height id-image)))
-         ((,(image-width id-image)
+         ((,(+ unit-width (image-width id-image))
+           ; +unit-width for right-padding
+           ; this is probably a hack; refactor
            ,(image-height id-image)))))
      (list (/ [bounds new-bounds] ref/ `(ref ,id-fruct))
            (if (selected? (/ ref/ `(ref ,id)))
@@ -923,10 +925,10 @@
   
   (match-define (/ s/ s) a)
   (define-from layout-settings
-    text-size selected-color literal-color
+    selected-color literal-color
     form-color hole-color transform-arrow-color 
     identifier-color selected-atom-color
-    radius margin)
+    radius unit-width)
   (define literal? (disjoin boolean? number? string?))
   
   (define candidate
@@ -965,7 +967,9 @@
     ;(left-profile right-profile)
     `(((0
         ,(image-height new-image)))
-      ((,(image-width new-image)
+      ; adding unit width to get right padding
+      ; TODO: make sure this is a robust decision!!
+      ((,(+ unit-width (image-width new-image))
         ,(image-height new-image)))))
   
   (list (/ [bounds new-bounds] s/ s)
@@ -1042,11 +1046,12 @@
                  ; in case where savings is small
                  #;(vertical-width-approx . > . (+ -5 horiz-width-approx)))]))
 
-  (define (local-render-vertical num-header-items indent)
+  (define (local-render-vertical num-header-items indent stright-left? header-exception?)
     (match-define (list new-kids-local new-layout-local)
       (render-vertical indent num-header-items layout-settings children))
     (add-vertical-backing (/ a/ new-kids-local) children layout-settings
-                          indent num-header-items  new-layout-local selected?))
+                          indent num-header-items  new-layout-local selected? depth
+                          stright-left? header-exception?))
   
   (match-define (list almost-final-stx final-image)
     (cond
@@ -1062,15 +1067,15 @@
            (add-horizontal-backing 
             (/ a/ new-kids-local) new-layout-local #t selected? depth layout-settings))]
 
-      ; (local-render-vertical num-header-items ident-width)
+      ; (local-render-vertical num-header-items ident-width straight-left? header-exception?)
       [lambda-like?
-       (local-render-vertical 2 (* 2 unit-width))]    
+       (local-render-vertical 2 (* 2 unit-width) #f #t)]    
       [(and if-like? (member first-stx implicit-forms))
-       (local-render-vertical 1 unit-width)]      
+       (local-render-vertical 1 unit-width #t #f)]      
       [if-like?
-       (local-render-vertical 2 (+ (image-width (second (first children))) (* 2 unit-width)))]
+       (local-render-vertical 2 (+ (image-width (second (first children))) (* 2 unit-width)) #f #f)]
       [cond-like?
-       (local-render-vertical 1 (* 2 unit-width))]))
+       (local-render-vertical 1 (* 2 unit-width)) #t #f]))
 
   ; possible BUG
   ; put back in the implicit form
@@ -1096,9 +1101,10 @@
 
 
 (define (add-vertical-backing fruct children layout-settings indent num-header-items
-                              new-layout-local selected?)
+                              new-layout-local selected? depth
+                              straight-left? header-exception?)
   (define-from layout-settings
-    unit-width radius)
+    unit-width radius grey-one grey-two bkg-color)
   (define header-children (take children num-header-items))
   (define body-children (drop children num-header-items))
   ; assuming header isn't empty
@@ -1144,15 +1150,20 @@
       (match r
         [`(,x ,y) `(,(+ x indent) ,y)])))
   (define last-row-left-bounds
-    ; first should be in-line with header
-    ; which is currently fixed at 0
-    (match almost-last-row-left-bounds
-      [`((,x ,y) ,as ...) `((0 ,y) ,@as)]))
+
+    ; note this currently masks a rendering bug affecting
+    ; left profiles which involve one-unit steps (needs two for smooth transition)
+    (if straight-left?
+        (map (match-lambda [`(,x ,y) `(0 ,y)]) almost-last-row-left-bounds)
+        ; first should be in-line with header
+        ; which is currently fixed at 0
+        (match almost-last-row-left-bounds
+          [`((,x ,y) ,as ...) `((0 ,y) ,@as)])))
+  
   (define last-row-right-bounds
     (for/list ([r last-right-bounds])
       (match r
-        [`(,x ,y) `(,(+ x indent) ,y)])))
-       
+        [`(,x ,y) `(,(+ x indent) ,y)])))   
   (define final-left-bounds
     (append first-row-left-bounds
             middle-rows-left-bounds
@@ -1161,21 +1172,42 @@
     (append first-row-right-bounds
             middle-rows-right-bounds
             last-row-right-bounds))
-
+  #;(when #t #;(equal? 1 num-header-items)
+    (begin (println `(final-left-bounds ,final-left-bounds))
+           (println `(final-right-bounds ,final-right-bounds))
+           (println (rounded-backing
+                     final-right-bounds
+                     final-left-bounds
+                     radius "green" "outline" 2
+                     header-exception?))))
   (define basic-image
     (overlay/align "left" "top" new-layout-local
+                   (if depth
+                       (overlay
+                        (rounded-backing
+                         final-right-bounds
+                         final-left-bounds
+                         radius (color 25 80 84) "outline" 1
+                         header-exception?)
+                        (rounded-backing
+                         final-right-bounds
+                         final-left-bounds
+                         radius bkg-color "solid" 2
+                         header-exception?))
                        (rounded-backing
                         final-right-bounds
                         final-left-bounds
-                        radius (color 25 167 84) "outline" 2)))
-
+                        radius (color 25 80 84) "solid" 2
+                        header-exception?))))
+  
   (define possibly-selected-image
     (if selected?
         (overlay/align "left" "top"
                        (rounded-backing
                         final-right-bounds
                         final-left-bounds
-                        radius (color 240 0 0) "outline" 3)
+                        radius (color 240 0 0) "outline" 3
+                        header-exception?)
                        basic-image)
         basic-image))
      
