@@ -220,7 +220,7 @@
   (define-from layout-settings
     text-size popout-transform? popout-menu? implicit-forms
     pattern-bkg-color pattern-grey-one pattern-grey-two
-    bkg-color background-block-color
+    bkg-color background-block-color unit-width unit-height
     selected-color grey-one grey-two unit-width radius)
     
   (match fruct
@@ -232,7 +232,14 @@
      (match-define (list fruct-with-positions new-image)
        (render-menu this-menu
                     layout-settings))
-     (list fruct-with-positions
+     (list (match fruct-with-positions
+             ; hacky bounds insertion
+             ; unit seems to work fine
+             ; can't use template bounds, it's usually too big
+             [(/ a/ a)
+              (/ [bounds `(((0 ,unit-height))
+                           ((,unit-width ,unit-height)))]
+                 a/ a)])
            (if popout-menu?
                ; whatever is supposed to be there as placeholder
                (let ([temp-image (render '? #;(/ m/ m) layout-settings)])
@@ -1180,10 +1187,15 @@
   (match last-row-child
     [(not `(,(/ [bounds `(,last-left-bounds
                           ,last-right-bounds)] _ _) ,_))
-     (println `(vertical-backing-error ,(first children)))] [_ 0])
+     ; problem: sometimes it's getting a list here, with a bounded fruct inside
+     ; sometimes this occurs with metavars
+     ; error as follows:
+     #; (list 'vertical-backing-error
+              (list '(p/ #hash((bounds . BOUNDS)  (metavar . 0) (sort . expr)) STX)))
+     (println `(vertical-backing-error ,children))] [_ 0])
   
-  (match-define `(,(/ [bounds bounds] _ _) ,_)
-    last-row-child)
+  (match-define (/ [bounds bounds] _ _)
+    (first last-row-child))
   ; why does the below screw things up:...
   #;(define bounds
       (match last-row-child
