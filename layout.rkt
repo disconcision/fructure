@@ -115,7 +115,7 @@
 ; fructure-layout : syntax -> pixels
 (define (fructure-layout fruct layout-settings (screen-x 800) (screen-y 400))
   (define-from layout-settings
-    margin bkg-color text-size popout-transform? popout-menu?)
+    bkg-color text-size popout-transform? popout-menu?)
  
   (define expander-height
     (round (* 1/4 text-size))) ; magic af
@@ -163,8 +163,9 @@
                         [display-absolute-offset `(,x ,y)] t/ _))))
        (render-in render-transform
                   this-transform backing-image
-                  (+ x (- margin))
-                  (+ y))]
+                  ; leaving this placeholder in case we
+                  ; decide to re-pad transforms
+                  (+ x #;(- margin)) y)]
       [_ backing-image]))
 
   ; from mode-transform:
@@ -189,10 +190,11 @@
                                  m/ _)))] t/ _)))
        (render-in render-menu
                   this-menu backing-image
-                  (+ x (if (single-char-menu? menu)
-                           ; ULTRA MAGIC NUMBER
-                           ; empirically -12 works for text-size 30 (width is 18)
-                           (* -12/30 text-size) 0))
+                  ; 666
+                  (+ x #;(if (single-char-menu? menu)
+                             ; ULTRA MAGIC NUMBER
+                             ; empirically -12 works for text-size 30 (width is 18)
+                             (* -12/30 text-size) 0))
                   (+ y (- expander-height)))]
       [_ backing-image]))
  
@@ -303,32 +305,24 @@
       new-img)]
 
     [(/ ref/ `(ref ,id))
-     ; hacky or condition
      #:when (member 'ref implicit-forms)
-     ; bug: this is losing location information
-     ; reproduce: try to transform a letter in a reference
-     ; selected highlight is... not great
-     ; need to make the selector overlaid so can
-     ; draw this like parens, but space it out a bit
-     ; it's too tight as-is
-     (define-from layout-settings radius margin)
+     (define-from layout-settings radius)
      (match-define (list id-fruct id-image)
        (if (selected? (/ ref/ `(ref ,id)))
            (render id (hash-set layout-settings
                                 ; todo: magic color
                                 'identifier-color "white"))
            (render id layout-settings)))
-     ; need to add position information here
+     ; TODO: properly add position information here
      (define id-height (image-height id-image))
      (define id-width (image-width id-image))
      (define new-bounds
-       ;(left-profile right-profile)
-       `(((0
-           ,id-height))
-         ((,(+ id-width unit-width)
-           ; +unit-width for right-padding
-           ; this is probably a hack; refactor
-           ,(image-height id-image)))))
+       `(((0  ,id-height))
+         ((,id-width
+           #;,(+ id-width unit-width)
+           ; UPDATE: removed hack
+           ; BUG, HACK: see hole case
+           ,id-height))))
      ; hacky smaller radii for looks
      (define radius-adj (div-integer radius 7/5))
      (list (/ [bounds new-bounds] ref/ `(ref ,id-fruct))
@@ -346,6 +340,23 @@
                  id-width id-height radius-adj
                  selected-color #;(if depth grey-one grey-two)))
                id-image))]
+
+    #;[(/ hole/ '⊙)
+       ; HACK: added in this case for padding purposes only
+       ; BUG: causes arrow to shift over if transform template is hole
+       ; same issue exists for symbol, and would for num without +...
+       ; NOTE: this MASKS a bug in how generalized rounded backings
+       ; glitch out in the one-unit size case
+       (match-define (list (/ new-hole/ '⊙) hole-image)
+         (render-atom fruct (selected? fruct) layout-settings))
+       (define new-bounds
+         `(((0
+             ,(image-height hole-image)))
+           ((,(image-width hole-image)
+             #;,(+ unit-width (image-width hole-image))
+             ; unit-wdith is the hack
+             ,(image-height hole-image)))))
+       (list (/ [bounds new-bounds] new-hole/ '⊙) hole-image)]
     
     [(/ id/ `(id ,xs ...))
      ; id itself is not drawn
@@ -356,7 +367,6 @@
        (layout-row (list 0 0) 0 children))
      
      (define new-bounds
-       ;(left-profile right-profile)
        `(((0
            ,(image-height my-new-image)))
          ((,(image-width my-new-image)
@@ -373,9 +383,12 @@
                                layout-settings))
             xs))
      (define-values (new-frs between-image _)
-       (layout-row (list 0 0) 0 children))
+       (layout-row (list 0 0) 0 children
+                   #;(if (empty? children) '()
+                         (drop-right children 1))))
+     ; HACK: above: skip + hole at end
+     ; UPDATE: commented out. doesn't work right, rethink
      (define new-bounds
-       ;(left-profile right-profile)
        `(((0
            ,(image-height between-image)))
          ((,(image-width between-image)
@@ -439,10 +452,6 @@
 
 
 
-
-
-
-
 (define (ellipses expander-height color)
   (beside (circle (div-integer expander-height 6) "solid" color)
           (rectangle 1 expander-height "solid" invisible)
@@ -454,40 +463,13 @@
 (define (space text-size typeface)
   (text/font " " text-size "black"
              typeface 'modern 'normal 'normal #f))
-  
-
-(define (get-atomic-children stx child-images)  
-  (foldl (λ (x y acc)
-           (if (or (atomic? x)
-                   (match x [(/ _/ `(ref ,_)) #t][_ #f])
-                   (match x [(/ _/ `(num ,_)) #t][_ #f]))
-               (cons y acc)
-               acc))
-         '() stx child-images))
 
 
-#;(define (get-non-atomic-children stx child-images)
-    (foldl (λ (x y acc)
-             (if (not (or (atomic? x)
-                          (match x [(/ _/ `(ref ,_)) #t][_ #f])
-                          (match x [(/ _/ `(num ,_)) #t][_ #f])))
-                 (cons y acc)
-                 acc))
-           '() stx child-images))
-
-
-(define (shortest img-list)
-  (if (empty? img-list)
-      0
-      (apply min (map image-width img-list))))
-
-
-(define (longest img-list)
-  (if (empty? img-list)
-      0
-      (apply max (map image-width img-list))))
-
-
+; hacky, rework this
+(define (real-atomic? fruct)
+  (or (atomic? fruct)
+      (match fruct [(/ _/ `(ref ,_)) #t][_ #f])
+      (match fruct [(/ _/ `(num ,_)) #t][_ #f])))
 
 
 
@@ -629,7 +611,7 @@
         new-image))
 
   (list new-children
-        ; note special case
+        ; special case?
         ; if last child is atom, we leave a space on the right
         newest-image))
 
@@ -671,12 +653,12 @@
 
 (define (render-menu stx layout-settings)
   (define-from layout-settings
-    text-size typeface max-menu-length max-menu-length-chars implicit-forms
-    custom-menu-selector? line-spacing selected-color menu-bkg-color radius margin)
+    text-size typeface max-menu-length max-menu-length-chars implicit-forms unit-width
+    custom-menu-selector? line-spacing selected-color menu-bkg-color radius)
   (match-define (/ [menu `((,transforms ,resultants) ...)] p/ place) stx)
 
   #| this function currently renders ALL menu items
-     not just the ones displated.
+     not just the ones displayed.
      tagged: performance, optimization |#
 
   (define (single-char-menu? resultants)
@@ -723,7 +705,6 @@
                                          search-buffer]
                               ; todo: fix hardcoded init-buffer here:
                               [_ '(▹ "")]))
-      #;(println `(in layout search-buffer is: ,search-buffer))
 
       (define (strip▹ buf)
         (match buf
@@ -736,7 +717,7 @@
           ; sort of hacky exception for ref
           ; still not really right, r is still going to select refs maybe?
           [(/ a/ `(,(and (not 'ref) (not 'num) (? (curryr member implicit-forms)) _) ,xs ...))
-           #;(println "curry member implicit case") image]
+           image]
           [_ (overlay/align
               "left" "top"
               (match search-buffer
@@ -759,57 +740,58 @@
             (list (first (render (/ b/ (▹ b)) override-layout-settings))
                   ; HACK, BUG: get (wrong) positioning data
                   ; also special-cases char menus
-                  (overlay-search-buffer (/ b/ (▹ b))
-                                         (if (single-char-menu? resultants)
-                                             ; hacky color change... is it even working?
-                                             ; it's interpreting chars as identifiers for some reason?
-                                             (second (render (/ b/ b) (hash-set override-layout-settings
-                                                                                'identifier-color "white")))
-                                             (overlay/align "left" "top"
-                                                            (space text-size typeface)
-                                                            (if (or (not (list? b)) (or (and (member 'ref implicit-forms)
-                                                                                             (match b [`(ref ,_) #t][_ #f]))
-                                                                                        (and (member 'num implicit-forms)
-                                                                                             (match b [`(num ,_) #t][_ #f]))))
-                                                                ; hacky extra spacing for atoms
-                                                                ; extra hacky for implicit refs
-                                                                ; HACK below throws off offset alignment
-                                                                ; need to refacto as popped layer
-                                                                (let ([temp (beside (space text-size typeface)
-                                                                                    (second (render (/ b/ b) (hash-set override-layout-settings
-                                                                                                                       'identifier-color "white")))
-                                                                                    (space text-size typeface))])
-                                                                  (overlay (rounded-rectangle-outline
-                                                                            (image-width temp)
-                                                                            ; slightly hacky adjustment
-                                                                            ; to make outline entirely inside line-height
-                                                                            (max 0 (- (image-height temp) 1))
-                                                                            radius
-                                                                            selected-color 2)
-                                                                           temp))
-                                                                (let ([temp (second (render (/ b/ b) override-layout-settings))])
-                                                                  (overlay (rounded-rectangle-outline
-                                                                            (image-width temp)
-                                                                            ; slightly hacky see above
-                                                                            (max 0 (- (image-height temp) 1))
-                                                                            radius
-                                                                            selected-color 2)
-                                                                           temp)))))))]
+                  (overlay-search-buffer
+                   (/ b/ (▹ b))
+                   (if (single-char-menu? resultants)
+                       ; HACK: color change... is it even working?
+                       (second (render (/ b/ b) (hash-set override-layout-settings
+                                                          'identifier-color "white")))
+                       (overlay/align
+                        "left" "top"
+                        (space text-size typeface)
+                        (if (or (not (list? b))
+                                (or (and (member 'ref implicit-forms)
+                                         (match b [`(ref ,_) #t][_ #f]))
+                                    (and (member 'num implicit-forms)
+                                         (match b [`(num ,_) #t][_ #f]))))
+                            ; HACK extra spacing for atoms
+                            ; HACK for implicit refs
+                            ; HACK below throws off offset alignment
+                            ; need to refactor as popped layer
+                            (let ([temp (beside (space text-size typeface)
+                                                (second (render (/ b/ b) (hash-set override-layout-settings
+                                                                                   'identifier-color "white")))
+                                                (space text-size typeface))])
+                              (overlay (rounded-rectangle-outline
+                                        (image-width temp)
+                                        ; slightly hacky adjustment
+                                        ; to make outline entirely inside line-height
+                                        (max 0 (- (image-height temp) 1))
+                                        radius
+                                        selected-color 2)
+                                       temp))
+                            (let ([temp (second (render (/ b/ b) override-layout-settings))])
+                              (overlay (rounded-rectangle-outline
+                                        (image-width temp)
+                                        ; slightly hacky see above
+                                        (max 0 (- (image-height temp) 1))
+                                        radius
+                                        selected-color 2)
+                                       temp)))))))]
            [(/ b/ b)
             (list (first (render item override-layout-settings))
-                  (overlay-search-buffer (/ b/ b)
-                                         (if (or (not (list? b)) (or (and (member 'ref implicit-forms)
-                                                                          (match b [`(ref ,_) #t][_ #f]))
-                                                                     (and (member 'num implicit-forms)
-                                                                          (match b [`(num ,_) #t][_ #f]))))
-                                             ; hacky extra spacing for atoms
-                                             ; extra hacky for implicit refs
-                                             (beside (space text-size typeface)
-                                                     (second (render item (hash-set override-layout-settings
-                                                                                    'identifier-color "white")))
-                                                     (space text-size typeface))
-                                             ; below is call that should have tint when metavar 666
-                                             (second (render item override-layout-settings)))))])]
+                  (overlay-search-buffer
+                   (/ b/ b)
+                   (if (or (not (list? b)) (or (and (member 'ref implicit-forms)
+                                                    (match b [`(ref ,_) #t][_ #f]))
+                                               (and (member 'num implicit-forms)
+                                                    (match b [`(num ,_) #t][_ #f]))))
+                       (beside (space text-size typeface)
+                               (second (render item (hash-set override-layout-settings
+                                                              'identifier-color "white")))
+                               (space text-size typeface))
+                       ; below is call that should have tint when metavar 666
+                       (second (render item override-layout-settings)))))])]
         [else (render item override-layout-settings)])))
 
 
@@ -821,8 +803,6 @@
   ; magic number, colors
   (define expander-height
     (round (* 1/4 text-size)))
-  (define expander-color
-    (color 125 125 125))
   (define expander-ellipses-color
     (color 200 200 200))
 
@@ -843,15 +823,7 @@
          (image-height truncated-menu-image))
       radius
       (color 125 125 125)))) ; magic color
-  
-  (define new-image
-    ; if char menu, supress drawing of left-side
-    ; highlight 'cause jankiness.
-    (overlay/align/offset
-     (if (single-char-menu? resultants) "left" "right") "top"
-     cool-menu (* -2 margin) 0  empty-image))
 
-  
   ; all this is just to put the rewritten fructs back in the right place
   ; TODO: check to make sure the data is going in the right place!!
   ; It's not... at least, the outlines don't render
@@ -876,7 +848,7 @@
   
   
   (list (/ [menu `(,@(map list transforms new-fruct))] p/ place)
-        new-image))
+        cool-menu))
 
 
 
@@ -886,13 +858,11 @@
 
 (define (render-transform fruct layout-settings)
   (define-from layout-settings
-    text-size typeface grey-one grey-two selected-color
-    dodge-enabled? transform-tint-color radius margin
-    unit-width)
-  (match-define (/ [transform template] t/ target) fruct)
-  #;(define pat-tem-bkg-color
-      grey-one #;(if depth grey-one grey-two))
+    text-size typeface selected-color
+    dodge-enabled? transform-tint-color radius)
   
+  (match-define (/ [transform template] t/ target) fruct)
+
   (match-define (list target-fruct target-image)
     (render (/ t/ target) layout-settings))
   
@@ -925,66 +895,140 @@
     (match template-fruct
       [(? (disjoin symbol? number?)) template]
       [(/ a/ a)
-       (/ [display-offset (list (apply + (map image-width
-                                              (list target-image
-                                                    (space text-size typeface)
-                                                    arrow-image
-                                                    (space text-size typeface))))
-                                0)]
-          [display-box (list (image-width template-image)
-                             (image-height template-image))]
+       (/ [display-offset
+           (list (apply + (map image-width
+                               (list target-image
+                                     (space text-size typeface)
+                                     arrow-image
+                                     (space text-size typeface))))
+                 0)]
+          [display-box
+           (list (image-width template-image)
+                 (image-height template-image))]
           a/ a) ]))
 
   (define template-bounds
     (match template-fruct
       [(/ [bounds b] _ _) b]
-      ; todo: figure out what is triggering fallthrough here
-      [_ `(((0 0)) ((,(image-width template-image) ,(image-height template-image))))]))
-  #;(match-define (/ [bounds bounds] _ _)
-      template-fruct)
-  (define new-layout
-    (beside/align
-     "top"
-     (overlay/align "right" "top"
-                    target-image
-                    (rounded-rectangle
-                     (+ margin (image-width target-image))
-                     (image-height target-image)
-                     radius
-                     selected-color))
-     (space text-size typeface)
-     arrow-image 
-     (space text-size typeface)
-     (overlay/align "left" "top"
-                    (rounded-backing
-                     (second template-bounds)
-                     (first template-bounds)
-                     radius (color 240 0 0) "outline" 2
-                     #f)
-                    template-image
-                    #;
-                    (rounded-rectangle
-                     (+ margin (image-width template-image))
-                     (image-height template-image)
-                     radius
-                     selected-color))))
+      ; todo: remove if this isn't being triggered
+      [_ (println "warning: render-transform: template bounds fallthough")
+         `(((0 0)) ((,(image-width template-image) ,(image-height template-image))))]))
+
+  (define target-bounds
+    (match target-fruct
+      [(/ [bounds b] _ _) b]
+      ; todo: remove if this isn't being triggered
+      [_ (println "warning: render-transform: target bounds fallthough")
+         `(((0 0)) ((,(image-width target-image) ,(image-height target-image))))]))
+
+  (define target-backing
+    ; HACK: this conditional is specifically for 1-unit forms
+    ; since rounded-backing is currently bugged for 1-unit (differences)
+    (if (real-atomic? target-fruct)
+        empty-image
+        (rounded-backing
+         (second target-bounds)
+         (first target-bounds)
+         radius selected-color "outline" 2 #f)))
+
+  (define template-backing
+    (rounded-backing
+     (second template-bounds)
+     (first template-bounds)
+     radius selected-color "outline" 2 #f))
+
+  (define transform-backing
+    (make-transform-backing
+     target-bounds template-bounds layout-settings))
   
-  (define new-backing
-    (rounded-rectangle
-     ;hacky size: made this smaller when switched from full-width boc back
-     (+ (* 6 unit-width)(image-width target-image))
-     #;(image-width new-layout)
-     (min (image-height target-image)
-          (image-height template-image))
-     radius
-     selected-color))  
   (define new-image
-    (overlay/align "left" "top"
-                   new-layout
-                   new-backing))
+    (overlay/align
+     "left" "top"
+     (beside/align
+      "top"     
+      (overlay/align "left" "top"
+                     target-backing
+                     target-image)
+      (beside (space text-size typeface)
+              arrow-image 
+              (space text-size typeface))
+      (overlay/align "left" "top"
+                     template-backing
+                     template-image))
+     transform-backing))
   
   (list (/ [transform new-template] new-t/ new-target)
         new-image))
+
+
+(define (make-transform-backing target-bounds template-bounds
+                                layout-settings)
+  (define-from layout-settings
+    unit-width unit-height radius selected-color)
+  #| better transform backing plan:
+     mw = max width of right profile of target
+     mh = min height of target and template profiles
+     left backing left profile is target left profile
+     left backing right profile is constant mw+4 up to
+       mh and then constant mw below that
+       (actually instead of 4 do min width of template right profile)
+     we will overlay/position this with right backing
+     actually we shoulsn't even need a right backing...
+   |#
+  (define target-right-profile (second target-bounds))
+  (define template-left-profile (first template-bounds))
+  (define template-right-profile (second template-bounds))
+  (define min-width-template
+    (apply min (map first template-right-profile)))
+  (define max-target-width
+    (apply max (map first target-right-profile)))
+  (define min-profile-height
+    (min (length target-right-profile)
+         (length template-right-profile))) ; this is in chars
+  (define new-right-profile-init
+    ; below 2 should be 3 for 2 spaces and arrow
+    ; but taking off one to prevent any overshoot
+    (make-list min-profile-height
+               `(,(+ (* 3 unit-width) min-width-template max-target-width)
+                 ,unit-height)))
+  
+  (define template-target-height-diff
+    (- (length target-right-profile)
+       (length template-right-profile)))
+  (define left-backing-left-bounds
+    (first target-bounds))
+  (define left-backing-right-bounds
+    (if (> template-target-height-diff 0)
+        (append new-right-profile-init
+                (make-list template-target-height-diff
+                           `(,max-target-width ,unit-height)))
+        new-right-profile-init))
+  ; this next bit is hacky and might screw up for
+  ; complex template profiles?
+  (define right-backing-right-bounds
+    `((,(* 4 unit-width) ,unit-height) (,(* 4 unit-width) ,unit-height)))
+  (define right-backing-left-bounds
+    `((0 ,unit-height) (,(* 2 unit-width) ,unit-height)))
+  (overlay/align/offset
+   "left" "top"
+   (overlay (rounded-backing
+             left-backing-right-bounds
+             left-backing-left-bounds
+             radius selected-color "solid" 0 #f)
+            ; todo: refactor rounded-backing
+            ; to avoid double-call here
+            (rounded-backing
+             left-backing-right-bounds
+             left-backing-left-bounds
+             radius selected-color "outline" 2 #f))
+   (+ (* 1 unit-width) max-target-width) 0
+
+   (if (>= template-target-height-diff 0)
+       empty-image
+       (rounded-backing
+        right-backing-right-bounds
+        right-backing-left-bounds
+        radius selected-color "solid" 0 #f))))
 
 
 (define (render-atom a selected? layout-settings)
@@ -1036,7 +1080,15 @@
         ,(image-height new-image)))
       ; adding unit width to get right padding
       ; TODO: make sure this is a robust decision!!
-      ((,(+ unit-width (image-width new-image))
+      ; update: unit-width here creates a bug in transforms
+      ; wherby the arrow is pushed over an extra space,
+      ; making it butt up against the menu
+      ; also, eliminating this gets rid of a special case
+      ; for single-char-menus.
+      ; BUG: after above change, the only thing that goes
+      ; wrong is there is no padding after holes in vertical formatting
+      ; suggestion: special case this.
+      ((,(+ #;unit-width (image-width new-image))
         ,(image-height new-image)))))
   
   (list (/ [bounds new-bounds] s/ s)
@@ -1069,7 +1121,6 @@
   (define params-like?
     (match fruct
       [(/ [sort 'params] _/ _) #t][_ #f]))
-  #;(when params-like? (println 'paramslike!!!!!!))
 
   (define ends-in-atom?
     (match rest-stx
@@ -1077,7 +1128,6 @@
       [`(,xs ... ,(/ _/ (or (? (negate list?))
                             '⊙ `(,(or 'id 'ref 'num) ,_ ...)))) #t]
       [_ #f]))
-  #;(when ends-in-atom? (println 'ends-in-atom!!))
   
   ; forms may lose their identities here
   (define possibly-truncated-stx
@@ -1102,8 +1152,9 @@
       [(not (or if-like? lambda-like? cond-like?)) #t]
       [(not length-conditional-layout?) #f]
       [else (match-define `((,_ ,child-images) ...) children)
-            (define total-length (div-integer (apply + (map image-width child-images))
-                                              unit-width))
+            (define total-length
+              (div-integer (apply + (map image-width child-images))
+                           unit-width))
             (define horiz-width-approx total-length)
             (define vertical-width-approx
               (apply max (map image-width child-images)))
@@ -1125,7 +1176,7 @@
       [render-this-horizontally?
        (match-define (list new-kids-local new-layout-local)
          (render-horizontal layout-settings children))
-       
+       ; HACK
        (if (or params-like?
                (not ends-in-atom?))
            ; omit trailing space
@@ -1167,11 +1218,30 @@
 
 
 
-(define (add-vertical-backing fruct children layout-settings indent num-header-items
+(define (add-vertical-backing fruct init-children layout-settings indent num-header-items
                               new-layout-local selected? depth
                               straight-left? header-exception?)
   (define-from layout-settings
-    unit-width radius grey-one grey-two bkg-color background-block-color)
+    unit-width radius
+    selected-color grey-one grey-two bkg-color background-block-color)
+  ; the following is a somewhat hacky way of adding a unit
+  ; of right-padding to lines ending in atomic forms
+  ; there might be a better way of doing this, but it
+  ; should be done in this function; trying to move it
+  ; outside creates issues that need vicious compensation
+  (define children
+    (for/list ([bc init-children])
+      (match bc
+        [`(,(and fr (/ [bounds `(,lb ,rb)] a/ a)) ,img)
+         (define new-rb
+           (if (real-atomic? fr)
+               (match rb
+                 [`((,w ,h))
+                  `((,(+ w unit-width) ,h))])
+               rb))
+         `(,(and fr (/ [bounds `(,lb ,new-rb)] a/ a)) ,img)]
+        ; fallthrough here should just be form-identifiers
+        [x x])))
   (define header-children (take children num-header-items))
   (define body-children (drop children num-header-items))
   ; assuming header isn't empty
@@ -1187,23 +1257,12 @@
   (match last-row-child
     [(not `(,(/ [bounds `(,last-left-bounds
                           ,last-right-bounds)] _ _) ,_))
-     ; problem: sometimes it's getting a list here, with a bounded fruct inside
-     ; sometimes this occurs with metavars
-     ; error as follows:
-     #; (list 'vertical-backing-error
-              (list '(p/ #hash((bounds . BOUNDS)  (metavar . 0) (sort . expr)) STX)))
-     (println `(vertical-backing-error ,children))] [_ 0])
+     ; todo: remove if this isn't getting triggered
+     (println `(warning: vertical backing bounds issue: ,children))] [_ 0])
   
   (match-define (/ [bounds bounds] _ _)
     (first last-row-child))
-  ; why does the below screw things up:...
-  #;(define bounds
-      (match last-row-child
-        [(/ [bounds b] _ _) b]
-        ; todo: figure out what is triggering fallthrough here
-        [_
-         (println "BAD vertical layout no-bounds fallthough!")
-         `(((0 ,unit-height)) ((,unit-width ,unit-height)))]))
+  
   (define last-left-bounds (first bounds))
   (define last-right-bounds (second bounds))
   ; assume for now that the id always has unit height
@@ -1259,20 +1318,11 @@
     (append first-row-right-bounds
             middle-rows-right-bounds
             last-row-right-bounds))
-  #;(when #t #;(equal? 1 num-header-items)
-      (begin (println `(final-left-bounds ,final-left-bounds))
-             (println `(final-right-bounds ,final-right-bounds))
-             (println (rounded-backing
-                       final-right-bounds
-                       final-left-bounds
-                       radius "green" "outline" 2
-                       header-exception?))))
   
   (define basic-image
     (overlay/align "left" "top"
                    (if (and selected? (symbol? (first (first header-children))))
                        (begin
-                         #;(println `(the thing: ,(first (first header-children))))
                          ; SUPER HACKY way of changing form symbol color
                          ; only works if symbol is first thing in form
                          (overlay/align
@@ -1289,6 +1339,7 @@
                        empty-image
                        (if depth
                            (overlay
+                            ; todo: rewfactor rounded-backing to avoid double-call
                             (rounded-backing
                              final-right-bounds
                              final-left-bounds
@@ -1311,14 +1362,14 @@
                        (rounded-backing
                         final-right-bounds
                         final-left-bounds
-                        radius (color 240 0 0) "outline" 2
+                        radius selected-color "outline" 2
                         header-exception?)
                        basic-image
                        ; if we want red backgrounds
                        (rounded-backing
                         final-right-bounds
                         final-left-bounds
-                        radius (color 240 0 0) "solid" 0
+                        radius selected-color "solid" 0
                         header-exception?))
         basic-image))
      
@@ -1334,8 +1385,8 @@
 
 (define (add-horizontal-backing whole-stx new-layout rear-padded? selected? depth layout-settings)
   (define-from layout-settings
-    text-size typeface radius margin
-    selected-color background-block-color bkg-color grey-one grey-two unit-width unit-height)
+    text-size typeface radius unit-width unit-height
+    selected-color background-block-color bkg-color grey-one grey-two)
   (define width
     (+ (image-width new-layout)
        (if rear-padded? unit-width 0)))
@@ -1352,7 +1403,9 @@
      ; layout goes inbetween
      new-layout
      ; backing
-     (if #t #;selected?
+     (rounded-rectangle width height radius
+                            (if depth grey-one grey-two))
+     #;(if #t #;selected?
          (rounded-rectangle width height radius
                             (if depth grey-one grey-two))
          (overlay (rounded-rectangle-outline
@@ -1363,9 +1416,7 @@
                    (if depth background-block-color bkg-color))))))
   
   (define new-bounds
-    ;(left-profile right-profile)
-    `(((0 ,height))
-      ((,width ,height))))
+    `(((0 ,height)) ((,width ,height))))
   
   (list (match whole-stx
           [(/ a/ a) (/ [bounds new-bounds] a/ a)])
@@ -1419,8 +1470,6 @@
     ; menu items which aren't drawn
     [(/ a/ a) (/ a/ a)] 
     [_ fruct]))
-
-
 
 
 
@@ -1546,13 +1595,29 @@
 (second
  (fructure-layout data-16 test-settings))
 
+(second
+ (fructure-layout transforming-λ-dog-dog-dog-to-hole
+                  test-settings))
 
+(second
+ (fructure-layout transforming-three-liner-to-hole
+                  test-settings))
+
+(second
+ (fructure-layout transforming-3-line-to-4-line
+                  test-settings))
+
+(second
+ (fructure-layout transforming-hole-to-2-line
+                  test-settings))
+
+
+         
 ; temp work on search
 
 (define (my-matches? prefix-string form-name)
   (regexp-match (regexp (string-append "^" prefix-string ".*"))
                 (symbol->string form-name)))
-
 
 (define (add-hooks prefix-string fruct)
   (define AH (curry add-hooks prefix-string))
@@ -1567,17 +1632,9 @@
          (/ a/ thing))]
     [_ fruct]))
 
-
 #;(add-hooks "x" (stx->fruct
                   '(lambda (x)
                      (and x (▹ (and true false)))
                      x)))
-
-
-
-; color filter
-
-
-
 
 
