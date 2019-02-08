@@ -10,28 +10,35 @@ I wrote a a little bit about my then-current direction in September, just before
 - [Fructure 1 of 2](http://disconcision.com/post/182647782084/fructure-1-of-2)
 - [Fructure 2 of 2](http://disconcision.com/post/182647803299/fructure-factoring-2-of-2)
 
+### Structured insertion via walking the grammar:
+
 ![Screenshot](screenshots/tumblr_pme22tqxTr1y69izqo1_1280.png)
 
-Click here to watch a short movie about fructure:
+**Click here** to watch a short movie about fructure:
 
 Haha. I wish! Here's a gif though:
 
 ![Screenshot](screenshots/fructure-rounded-modified.gif)
 
-Now look at some squares:
 
-![Screenshot](screenshots/2019-02-07-22_19_53-fructure-editor.png)
+### Navigation mode
 
 ![Screenshot](screenshots/2019-02-07-22_19_43-fructure-editor.png)
 
+### Copy/Paste via Metavariables
+
+![Screenshot](screenshots/2019-02-07-22_19_53-fructure-editor.png)
+
+
+### Links
+
 For more updates and related content cyberfollow [@twitter](https://twitter.com/disconcision) and [@tumblr](http://disconcision.com/).
 
-![Screenshot](screenshots/2019-02-07 22_29_41-fructure-editor_ Archive.png)
+![Screenshot](screenshots/2019-02-07-22_29_41-fructure-editor-Archive.png)
 
 [See here](https://fructure-editor.tumblr.com/) for a continuing dev screenshot dump; check out the [chronological overview](https://fructure-editor.tumblr.com/archive).
 
-More screenshots
-================
+### More screenshots
 
 ![Screenshot](screenshots/tumblr_pme1mh4Sdd1y69izqo1_640.png)
 ![Screenshot](screenshots/tumblr_pme1mabMT01y69izqo1_500.png)
