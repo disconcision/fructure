@@ -318,11 +318,7 @@
      (define id-width (image-width id-image))
      (define new-bounds
        `(((0  ,id-height))
-         ((,id-width
-           #;,(+ id-width unit-width)
-           ; UPDATE: removed hack
-           ; BUG, HACK: see hole case
-           ,id-height))))
+         ((,id-width ,id-height))))
      ; hacky smaller radii for looks
      (define radius-adj (div-integer radius 7/5))
      (list (/ [bounds new-bounds] ref/ `(ref ,id-fruct))
@@ -491,7 +487,6 @@
       (define my-radius
         ; TODO: magic numbers
         ; TODO: render transform arrow, menu cursor in this way
-        ; TODO (aside): try red outline instead of arrow for menu selection
         (min (* 3/11 text-size)
              (* 1/2 unit-width)))
       (overlay/align
@@ -1075,21 +1070,8 @@
       [else candidate]))
   
   (define new-bounds
-    ;(left-profile right-profile)
-    `(((0
-        ,(image-height new-image)))
-      ; adding unit width to get right padding
-      ; TODO: make sure this is a robust decision!!
-      ; update: unit-width here creates a bug in transforms
-      ; wherby the arrow is pushed over an extra space,
-      ; making it butt up against the menu
-      ; also, eliminating this gets rid of a special case
-      ; for single-char-menus.
-      ; BUG: after above change, the only thing that goes
-      ; wrong is there is no padding after holes in vertical formatting
-      ; suggestion: special case this.
-      ((,(+ #;unit-width (image-width new-image))
-        ,(image-height new-image)))))
+    `(((0 ,(image-height new-image)))
+      ((,(image-width new-image) ,(image-height new-image)))))
   
   (list (/ [bounds new-bounds] s/ s)
         new-image))
