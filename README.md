@@ -6,9 +6,10 @@ Fructure: A structured interaction engine in Racket
 
 Fructure is a personal project where I play with ideas in editing, programming languages, and interaction design.
 
-I wrote a a little bit about my then-current direction in September, just before beginning my current implementation attempt. I've completed most of what I talk about below, with varying levels of success:
+I wrote a bit about my then-current direction in September, just before beginning my current implementation attempt. I've completed most of what I talk about below, with varying levels of success:
 - [Fructure 1 of 2](http://disconcision.com/post/182647782084/fructure-1-of-2)
 - [Fructure 2 of 2](http://disconcision.com/post/182647803299/fructure-factoring-2-of-2)
+
 
 ### Structured insertion via walking the grammar:
 
