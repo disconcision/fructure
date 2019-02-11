@@ -9,18 +9,17 @@
   ; transformation major mode
   (define-from state
     stx search-buffer history keypresses)
-  #;(define update (curry hash-set* state))
   (define (update . stuff)
     (define base-state
       (hash-set* state
                  'history (cons stx history)
                  'keypresses (cons key keypresses)))
     (apply hash-set* base-state stuff))
-  (match-define (⋱x ctx (/ [transform template] r/ reagent)) stx)
+  (match-define (⋱ ctx (/ [transform template] r/ reagent)) stx)
   #;(define template (insert-menu-at-cursor pre-template))
 
-  (define hole-selected-in-menu?
-    (match-lambda? (⋱x c⋱ (/ [transform (⋱x d⋱ (/ (menu (⋱x (/ h/ (▹ (or '⊙ '⊙+))))) m/ _))] t/ t))))
+  #;(define hole-selected-in-menu?
+    (match-lambda? (⋱ c⋱ (/ [transform (⋱ d⋱ (/ (menu (⋱ (/ h/ (▹ (or '⊙ '⊙+))))) m/ _))] t/ t))))
   
   (match key
     
@@ -29,18 +28,18 @@
      ; TODO: decide if cursor is conceptually necessary here
      (update 'mode 'nav
              'search-buffer init-buffer
-             'stx (⋱x ctx (/ r/ (▹ reagent))))]
+             'stx (⋱ ctx (/ r/ (▹ reagent))))]
 
     ["\r"
      ; perform selected transform, remove menu, and switch to nav mode
      (update 'mode 'nav
              'search-buffer init-buffer
-             'stx (⋱x ctx (strip-menu (perform-selected-transform template))))]
+             'stx (⋱ ctx (strip-menu (perform-selected-transform template))))]
     
     ["right"
      ; apply selected transform and advance the cursor+menu the next hole     
      (update 'search-buffer init-buffer
-             'stx (⋱x ctx (/ [transform (move-menu-to-next-hole
+             'stx (⋱ ctx (/ [transform (move-menu-to-next-hole
                                          (perform-selected-transform template)
                                          stx init-buffer)] ; empty search buffer
                              r/ reagent)))]
@@ -59,23 +58,23 @@
      ; a pair of a (hidden) transformation and its (displayed) result
      (define new-template
        (match template
-         [(⋱x c⋱ (/ [menu `((,t1 ,(/ a/ (▹ a))) ,bs ... (,t2 ,(/ c/ c)))] t/ t))
-          (⋱x c⋱ (/ [menu `((,t1 ,(/ a/ a)) ,@bs (,t2 ,(/ c/ (▹ c))))] t/ t))]
-         [(⋱x c⋱ (/ [menu `(,a ... (,t1 ,(/ b/ b)) (,t2 ,(/ c/ (▹ c))) ,d ...)] t/ t))
-          (⋱x c⋱ (/ [menu `(,@a (,t1 ,(/ b/ (▹ b))) (,t2 ,(/ c/ c)) ,@d)] t/ t))]
+         [(⋱ c⋱ (/ [menu `((,t1 ,(/ a/ (▹ a))) ,bs ... (,t2 ,(/ c/ c)))] t/ t))
+          (⋱ c⋱ (/ [menu `((,t1 ,(/ a/ a)) ,@bs (,t2 ,(/ c/ (▹ c))))] t/ t))]
+         [(⋱ c⋱ (/ [menu `(,a ... (,t1 ,(/ b/ b)) (,t2 ,(/ c/ (▹ c))) ,d ...)] t/ t))
+          (⋱ c⋱ (/ [menu `(,@a (,t1 ,(/ b/ (▹ b))) (,t2 ,(/ c/ c)) ,@d)] t/ t))]
          [x (println "warning: couldn't find menu cursor") x]))
-     (update 'stx (⋱x ctx (/ (transform new-template) r/ reagent)))]
+     (update 'stx (⋱ ctx (/ (transform new-template) r/ reagent)))]
 
     ["down"
      ; cycle the cursor to the next menu item
      (define new-template
        (match template
-         [(⋱x c⋱ (/ [menu `((,t1 ,(/ a/ a)) ,bs ... (,t2 ,(/ c/ (▹ c))))] t/ t))
-          (⋱x c⋱ (/ [menu `((,t1 ,(/ a/ (▹ a))) ,@bs (,t2 ,(/ c/ c)))] t/ t))]
-         [(⋱x c⋱ (/ [menu `(,a ... (,t1 ,(/ b/ (▹ b))) (,t2 ,(/ c/ c)) ,d ...)] t/ t))
-          (⋱x c⋱ (/ [menu `(,@a (,t1 ,(/ b/ b)) (,t2 ,(/ c/ (▹ c))) ,@d)] t/ t))]
+         [(⋱ c⋱ (/ [menu `((,t1 ,(/ a/ a)) ,bs ... (,t2 ,(/ c/ (▹ c))))] t/ t))
+          (⋱ c⋱ (/ [menu `((,t1 ,(/ a/ (▹ a))) ,@bs (,t2 ,(/ c/ c)))] t/ t))]
+         [(⋱ c⋱ (/ [menu `(,a ... (,t1 ,(/ b/ (▹ b))) (,t2 ,(/ c/ c)) ,d ...)] t/ t))
+          (⋱ c⋱ (/ [menu `(,@a (,t1 ,(/ b/ b)) (,t2 ,(/ c/ (▹ c))) ,@d)] t/ t))]
          [x (println "warning: couldn't find menu cursor") x]))
-     (update 'stx (⋱x ctx (/ (transform new-template) r/ reagent)))]
+     (update 'stx (⋱ ctx (/ (transform new-template) r/ reagent)))]
 
     ["\b"
      ; todo: ideally we'd like to retain current menu selection
@@ -84,12 +83,12 @@
        (match search-buffer
          [`(▹ "")
           `(▹ "")]
-         [(⋱x c⋱ `((▹ "")))
-          (⋱x c⋱ `(▹ ""))]
-         [(⋱x c⋱ `(,as ... ,a (▹ "")))
-          (⋱x c⋱ `(,@as (▹ ,a)))]
-         [(⋱x c⋱ `(▹ ,(and s (? string?) (not (== "")))))
-          (⋱x c⋱ `(▹ ,(substring s 0 (sub1 (string-length s)))))]
+         [(⋱ c⋱ `((▹ "")))
+          (⋱ c⋱ `(▹ ""))]
+         [(⋱ c⋱ `(,as ... ,a (▹ "")))
+          (⋱ c⋱ `(,@as (▹ ,a)))]
+         [(⋱ c⋱ `(▹ ,(and s (? string?) (not (== "")))))
+          (⋱ c⋱ `(▹ ,(substring s 0 (sub1 (string-length s)))))]
          [x (error "backspace sux dood duhhhhhh" x)]))
      ; note: need case for backspacing sexpr, and out of sexpr
      (define-values (new-stx-candidate newest-buffer-candidate)
@@ -100,10 +99,10 @@
     [" "
      (define new-search-buffer
        (match search-buffer
-         [(⋱x c⋱ `(,as ... (▹ ,a)))
-          (⋱x c⋱ `(,@as ,a (▹ "")))]
-         [(⋱x c⋱ `(▹ ,a))
-          (⋱x c⋱ `(,a (▹ "")))]))
+         [(⋱ c⋱ `(,as ... (▹ ,a)))
+          (⋱ c⋱ `(,@as ,a (▹ "")))]
+         [(⋱ c⋱ `(▹ ,a))
+          (⋱ c⋱ `(,a (▹ "")))]))
      (define-values (new-stx-candidate
                      newest-buffer-candidate)
        (menu-filter-in-stx stx search-buffer new-search-buffer))
@@ -112,15 +111,15 @@
      ; if there's a hole after the cursor, advance the cursor+menu to it
      ; idea for modification to make this feel more natural
      #;(update 'search-buffer init-buffer
-               'stx (⋱x ctx (/ [transform (move-menu-to-next-hole template
+               'stx (⋱ ctx (/ [transform (move-menu-to-next-hole template
                                                                   stx init-buffer)]
                                ; above "" is empty search buffer
                                r/ reagent)))]
     ["(" 
      (define new-search-buffer
        (match search-buffer
-         [(⋱x c⋱ `(▹ ,a))
-          (⋱x c⋱ `((▹ ,a)))])) ; shouldn't need fallthorugh
+         [(⋱ c⋱ `(▹ ,a))
+          (⋱ c⋱ `((▹ ,a)))])) ; shouldn't need fallthorugh
      (define-values (new-stx-candidate
                      newest-buffer-candidate)
        (menu-filter-in-stx stx search-buffer new-search-buffer))
@@ -129,8 +128,8 @@
     [")" 
      (define new-search-buffer
        (match search-buffer
-         [(⋱x c⋱ `(,as ... (,bs ... (▹ ,s))))
-          (⋱x c⋱ `(,@as (,@bs ,s) (▹ "")))]
+         [(⋱ c⋱ `(,as ... (,bs ... (▹ ,s))))
+          (⋱ c⋱ `(,@as (,@bs ,s) (▹ "")))]
          ; otherwise, fallthrough
          ; do we need special force-completeion case?
          ; for totally completeing a form?
@@ -148,8 +147,8 @@
 
      (define buffer-candidate
        (match search-buffer
-         [(⋱x c⋱ `(▹ ,(? string? s)))
-          (⋱x c⋱ `(▹ ,(string-append s
+         [(⋱ c⋱ `(▹ ,(? string? s)))
+          (⋱ c⋱ `(▹ ,(string-append s
                                      (hash-ref (hash "\\" "λ")
                                                (first c) (first c)))))]))
 
@@ -167,13 +166,8 @@
          "common.rkt")
 
 (require "../fructerm/fructerm.rkt"
-         "../fructerm/f-match.rkt"
          "new-syntax.rkt"
-         ; temporary renames so as not to intefere with f-match
-         (only-in "../containment-patterns/containment-patterns.rkt"
-                  (⋱ ⋱x)
-                  (⋱1 ⋱1x)
-                  (⋱+ ⋱+x)))
+          "../containment-patterns/containment-patterns.rkt")
 
 
 ; -------------------------------------------------
@@ -182,7 +176,7 @@
   ; find the transform corresponding to the selected menu item
   ; and apply that transform to the WHOLE template
   (match template
-    [(⋱x (/ [menu `(,_ ... (,transform ,(/ _ (▹ _))) ,_ ...)] _ _))
+    [(⋱ (/ [menu `(,_ ... (,transform ,(/ _ (▹ _))) ,_ ...)] _ _))
      (runtime-match literals transform template)]
     [x (println "warning: no transform selected") x]))
 
@@ -199,7 +193,7 @@
     (if (test-match transform reagent)
         `(,@menu (,transform
                   ,(match (runtime-match literals transform reagent)
-                     [(⋱x c⋱ (/ as/ (▹ a)))
+                     [(⋱ c⋱ (/ as/ (▹ a)))
                       (/ as/ a)])))
         menu)))
 
@@ -256,11 +250,11 @@
   ; extract the variables in scope under the cursor
   ; todo: improve and inline this function
   (match stx
-    [(⋱x c⋱ (/ [in-scope a-scope] a/ (▹ a)))
+    [(⋱ c⋱ (/ [in-scope a-scope] a/ (▹ a)))
      a-scope]    
     ; fallthrough case - current λ params list has no in-scope
     ; TODO: decide if i do/should actually need this case
-    [(⋱x c⋱ (/ a/ (▹ a)))
+    [(⋱ c⋱ (/ a/ (▹ a)))
      '()]))
 
 
@@ -268,18 +262,20 @@
 (define (advance-cursor-to-next-hole stx)
   ; new: prevent descending into metavar
   ; note that other metavar clause is ill-advised
-  (f/match stx
-    #;[(c ⋱ (▹ as ... / (and h (or '⊙ '⊙+))))
-       (c ⋱ (▹ as ... / h))]
-    [(c ⋱ (and (▹ ys ... / (d ⋱ (xs ... / (and h (or '⊙ '⊙+)))))
-               (not (('metavar _) _ ... / _))))
-     (c ⋱ (ys ... / (d ⋱ (▹ xs ... / h))))]
-    [(c ⋱ (capture-when (and (or (('▹ _) _ ... / _)
-                                 (_ ... / (or '⊙ '⊙+)))
+  (match stx
+    ; if i uncomment this, then i can't use -> to go
+    ; past any unfilled hole
+    #;[(⋱ c⋱ (/ a/ (▹ (and h (or '⊙ '⊙+)))))
+       (⋱ c⋱ (/ a/ (▹ h)))]
+    [(⋱ c⋱ (and (/ y/ (▹ (⋱ d⋱ (/ x/ (and h (or '⊙ '⊙+))))))
+               (not (/ [metavar _] _ _))))
+     (⋱ c⋱ (/ y/ (⋱ d⋱ (/ x/ (▹ h)))))]
+    [(⋱+ c⋱ (capture-when (and (or (/ _ (▹ _))
+                                 (/ _ (or '⊙ '⊙+)))
                              #;(not (('metavar _) _ ... / _))))
-        `(,as ... ,(▹ ws ... / a) ,(zs ... / b) ,bs ...))
-     (c ⋱... 
-        `(,@as ,(ws ... / a) ,(▹ zs ... / b) ,@bs))]
+        `(,as ... ,(/ w/ (▹ a)) ,(/ z/ b) ,bs ...))
+     (⋱+ c⋱ 
+        `(,@as ,(/ w/ a) ,(/ z/ (▹ b)) ,@bs))]
     [x (println "warning: no hole after cursor") x]))
 
 
@@ -299,7 +295,7 @@
 (define (insert-menu-at-cursor template ambient-stx search-buffer)
   (define (extract-metavars ambient-stx)
     (match ambient-stx
-      [(⋱+x c⋱ (and m (/ metavar _/ _)))
+      [(⋱+ c⋱ (and m (/ metavar _/ _)))
        m]))
 
   
@@ -358,7 +354,7 @@
     (extract-scope stx))
   (define menu-stx (make-menu in-scope metavar-transforms stx))
   (match stx
-    [(⋱x c⋱ (/ xs/ (▹ x)))
+    [(⋱ c⋱ (/ xs/ (▹ x)))
      #:when (not (empty? menu-stx))
      (define menu-with-selection
        ; recall that each menu item is a pairing
@@ -369,7 +365,7 @@
      (define filtered-menu
        (filter-menu menu-with-selection search-buffer))
      #;(println `(fm ,search-buffer ,filtered-menu))
-     (⋱x c⋱ (/ [menu filtered-menu] xs/ (▹ x)))]
+     (⋱ c⋱ (/ [menu filtered-menu] xs/ (▹ x)))]
     [x (println "warning: no menu inserted")
        (when (empty? menu-stx)
          (println "warning: menu was empty; not handled"))
@@ -379,14 +375,14 @@
 (define (strip-menu stx)
   ; removes up to one menu from stx
   (match stx
-    [(⋱x ctx⋱ (/ [menu menu] xs/ x))
-     (⋱x ctx⋱ (/ xs/ x))]
+    [(⋱ ctx⋱ (/ [menu menu] xs/ x))
+     (⋱ ctx⋱ (/ xs/ x))]
     [x x]))
 
 (define (local-augment stx)
   (match stx
-    [(⋱x ctx⋱ (/ [in-scope in-scope] ts/ t))
-     (⋱x ctx⋱ (augment (/ in-scope ts/ t)))]
+    [(⋱ ctx⋱ (/ [in-scope in-scope] ts/ t))
+     (⋱ ctx⋱ (augment (/ in-scope ts/ t)))]
     [x (println "warning: local-augment no-match") x]))
 
 (define (move-menu-to-next-hole stx ambient-stx search-buffer)
@@ -395,7 +391,7 @@
   ; hole, the returned stx will have no menu
 
   (define hole-under-cursor?
-    (match-lambda? (⋱x c⋱ (/ _/ (▹ (or '⊙ '⊙+))))))
+    (match-lambda? (⋱ c⋱ (/ _/ (▹ (or '⊙ '⊙+))))))
 
   (define candidate
     ((compose #;(curryr insert-menu-at-cursor ambient-stx)
@@ -501,21 +497,21 @@
   ; this hacky little guy restores the original menu prior to filtering
   (define stx
     (match init-stx
-      [(⋱x ctx (/ [transform template] r/ reagent))
+      [(⋱ ctx (/ [transform template] r/ reagent))
        (define new-template
          (insert-menu-at-cursor (strip-menu template) init-stx init-buffer))
-       (⋱x ctx (/ [transform new-template] r/ reagent))]))
+       (⋱ ctx (/ [transform new-template] r/ reagent))]))
   
   (match-define
-    (⋱x c⋱ (/ [transform (⋱x d⋱ (/ menu m/ m))] t/ t)) stx)
+    (⋱ c⋱ (/ [transform (⋱ d⋱ (/ menu m/ m))] t/ t)) stx)
   (match-define
-    (⋱x ctx (/ [transform template] r/ reagent)) stx)
+    (⋱ ctx (/ [transform template] r/ reagent)) stx)
   
   (define menu-candidate
     (filter-menu menu buffer-candidate))
 
   (define template-candidate
-    (⋱x d⋱ (/ [menu menu-candidate]  m/ m)))
+    (⋱ d⋱ (/ [menu menu-candidate]  m/ m)))
 
  
   (cond
@@ -526,13 +522,13 @@
           ; make this an option
           ; todo: case where buffer-cursor is on a hole
           (single-char-menu? menu-candidate))
-     (values (⋱x ctx (/ [transform (move-menu-to-next-hole
+     (values (⋱ ctx (/ [transform (move-menu-to-next-hole
                                     (perform-selected-transform template-candidate)
                                     stx init-buffer)] ; empty search buffer
                         r/ reagent))
              init-buffer)]
     [else
-     (values (⋱x c⋱ (/ [transform template-candidate] t/ t))
+     (values (⋱ c⋱ (/ [transform template-candidate] t/ t))
              buffer-candidate)])
  
   )

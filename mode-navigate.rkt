@@ -20,14 +20,14 @@
      (update
       'stx
       (match stx
-        [(⋱x c1⋱ (and (/ handle as/
-                         (⋱x c2⋱ (/ bs/ (▹ b))))
+        [(⋱ c1⋱ (and (/ handle as/
+                         (⋱ c2⋱ (/ bs/ (▹ b))))
                       (not (/ handle _
-                              (⋱x _ (/ handle _
-                                       (⋱x _ (/ _ (▹ _)))))))))
-         (⋱x c1⋱ (/ (handle handle) as/
+                              (⋱ _ (/ handle _
+                                       (⋱ _ (/ _ (▹ _)))))))))
+         (⋱ c1⋱ (/ (handle handle) as/
                     ; bug? ▹ isn't bound if no pair attributes?
-                    (▹ (⋱x c2⋱ (/ bs/ b)))))]
+                    (▹ (⋱ c2⋱ (/ bs/ b)))))]
         [x x]))]
 
     ["down"
@@ -35,10 +35,10 @@
      (update
       'stx
       (match stx
-        [(⋱x c⋱ (/ b/
-                   (▹ (⋱x d⋱ (/ handle a// a)))))
-         (⋱x c⋱ (/ b/
-                   (⋱x d⋱ (/ (handle handle) a// (▹ a)))))]
+        [(⋱ c⋱ (/ b/
+                   (▹ (⋱ d⋱ (/ handle a// a)))))
+         (⋱ c⋱ (/ b/
+                   (⋱ d⋱ (/ (handle handle) a// (▹ a)))))]
         [x x]))]
     
     ["right"
@@ -48,15 +48,15 @@
      ;    as well as the current selection, and therein advance the cursor
      (define new-stx
        (match stx
-         [(⋱x c⋱ (/ xs/
-                    (▹ (⋱x d⋱ (/ handle as/ a)))))
-          (⋱x c⋱ (/ xs/ ; bug: requires double handle below?
-                    (⋱x d⋱ (/ (handle handle) as/ (▹ a)))))] 
-         [(⋱+x c⋱ (capture-when (or (/ _ (▹ _))
+         [(⋱ c⋱ (/ xs/
+                    (▹ (⋱ d⋱ (/ handle as/ a)))))
+          (⋱ c⋱ (/ xs/ ; bug: requires double handle below?
+                    (⋱ d⋱ (/ (handle handle) as/ (▹ a)))))] 
+         [(⋱+ c⋱ (capture-when (or (/ _ (▹ _))
                                     (/ (handle _) _
-                                       (not (⋱x (/ _ (▹ _)))))))
+                                       (not (⋱ (/ _ (▹ _)))))))
                `(,as ... ,(/ b// (▹ b)) ,(/ c// c) ,ds ...))
-          (⋱+x c⋱
+          (⋱+ c⋱
                `(,@as ,(/ b// b) ,(/ c// (▹ c)) ,@ds))]
          [x x]))
      (update 'stx new-stx)]
@@ -67,17 +67,17 @@
      ;    select its rightmost handle not containing another handle
      ; 2. otherwise, find the most immediate containing handle;
      ;    that is, a containing handle not containing a handle containing ▹
-     (define new-stx    
-       (f/match stx
-         [(⋱c1 ⋱ `(,as ...
-                   ,(⋱c2 ⋱ (capture-when (handle _ ... / (not (_ ⋱ (handle _ ... / _)))))
-                         `(,bs ... ,(cs ... / c)))
-                   ,ds ... ,(▹ es ... / e) ,fs ...))
-          (⋱c1 ⋱ `(,@as ,(⋱c2 ⋱... `(,@bs ,(▹ cs ... / c)))
-                        ,@ds ,(es ... / e) ,@fs))]
-         [(⋱c1 ⋱ (and (handle as ... / (⋱c2 ⋱ (▹ bs ... / b)))
-                      (not (handle _ ... / (_ ⋱ (handle _ ... / (_ ⋱ (▹ _ ... / _))))))))
-          (⋱c1 ⋱ (▹ handle as ... / (⋱c2 ⋱ (bs ... / b))))]
+     (define new-stx
+       (match stx
+         [(⋱ c1⋱ `(,as ...
+                    ,(⋱+ c2⋱ (capture-when (/ [handle _] _ (not (⋱ _ (/ [handle _] _ _)))))
+                          `(,bs ... ,(/ c/ c)))
+                    ,ds ... ,(/ e/ (▹ e)) ,fs ...))
+          (⋱ c1⋱ `(,@as ,(⋱+ c2⋱ `(,@bs ,(/ c/ (▹ c))))
+                         ,@ds ,(/ e/ e) ,@fs))]
+         [(⋱ c1⋱ (and (/ [handle h] a/ (⋱ c2⋱ (/ b/ (▹ b))))
+                       (not (/ [handle _] _ (⋱ _ (/ [handle _] _ (⋱ _ (/ _ (▹ _)))))))))
+          (⋱ c1⋱ (/ [handle h] a/ (▹ (⋱ c2⋱ (/ b/ b)))))]
          
          [x x]))
      (update 'stx new-stx)]
@@ -88,9 +88,9 @@
      (update
       'mode 'menu
       'stx (match stx 
-             [(⋱x c⋱ (/ as/
+             [(⋱ c⋱ (/ as/
                         (▹ a)))
-              (⋱x c⋱ (/ [transform
+              (⋱ c⋱ (/ [transform
                          ; todo: fix hardcoded init buffer here:
                          (insert-menu-at-cursor (/ as/ (▹ a)) stx '(▹ ""))]
                         as/ a))]))]
@@ -101,14 +101,14 @@
      ; metavariables sibling/cousin to cursor may be renamed
      (update
       'stx (match stx
-             [(⋱+x c⋱ #;(capture-when (or (/ _ (▹ _)) (/ [metavar _] _ _)))
+             [(⋱+ c⋱ #;(capture-when (or (/ _ (▹ _)) (/ [metavar _] _ _)))
                    (and ls (or (/ _ (▹ _)) (/ [metavar _] _ _))))
               (define new-ls
                 (match ls
                   ['() '()]
                   [`(,a ... ,(/ s/ (▹ s)) ,b ...)
                    `(,@a ,(erase-metavars (/ s/ (▹ s))) ,@b)]))
-              (⋱+x c⋱
+              (⋱+ c⋱
                    (map (λ (t m) (match t [(/ x/ x)
                                            (/ [metavar m] x/ x)]))
                         new-ls (range 0 (length ls))))]))]
@@ -138,13 +138,8 @@
          "mode-legacy.rkt"
          "mode-transform.rkt") ; for insert-menu; refactor todo
 
-(require "../fructerm/f-match.rkt"
-         "new-syntax.rkt"
-         ; temporary renames so as not to intefere with f-match
-         (only-in "../containment-patterns/containment-patterns.rkt"
-                  (⋱ ⋱x)
-                  (⋱1 ⋱1x)
-                  (⋱+ ⋱+x)))
+(require "new-syntax.rkt"
+         "../containment-patterns/containment-patterns.rkt")
 
 
 (define (erase-metavars fr)
