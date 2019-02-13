@@ -166,16 +166,16 @@
   #;(displayln state)
 
   ; dispatch based on current mode
-  (println "transform time: ")
+  #;(println "transform time: ")
   (define new-state
-    (time (match mode
+    (identity (match mode
       ['menu (mode:transform key state)]
       ['nav  (mode:navigate key state)])))
   
   ; augment syntax with attributes
   ; calculate dynamic settings
-  (println "augment time: ")
-  (time (update-map new-state
+  #;(println "augment time: ")
+  (identity (update-map new-state
               [stx fruct-augment]
               [layout-settings add-dynamic-settings])))
 
@@ -189,11 +189,11 @@
     stx layout-settings keypresses)
   (define-from layout-settings
     display-keypresses?)
-  (println "output time: ")
+  #;(println "output time: ")
   (match-define (list _ image-out)
     ; second here skips the top (diamond) affo
     ; todo: make this less hacky by going fs
-    (time (fructure-layout (second stx) layout-settings
+    (identity (fructure-layout (second stx) layout-settings
                      screen-x screen-y)))
 
   (if display-keypresses?

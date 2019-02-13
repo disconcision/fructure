@@ -19,7 +19,7 @@
   #;(define template (insert-menu-at-cursor pre-template))
 
   #;(define hole-selected-in-menu?
-    (match-lambda? (⋱ c⋱ (/ [transform (⋱ d⋱ (/ (menu (⋱ (/ h/ (▹ (or '⊙ '⊙+))))) m/ _))] t/ t))))
+      (match-lambda? (⋱ c⋱ (/ [transform (⋱ d⋱ (/ (menu (⋱ (/ h/ (▹ (or '⊙ '⊙+))))) m/ _))] t/ t))))
   
   (match key
     
@@ -37,12 +37,27 @@
              'stx (⋱ ctx (strip-menu (perform-selected-transform template))))]
     
     ["right"
-     ; apply selected transform and advance the cursor+menu the next hole     
+     ; apply selected transform and advance the cursor+menu the next hole
+     ; PROBLEM: when we're inserting through a variadic form
+     ; we don't want to move to next hole automatically after transform,
+     ; because the effect of that transform may have been to insert a new
+     ; hole that we now want to fill.
+     ; HOWEVER: the effect of right, according to the ostensible operative
+     ; logic, is to 'step into' the current menu selection. if the selection is a hole,
+     ; then stepping into it, i.e. doing nothing in most cases, is consistent.
+     ; either we can special-case this somehow, or instead use something else,
+     ; like space, to move forward in these cases.
+     ; proposed logic: right continues to work as before, EXCEPT
+     ; we change the move-to-next-hole logic to stay still if we're on a hole
+     ; and we used space to skip filling a hole.
+     ; BUT: does this work in the general variadic case?
+     ; remember that in the single-char case, we force completion
+     ; does this change things? let's try it out....
      (update 'search-buffer init-buffer
              'stx (⋱ ctx (/ [transform (move-menu-to-next-hole
-                                         (perform-selected-transform template)
-                                         stx init-buffer)] ; empty search buffer
-                             r/ reagent)))]
+                                        (perform-selected-transform template)
+                                        stx init-buffer)] ; empty search buffer
+                            r/ reagent)))]
 
     ["left"
      ; budget undo
@@ -97,6 +112,10 @@
              'search-buffer newest-buffer-candidate)]
     ; todo: below should be reinterpreted as a search-buffer operation
     [" "
+     ; new proposed logic for space:
+     ; if the search buffer cursor is on (any?) hole,
+     ; skip filling that hole and move to the next one.
+     ; so: need to refactor search to return cursor-match
      (define new-search-buffer
        (match search-buffer
          [(⋱ c⋱ `(,as ... (▹ ,a)))
@@ -112,9 +131,9 @@
      ; idea for modification to make this feel more natural
      #;(update 'search-buffer init-buffer
                'stx (⋱ ctx (/ [transform (move-menu-to-next-hole template
-                                                                  stx init-buffer)]
-                               ; above "" is empty search buffer
-                               r/ reagent)))]
+                                                                 stx init-buffer)]
+                              ; above "" is empty search buffer
+                              r/ reagent)))]
     ["(" 
      (define new-search-buffer
        (match search-buffer
@@ -149,8 +168,8 @@
        (match search-buffer
          [(⋱ c⋱ `(▹ ,(? string? s)))
           (⋱ c⋱ `(▹ ,(string-append s
-                                     (hash-ref (hash "\\" "λ")
-                                               (first c) (first c)))))]))
+                                    (hash-ref (hash "\\" "λ")
+                                              (first c) (first c)))))]))
 
      (define-values (new-stx-candidate newest-buffer-candidate)
        (menu-filter-in-stx stx search-buffer buffer-candidate))
@@ -167,7 +186,7 @@
 
 (require "../fructerm/fructerm.rkt"
          "new-syntax.rkt"
-          "../containment-patterns/containment-patterns.rkt")
+         "../containment-patterns/containment-patterns.rkt")
 
 
 ; -------------------------------------------------
@@ -268,14 +287,14 @@
     #;[(⋱ c⋱ (/ a/ (▹ (and h (or '⊙ '⊙+)))))
        (⋱ c⋱ (/ a/ (▹ h)))]
     [(⋱ c⋱ (and (/ y/ (▹ (⋱ d⋱ (/ x/ (and h (or '⊙ '⊙+))))))
-               (not (/ [metavar _] _ _))))
+                (not (/ [metavar _] _ _))))
      (⋱ c⋱ (/ y/ (⋱ d⋱ (/ x/ (▹ h)))))]
     [(⋱+ c⋱ (capture-when (and (or (/ _ (▹ _))
-                                 (/ _ (or '⊙ '⊙+)))
-                             #;(not (('metavar _) _ ... / _))))
-        `(,as ... ,(/ w/ (▹ a)) ,(/ z/ b) ,bs ...))
+                                   (/ _ (or '⊙ '⊙+)))
+                               #;(not (('metavar _) _ ... / _))))
+         `(,as ... ,(/ w/ (▹ a)) ,(/ z/ b) ,bs ...))
      (⋱+ c⋱ 
-        `(,@as ,(/ w/ a) ,(/ z/ (▹ b)) ,@bs))]
+         `(,@as ,(/ w/ a) ,(/ z/ (▹ b)) ,@bs))]
     [x (println "warning: no hole after cursor") x]))
 
 
@@ -350,6 +369,10 @@
       [x x]))
 
   
+  (define (expand-menu menu-stx)
+    0)
+
+  
   (define in-scope
     (extract-scope stx))
   (define menu-stx (make-menu in-scope metavar-transforms stx))
@@ -413,7 +436,9 @@
 
 (define (filter-menu menu search-buffer)
   (define matcher
-    (match-lambda [`(,t ,r) (stx-buf-match? r search-buffer)]
+    (match-lambda [`(,t ,r)
+                   #;(println `(buffer-cursor: ,(stx-buf-match-new? r search-buffer)))
+                   (stx-buf-match-new? r search-buffer)]
                   [a #f]))
   (define menu-annotated
     (map (match-lambda [`(,t ,(/ r/ r)) `(,t ,(/ search-buffer r/ r))]) menu))
@@ -450,6 +475,56 @@
      #;(println `(MUSMATCH (res) ,raw-stx ,buf))
      res]
     ; false fallthrough
+    [_ #f]))
+
+; returns stx matched with buf cursor or #f if no match
+(define (stx-buf-match-new? stx buf)
+  ; the logic here is convoluted.... need a simpler model
+  #;(println `(search-buf ,buf))
+  (match buf
+    [`(▹ ,(? string? s))
+     (match stx
+       [(/ a/ `(,(or 'app) ,x ,xs ...))
+        ; hacky: skip implicit app
+        (stx-buf-match-new? x buf)]
+       [_ #:when (stx-str-match? stx s)
+          stx]
+       [(/ a/ `(,x ,xs ...))
+        ; if the current form isn't a match, recurse on first member
+        ; this should descend until it hits a pseudo-atom eg. id, num, ref(?)
+        (stx-buf-match-new? x buf)][_ #f])
+     ]
+    [(? string? s)
+     ; case: finished strings the cursor has moved one from
+     ; should this case actually be exact match?
+     (if (stx-str-match? stx s #t) stx #f)]
+    ; HACKY special-case for implicit app
+    ; BUG: NOTE WELL THIS WILL FUCK UP NON-IMPLICIT APP!!
+    ; we need this or this will just return 'app for applications
+    ; after we press "("
+    [(? list?)
+     #:when (and (list? stx) (match stx [(/ a/ `(,(or 'app) ,raw-stx ...)) #t][_ #f]))
+     (match-define (/ a/ `(,implicit-thing ,raw-stx ...)) stx)
+     (stx-buf-match-new? (/ a/ raw-stx) buf)]
+    [(? list?)
+     #:when (and (list? stx)
+                 (match stx [(/ a/ `(,(not (or 'num 'id 'ref) ) ,xs ...)) #t][_ #f]))
+     (match-define (/ a/ raw-stx) stx)
+     (if ((length raw-stx) . < . (length buf))
+         #f
+         ; note andmap returns last result, which is what we want??
+         ; is this true in all cases??
+         (andmap stx-buf-match-new?
+                 (take raw-stx (length buf))  buf))]
+    ; false fallthrough
+    [_ #f]))
+
+(define (hole-like-for-menu? fr)
+  ; returns true if fr is a hole, or an empty pseudo-atomic element
+  ; todo: refactor this to generically identify pseudoatomics
+  (match fr
+    [(/ _/ (or '⊙ '⊙+)) #t]
+    [(/ _/ `(,(or 'num 'id 'ref) ,(/ _/ (or '⊙ '⊙+)))) #t]
     [_ #f]))
 
 
@@ -523,9 +598,9 @@
           ; todo: case where buffer-cursor is on a hole
           (single-char-menu? menu-candidate))
      (values (⋱ ctx (/ [transform (move-menu-to-next-hole
-                                    (perform-selected-transform template-candidate)
-                                    stx init-buffer)] ; empty search buffer
-                        r/ reagent))
+                                   (perform-selected-transform template-candidate)
+                                   stx init-buffer)] ; empty search buffer
+                       r/ reagent))
              init-buffer)]
     [else
      (values (⋱ c⋱ (/ [transform template-candidate] t/ t))

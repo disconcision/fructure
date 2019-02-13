@@ -25,7 +25,7 @@
                       (not (/ handle _
                               (⋱ _ (/ handle _
                                        (⋱ _ (/ _ (▹ _)))))))))
-         (⋱ c1⋱ (/ (handle handle) as/
+         (⋱ c1⋱ (/ [handle handle] as/
                     ; bug? ▹ isn't bound if no pair attributes?
                     (▹ (⋱ c2⋱ (/ bs/ b)))))]
         [x x]))]
@@ -36,9 +36,9 @@
       'stx
       (match stx
         [(⋱ c⋱ (/ b/
-                   (▹ (⋱ d⋱ (/ handle a// a)))))
+                   (▹ (⋱ d⋱ (/ handle a/ a)))))
          (⋱ c⋱ (/ b/
-                   (⋱ d⋱ (/ (handle handle) a// (▹ a)))))]
+                   (⋱ d⋱ (/ [handle handle] a/ (▹ a)))))]
         [x x]))]
     
     ["right"
@@ -51,13 +51,13 @@
          [(⋱ c⋱ (/ xs/
                     (▹ (⋱ d⋱ (/ handle as/ a)))))
           (⋱ c⋱ (/ xs/ ; bug: requires double handle below?
-                    (⋱ d⋱ (/ (handle handle) as/ (▹ a)))))] 
+                    (⋱ d⋱ (/ [handle handle] as/ (▹ a)))))] 
          [(⋱+ c⋱ (capture-when (or (/ _ (▹ _))
-                                    (/ (handle _) _
+                                    (/ [handle _] _
                                        (not (⋱ (/ _ (▹ _)))))))
-               `(,as ... ,(/ b// (▹ b)) ,(/ c// c) ,ds ...))
+               `(,as ... ,(/ b/ (▹ b)) ,(/ c/ c) ,ds ...))
           (⋱+ c⋱
-               `(,@as ,(/ b// b) ,(/ c// (▹ c)) ,@ds))]
+               `(,@as ,(/ b/ b) ,(/ c/ (▹ c)) ,@ds))]
          [x x]))
      (update 'stx new-stx)]
     
