@@ -6,7 +6,7 @@
   ; navigation major mode
   
   (define-from state
-    stx mode transforms messages)
+    stx mode transforms messages layout-settings)
   (define update (curry hash-set* state))
   
   (match key

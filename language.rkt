@@ -66,36 +66,22 @@
          '([⋱
              (▹ [sort expr] xs ... / ⊙)
              (▹ [sort expr] xs ... / (begin
-                                       ([sort expr] / ⊙)
-                                       ([sort expr] / ⊙+)))])
-         #;`([⋱
-               (xs ... / (id as ... (▹ [sort char] ys ... / ⊙) bs ...))
-               (xs ... / (id as ... (▹ [sort char] ys ... / ',x) ([sort char] / ⊙) bs ...))])
+                                       ([sort expr] [variadic #true] / ⊙)
+                                       ([sort expr] [variadic #true] / ⊙+)))])
          '([⋱
              (xs ... / (begin
                          as ...
-                         #;(AS ... / a)
-                         (▹ bs ... / ⊙+)
-                         #;([sort expr] / ⊙+)))
+                         (▹ bs ... / ⊙+) ))
              (xs ... / (begin
                          as ...
-                         #;(▹ AS ... / a) ; hacky, will fuck up as will step into a if holes inside
-                         ; problem we're trying to solve: autoadvances to next hole
-                         ; after transformation
-                         (▹ [sort expr] / ⊙) ; placeholder
-                         ([sort expr] / ⊙)
+                         ; problem we're trying to solve: autoadvances to next hole after transformation,
+                         ; but in this case, we're inserting a new hole and want to stay on it
+                         ; HACK: mark as 'variadic' and special-case it in select-next-hole in transform
+                         ; basically for these variadic holes, we don't autoadvance the cursor if its on one
+                         ; disadvantage: can't leave placeholder holes in variadic forms
+                         (▹ [sort expr] [variadic #true] / ⊙)
                          (bs ... / ⊙+)
-                         ; does this work? or does transform traversal
-                         ; just skip past it...
-                         ; might need to start with cursor before...
-                         ; ie match as ... a above, put cursor last in a here
-                         ; hacky af...
-                         ; doesn;t even work; need to select last element of that
-                         ; waay too hacky
-                         #;(▹ bs ... / b)
-                         #;(▹ [sort expr] / ⊙+)
-                         #;([sort expr] / ⊙)
-                         #;([sort expr] / ⊙+)))])
+                         ))])
 
          '([⋱
              (▹ [sort expr] xs ... / ⊙)
@@ -168,7 +154,6 @@
         (▹ xs ... / (λ a b))
         (▹ xs ... / ⊙)])
     '(
-      #;#;#;#;#;#;
       [⋱
         (▹ xs ... / (if a b c))
         (▹ xs ... / ⊙)]
@@ -193,9 +178,12 @@
       ; but needs this hacky guard
       ; actually that doesn't work, thre's still a superfluous transform
       [⋱
+        (▹ xs ... / ⊙)
+        (▹ xs ... / ⊙)]
+      #;[⋱
         (▹ xs ... / ⊙+)
         (▹ xs ... / ⊙+)]
-      [⋱
+      #;[⋱
         (▹ xs ... / a)
         (▹ xs ... / ⊙)]
       ))))
@@ -228,11 +216,9 @@
 (define digit-constructors
   ; char constructors for each letter in the alphabet
   (cons
-   ; identity
-   '()
-   #;`([⋱
-         (xs ... / (num as ... (▹ [sort digit] ys ... / ⊙) bs ...))
-         (xs ... / (num as ... (▹ [sort digit] ys ... / ⊙) bs ...))])
+   '([⋱
+             (▹ [sort expr] xs ... / ⊙)
+             (▹ [sort expr] xs ... / (num ([sort digit] / 0)))])
    (for/list ([x digits])
      `([⋱
          (xs ... / (num as ... (▹ [sort digit] ys ... / ⊙) bs ...))

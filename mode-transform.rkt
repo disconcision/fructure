@@ -107,7 +107,7 @@
          [x (error "backspace sux dood duhhhhhh" x)]))
      ; note: need case for backspacing sexpr, and out of sexpr
      (define-values (new-stx-candidate newest-buffer-candidate)
-       (menu-filter-in-stx stx search-buffer buffer-candidate))
+       (menu-filter-in-stx "\b" stx search-buffer buffer-candidate))
      (update 'stx new-stx-candidate
              'search-buffer newest-buffer-candidate)]
     ; todo: below should be reinterpreted as a search-buffer operation
@@ -120,11 +120,23 @@
        (match search-buffer
          [(⋱ c⋱ `(,as ... (▹ ,a)))
           (⋱ c⋱ `(,@as ,a (▹ "")))]
+         ; new special case:
+         #;[`(▹ "")
+          (println `(new special case (▹ "▹ """)))
+          '666-not-matchable]
          [(⋱ c⋱ `(▹ ,a))
           (⋱ c⋱ `(,a (▹ "")))]))
      (define-values (new-stx-candidate
                      newest-buffer-candidate)
-       (menu-filter-in-stx stx search-buffer new-search-buffer))
+       ; if pressing space results in there no longer being a match
+       ; (might need to ammend that; maybe really want: total match before space?
+       ;  actually that would work for hole selected in menu too; it is already total match
+       ; total match ==? cursor is last atom in selector pattern, which matches against
+       ; last item in replacement.)
+       ; then (hypothesis) we should execute current transform ie
+       ; advance to next hole AFTER current selection
+       ; EVEN IF cur sel is a hole
+       (menu-filter-in-stx " " stx search-buffer new-search-buffer))
      (update 'search-buffer newest-buffer-candidate
              'stx new-stx-candidate)
      ; if there's a hole after the cursor, advance the cursor+menu to it
@@ -141,7 +153,7 @@
           (⋱ c⋱ `((▹ ,a)))])) ; shouldn't need fallthorugh
      (define-values (new-stx-candidate
                      newest-buffer-candidate)
-       (menu-filter-in-stx stx search-buffer new-search-buffer))
+       (menu-filter-in-stx "(" stx search-buffer new-search-buffer))
      (update 'search-buffer newest-buffer-candidate
              'stx new-stx-candidate)]
     [")" 
@@ -156,7 +168,7 @@
          [x x]))
      (define-values (new-stx-candidate
                      newest-buffer-candidate)
-       (menu-filter-in-stx stx search-buffer new-search-buffer))
+       (menu-filter-in-stx ")" stx search-buffer new-search-buffer))
      (update 'search-buffer newest-buffer-candidate
              'stx new-stx-candidate)]
     [(regexp #rx"^[0-9a-z\\]$" c)
@@ -172,7 +184,7 @@
                                               (first c) (first c)))))]))
 
      (define-values (new-stx-candidate newest-buffer-candidate)
-       (menu-filter-in-stx stx search-buffer buffer-candidate))
+       (menu-filter-in-stx c stx search-buffer buffer-candidate))
      (update 'stx new-stx-candidate
              'search-buffer newest-buffer-candidate)]
     
@@ -284,6 +296,9 @@
   (match stx
     ; if i uncomment this, then i can't use -> to go
     ; past any unfilled hole
+    ; HACK: dont skip past variadic holes
+    [(⋱ c⋱ (/ [variadic #true] a/ (▹ (and h (or '⊙ '⊙+)))))
+       (⋱ c⋱ (/ [variadic #true] a/ (▹ h)))]
     #;[(⋱ c⋱ (/ a/ (▹ (and h (or '⊙ '⊙+)))))
        (⋱ c⋱ (/ a/ (▹ h)))]
     [(⋱ c⋱ (and (/ y/ (▹ (⋱ d⋱ (/ x/ (and h (or '⊙ '⊙+))))))
@@ -546,6 +561,8 @@
   ; basically, a space at the end indicates a terminator
   ; debatably hacky
   (match stx
+    [(/ n/ `(num ,(/ d/ d) ...))
+     (str-match? str (symbols->string d))]
     [(/ r/ `(ref ,(/ i/ `(id ,(/ c/ c) ...))))
      (str-match? str (symbols->string c))]
     [(/ f/ `(, as ... ,(? form-id? f) ,bs ...))
@@ -567,7 +584,7 @@
       [`(,(/ [sort (or 'digit 'char)] _/ _) ...) #t] [_ #f])))
 
 
-(define (menu-filter-in-stx init-stx old-buffer buffer-candidate)
+(define (menu-filter-in-stx new-char init-stx old-buffer buffer-candidate)
 
   ; this hacky little guy restores the original menu prior to filtering
   (define stx
@@ -581,6 +598,9 @@
     (⋱ c⋱ (/ [transform (⋱ d⋱ (/ menu m/ m))] t/ t)) stx)
   (match-define
     (⋱ ctx (/ [transform template] r/ reagent)) stx)
+
+  (define pre-template-candidate
+    (⋱ d⋱ (/ [menu menu]  m/ m)))
   
   (define menu-candidate
     (filter-menu menu buffer-candidate))
@@ -590,6 +610,13 @@
 
  
   (cond
+    [(and (equal? " " new-char)
+          (empty? menu-candidate))
+     (values (⋱ ctx (/ [transform (move-menu-to-next-hole
+                                   (perform-selected-transform pre-template-candidate)
+                                   stx init-buffer)] ; empty search buffer
+                       r/ reagent))
+             init-buffer)]
     [(empty? menu-candidate)
      (values init-stx
              old-buffer)]

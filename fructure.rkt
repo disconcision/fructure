@@ -161,7 +161,7 @@
   ; print debugging information
   #;(displayln `(mode: ,mode  key: ,key))
   #;(displayln `(projected: ,(project stx)))
-  #;(displayln `(search-buffer: ,search-buffer))
+  (displayln `(search-buffer: ,search-buffer))
   #;(displayln `(keypresses ,keypresses))
   #;(displayln state)
 

@@ -709,9 +709,9 @@
       
       (define (overlay-search-buffer stx image)
         (match stx
-          ; sort of hacky exception for ref
+          ; sort of hacky exception for ref, num
           ; still not really right, r is still going to select refs maybe?
-          [(/ a/ `(,(and (not 'ref) (not 'num) (? (curryr member implicit-forms)) _) ,xs ...))
+          [(/ a/ `(,(or 'ref 'num #;(? (curryr member implicit-forms))) ,xs ...))
            image]
           [_ (overlay/align
               "left" "top"
@@ -1175,7 +1175,7 @@
       [if-like?
        (local-render-vertical 2 (+ (image-width (second (first children))) (* 2 unit-width)) #f #f)]
       [cond-like?
-       (local-render-vertical 1 (* 2 unit-width)) #t #f]))
+       (local-render-vertical 1 (* 2 unit-width) #t #f)]))
 
   ; possible BUG
   ; put back in the implicit form
@@ -1200,7 +1200,8 @@
 
 
 
-(define (add-vertical-backing fruct init-children layout-settings indent num-header-items
+(define (add-vertical-backing fruct init-children layout-settings
+                              indent num-header-items
                               new-layout-local selected? depth
                               straight-left? header-exception?)
   (define-from layout-settings
@@ -1242,11 +1243,14 @@
      ; todo: remove if this isn't getting triggered
      (println `(warning: vertical backing bounds issue: ,children))] [_ 0])
   
-  (match-define (/ [bounds bounds] _ _)
+  (match-define (/ [bounds last-row-bounds] _ _)
     (first last-row-child))
+
+  (match-define `(,(/ [bounds middle-row-bounds] _ _) ...)
+    (map first middle-rows-children))
   
-  (define last-left-bounds (first bounds))
-  (define last-right-bounds (second bounds))
+  (define last-left-bounds (append (apply append (map first middle-row-bounds)) (first last-row-bounds) ))
+  (define last-right-bounds (append (apply append (map second middle-row-bounds)) (second last-row-bounds) ))
   ; assume for now that the id always has unit height
   ; and that params have at least unit height
 
@@ -1268,10 +1272,11 @@
       (match r
         [`(,x ,y) `(,(+ x offset) ,y)])))
 
-  (when (not (empty? middle-rows-children))
+  #;(when (not (empty? middle-rows-children))
     (error "bounds: not empty middle rows case not implemented"))
-  (define middle-rows-left-bounds '())
-  (define middle-rows-right-bounds '())
+  
+  (define middle-rows-left-bounds '() #;(apply append (map first middle-row-bounds)))
+  (define middle-rows-right-bounds '() #;(apply append (map second middle-row-bounds)))
      
   (define almost-last-row-left-bounds
     (for/list ([r last-left-bounds])
@@ -1386,16 +1391,16 @@
      new-layout
      ; backing
      (rounded-rectangle width height radius
-                            (if depth grey-one grey-two))
+                        (if depth grey-one grey-two))
      #;(if #t #;selected?
-         (rounded-rectangle width height radius
-                            (if depth grey-one grey-two))
-         (overlay (rounded-rectangle-outline
-                   width height radius
-                   background-block-color 1)
-                  (rounded-rectangle
-                   width height radius
-                   (if depth background-block-color bkg-color))))))
+           (rounded-rectangle width height radius
+                              (if depth grey-one grey-two))
+           (overlay (rounded-rectangle-outline
+                     width height radius
+                     background-block-color 1)
+                    (rounded-rectangle
+                     width height radius
+                     (if depth background-block-color bkg-color))))))
   
   (define new-bounds
     `(((0 ,height)) ((,width ,height))))
