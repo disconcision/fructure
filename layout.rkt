@@ -1249,8 +1249,8 @@
   (match-define `(,(/ [bounds middle-row-bounds] _ _) ...)
     (map first middle-rows-children))
   
-  (define last-left-bounds (append (apply append (map first middle-row-bounds)) (first last-row-bounds) ))
-  (define last-right-bounds (append (apply append (map second middle-row-bounds)) (second last-row-bounds) ))
+  (define last-left-bounds (append #;(apply append (map first middle-row-bounds)) (first last-row-bounds) ))
+  (define last-right-bounds (append #;(apply append (map second middle-row-bounds)) (second last-row-bounds) ))
   ; assume for now that the id always has unit height
   ; and that params have at least unit height
 
@@ -1275,8 +1275,17 @@
   #;(when (not (empty? middle-rows-children))
     (error "bounds: not empty middle rows case not implemented"))
   
-  (define middle-rows-left-bounds '() #;(apply append (map first middle-row-bounds)))
-  (define middle-rows-right-bounds '() #;(apply append (map second middle-row-bounds)))
+  (define middle-left-bounds (apply append (map first middle-row-bounds)))
+  (define middle-right-bounds (apply append (map second middle-row-bounds)))
+
+  (define middle-rows-left-bounds
+    (for/list ([r middle-left-bounds])
+      (match r
+        [`(,x ,y) `(0 #;,(+ x indent) ,y)])))
+  (define middle-rows-right-bounds
+    (for/list ([r middle-right-bounds])
+      (match r
+        [`(,x ,y) `(,(+ x indent) ,y)])))
      
   (define almost-last-row-left-bounds
     (for/list ([r last-left-bounds])
