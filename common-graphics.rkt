@@ -272,7 +272,7 @@
 
 (define (rounded-rectangle-internal width height init-r mode my-color)
   (define r (if (width . < . (* 2 init-r))
-                (inexact->exact (round (/ width 2))) ; note possible syntax issue
+                (inexact->exact (floor (/ width 2))) ; note possible syntax issue
                 (inexact->exact (round init-r))))
   (define sl (max 0 (- width (* 2 r))))
   (define sh (max 0 (- height (* 2 r))))

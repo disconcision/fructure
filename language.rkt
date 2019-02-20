@@ -41,28 +41,30 @@
                                        ([sort expr] / ⊙)))]))
    (list '([⋱
              (▹ [sort expr] xs ... / ⊙)
-             (▹ [sort expr] xs ... / (num ([sort digit] / ⊙)))]
-           [⋱
-             (▹ [sort expr] xs ... / ⊙)
-             (▹ [sort expr] xs ... / (λm ([sort params]
-                                          / (([sort pat]
-                                              / ⊙+)))
-                                         ([sort expr] / ⊙)))])
+             (▹ [sort expr] xs ... / (num ([sort digit] / ⊙)))])
+         #;'([⋱
+               (▹ [sort expr] xs ... / ⊙)
+               (▹ [sort expr] xs ... / (λm ([sort params]
+                                            / (([sort pat]
+                                                / ⊙+)))
+                                           ([sort expr] / ⊙)))])
+         #;'([⋱
+               (▹ [sort expr] xs ... / ⊙)
+               (▹ [sort expr] xs ... / (iff ([sort expr] / ⊙)
+                                            ([sort expr] / ⊙)
+                                            ([sort expr] / ⊙)))])
          '([⋱
              ([sort params]
               / (as ... (▹ xs ... / ⊙+) bs ...))
              ([sort params]
               / (as ... (▹ xs ... / (id ([sort char] / ⊙))) (xs ... / ⊙+) bs ...))])
+         
          '([⋱
              (▹ [sort expr] xs ... / ⊙)
              (▹ [sort expr] xs ... / (if ([sort expr] / ⊙)
                                          ([sort expr] / ⊙)
                                          ([sort expr] / ⊙)))])
-         '([⋱
-             (▹ [sort expr] xs ... / ⊙)
-             (▹ [sort expr] xs ... / (iff ([sort expr] / ⊙)
-                                          ([sort expr] / ⊙)
-                                          ([sort expr] / ⊙)))])
+         
          '([⋱
              (▹ [sort expr] xs ... / ⊙)
              (▹ [sort expr] xs ... / (begin
@@ -86,33 +88,33 @@
          '([⋱
              (▹ [sort expr] xs ... / ⊙)
              (▹ [sort expr] xs ... / (cond
-                                       ([sort CP] / (cp ([sort expr] / ⊙)
-                                                        ([sort expr] / ⊙)))
-                                       ([sort CP] / ⊙+)))])
+                                       ([sort CP] [variadic #true] / (cp ([sort expr] / ⊙)
+                                                                         ([sort expr] / ⊙)))
+                                       ([sort CP] [variadic #true] / ⊙+)))])
          '([⋱
              ([sort expr] xs ... / (cond
-                                     a ...
-                                     (▹ [sort CP] / ⊙+)))
+                                     as ...
+                                     (▹ bs ... / ⊙+)))
              ([sort expr] xs ... / (cond
-                                     a ...
-                                     (▹ [sort CP] / (cp ([sort expr] / ⊙)
-                                                        ([sort expr] / ⊙)))
-                                     ([sort CP] / ⊙+)))])
+                                     as ...
+                                     (▹ [sort CP] #;[variadic #true] / (cp ([sort expr] / ⊙)
+                                                                         ([sort expr] / ⊙)))
+                                     (bs ... / ⊙+)))])
          '([⋱
              (▹ [sort expr] xs ... / ⊙)
              (▹ [sort expr] xs ... / (match ([sort expr] / ⊙)
-                                       ([sort MP] / (mp ([sort expr] / ⊙)
-                                                        ([sort expr] / ⊙)))
-                                       ([sort MP] / ⊙+)))])
+                                       ([sort MP] [variadic #true] / (mp ([sort expr] / ⊙)
+                                                                         ([sort expr] / ⊙)))
+                                       ([sort MP] [variadic #true] / ⊙+)))])
          '([⋱
              ([sort expr] xs ... / (match ([sort expr] / ⊙)
                                      a ...
-                                     (▹ [sort MP] / ⊙+)))
+                                     (▹ [sort MP] [variadic #true] bs ... / ⊙+)))
              ([sort expr] xs ... / (match ([sort expr] / ⊙)
                                      a ...
-                                     (▹ [sort MP] / (mp ([sort pat] / ⊙)
-                                                        ([sort expr] / ⊙)))
-                                     ([sort MP] / ⊙+)))])
+                                     (▹ [sort MP] [variadic #true] / (mp ([sort pat] / ⊙)
+                                                                         ([sort expr] / ⊙)))
+                                     ([sort MP] [variadic #true] bs ... / ⊙+)))])
          '([⋱
              (▹ [sort expr] xs ... / ⊙)
              (▹ [sort expr] xs ... / (let ([sort pairs] / (([sort LP] / (lp ([sort pat]
@@ -122,13 +124,13 @@
                                        ([sort expr] / ⊙)))])
          '([⋱
              ([sort expr] xs ... / (let ([sort pairs] / (a ...
-                                                         (▹ [sort LP] / ⊙+)))
+                                                         (▹ [sort LP] bs ... / ⊙+)))
                                      ([sort expr] / ⊙)))
              ([sort expr] xs ... / (let ([sort pairs] / (a ...
                                                          (▹ [sort LP] / (lp ([sort pat]
                                                                              / (id ([sort char] / ⊙)))
                                                                             ([sort expr] / ⊙)))
-                                                         ([sort LP] / ⊙+)))
+                                                         ([sort LP] bs ... / ⊙+)))
                                      ([sort expr] / ⊙)))])
 
 
@@ -160,7 +162,7 @@
       [⋱
         (▹ xs ... / (cond a ...))
         (▹ xs ... / ⊙)]
-      [⋱
+      #;[⋱
         (▹ xs ... / (λm a ...))
         (▹ xs ... / ⊙)]
       [⋱
@@ -181,11 +183,11 @@
         (▹ xs ... / ⊙)
         (▹ xs ... / ⊙)]
       #;[⋱
-        (▹ xs ... / ⊙+)
-        (▹ xs ... / ⊙+)]
+          (▹ xs ... / ⊙+)
+          (▹ xs ... / ⊙+)]
       #;[⋱
-        (▹ xs ... / a)
-        (▹ xs ... / ⊙)]
+          (▹ xs ... / a)
+          (▹ xs ... / ⊙)]
       ))))
 
 
@@ -217,8 +219,8 @@
   ; char constructors for each letter in the alphabet
   (cons
    '([⋱
-             (▹ [sort expr] xs ... / ⊙)
-             (▹ [sort expr] xs ... / (num ([sort digit] / 0)))])
+       (▹ [sort expr] xs ... / ⊙)
+       (▹ [sort expr] xs ... / (num ([sort digit] / 0)))])
    (for/list ([x digits])
      `([⋱
          (xs ... / (num as ... (▹ [sort digit] ys ... / ⊙) bs ...))

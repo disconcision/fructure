@@ -1232,8 +1232,15 @@
   ; assuming body-children isn't empty
   (define middle-rows-children (drop-right body-children 1))
   (define last-row-child (last body-children))
+
+  (match-define `(,params-left-bounds ,params-right-bounds)
+    (match last-header-child
+      [`(,(/ [bounds b] _ _) ,_) b]
+      ; case for only thing in header is form-id e.g. cond:
+      [`(,(? symbol?) ,img) `(((0 ,(image-height img)))
+                              ((,(image-width img) ,(image-height img))))]))
   
-  (match-define `(,(/ [bounds `(,params-left-bounds
+  #;(match-define `(,(/ [bounds `(,params-left-bounds
                                 ,params-right-bounds)] _ _) ,_)
     last-header-child)
   ; hacky error checking
