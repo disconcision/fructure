@@ -1238,7 +1238,7 @@
       [`(,(/ [bounds b] _ _) ,_) b]
       ; case for only thing in header is form-id e.g. cond:
       [`(,(? symbol?) ,img) `(((0 ,(image-height img)))
-                              ((,(image-width img) ,(image-height img))))]))
+                              ((,(+ unit-width (image-width img)) ,(image-height img))))]))
   
   #;(match-define `(,(/ [bounds `(,params-left-bounds
                                 ,params-right-bounds)] _ _) ,_)
