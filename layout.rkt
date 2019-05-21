@@ -2,11 +2,11 @@
 
 (require 2htdp/image)
 (require rackunit
+         containment-patterns
          "layout-tests.rkt"
          "new-syntax.rkt"
          "language.rkt"
          "common.rkt"
-         "../containment-patterns/containment-patterns.rkt"
          "common-graphics.rkt")
 
 ; bug if true (c)

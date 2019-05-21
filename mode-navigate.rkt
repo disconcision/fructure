@@ -139,7 +139,7 @@
          "mode-transform.rkt") ; for insert-menu; refactor todo
 
 (require "new-syntax.rkt"
-         "../containment-patterns/containment-patterns.rkt")
+         containment-patterns)
 
 
 (define (erase-metavars fr)

@@ -198,7 +198,7 @@
 
 (require "../fructerm/fructerm.rkt"
          "new-syntax.rkt"
-         "../containment-patterns/containment-patterns.rkt")
+         containment-patterns)
 
 
 ; -------------------------------------------------

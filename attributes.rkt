@@ -6,7 +6,7 @@
          paint-handle)
 
 (require "new-syntax.rkt"
-         "../containment-patterns/containment-patterns.rkt")
+         containment-patterns)
 
 
 
