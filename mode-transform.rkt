@@ -22,6 +22,10 @@
       (match-lambda? (⋱ c⋱ (/ [transform (⋱ d⋱ (/ (menu (⋱ (/ h/ (▹ (or '⊙ '⊙+))))) m/ _))] t/ t))))
   
   (match key
+
+    ["f1"
+     (println `(BEGIN-STX ,stx))
+     state]
     
     ["escape"
      ; cancel current transform and restore original syntax

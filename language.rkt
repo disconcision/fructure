@@ -42,12 +42,7 @@
    (list '([⋱
              (▹ [sort expr] xs ... / ⊙)
              (▹ [sort expr] xs ... / (num ([sort digit] / ⊙)))])
-         #;'([⋱
-               (▹ [sort expr] xs ... / ⊙)
-               (▹ [sort expr] xs ... / (λm ([sort params]
-                                            / (([sort pat]
-                                                / ⊙+)))
-                                           ([sort expr] / ⊙)))])
+         
          #;'([⋱
                (▹ [sort expr] xs ... / ⊙)
                (▹ [sort expr] xs ... / (iff ([sort expr] / ⊙)
@@ -266,22 +261,14 @@
 (define basic-refactors
   '(([⋱
        (▹ [sort expr] xs ... / (cond
-                                       ([sort CP] / (cp a b))
-                                       ([sort CP] / (cp d #;([sort else] / else) c))))
-       (▹ [sort expr] xs ... / (if a
-                                         b
-                                         c))])
+                                 ([sort CP] / (cp a b))
+                                 ([sort CP] / (cp ([sort else] / else) c))))
+       (▹ [sort expr] xs ... / (if a b c))])
     ([⋱
-       (▹ [sort expr] xs ... / (if a b c
-                                         
-                                         ))
+       (▹ [sort expr] xs ... / (if a b c))
        (▹ [sort expr] xs ... / (cond
-                                       ([sort CP] / (cp a b))
-                                       ([sort CP] / (cp ([sort else] / else) c))
-                                       #;([sort CP]  / (cp ([sort expr] / ⊙)
-                                                                         ([sort expr] / ⊙)))
-                                       #;([sort CP] [variadic #true] / ⊙+)))
-       ])))
+                                 ([sort CP] [variadic #true] / (cp a b))
+                                 ([sort CP] [variadic #true] / (cp ([sort else] / else) c))))])))
 
 
 (define base-transforms

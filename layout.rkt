@@ -270,6 +270,43 @@
     ; and popups draw improperly
     ; super hacky; investigate and refactor
     ; probably related to below hack
+    [(/ [metavar m] a/ (and a
+                            (or `(num ,_ ...)
+                                `(ref ,_))))
+     ; this is a hack case
+     (define metavar-color
+       (match m
+         [0 (color 0 215 215)]
+         [1 (color 0 215 0)]
+         [2 (color 215 0 215)]
+         [3 (color 215 215 0)]
+         [_ (color 0 215 0)]))
+     (match-define (list new-fruct id-image)
+       (render (/ a/ a) (hash-set layout-settings
+                                  ; hack to override red bkg for atomic selections
+                                  'selected-color metavar-color)))
+     (define id-height (image-height id-image))
+     (define id-width (image-width id-image))
+     (define radius-adj (div-integer radius 7/5))
+     (define new-img
+       (overlay/align
+        "left" "top"
+        ; hack to outline selected atomic metavars
+        (if (selected? (/ a/ a))
+            (rounded-rectangle-outline
+             id-width id-height
+             radius-adj selected-color 2)
+            empty-image)
+        id-image
+        ; backing
+        (rounded-rectangle
+         id-width id-height radius-adj
+         metavar-color)))
+     (list
+      (match new-fruct
+        [(/ b/ b)
+         (/ [metavar m] b/ b)])
+      new-img)]
     [(/ [metavar m] a/ a)
      (define (metavar-tint-colors m layout-settings)
        (for/hash ([(k v) (hash-set* layout-settings
@@ -281,11 +318,11 @@
            [(color _ _ _ _)
             (values k ((per-color-linear-dodge-tint
                         (match m
-                          [0 (color 0 255 255)]
-                          [1 (color 0 255 0)]
-                          [2 (color 255 0 255)]
-                          [3 (color 255 255 0)]
-                          [_ (color 0 255 0)])
+                          [0 (color 0 215 215)]
+                          [1 (color 0 215 0)]
+                          [2 (color 215 0 215)]
+                          [3 (color 215 215 0)]
+                          [_ (color 0 215 0)])
                         0.4) v))]
            [_ (values k v)])))
      (match-define (list new-fruct new-img)
@@ -309,6 +346,7 @@
      (define-from layout-settings radius)
      (match-define (list id-fruct id-image)
        (if (selected? (/ ref/ `(ref ,id)))
+           ; hacky - properly seperate selected and metavar logic
            (render id (hash-set layout-settings
                                 ; todo: magic color
                                 'identifier-color "white"))
@@ -322,20 +360,17 @@
      ; hacky smaller radii for looks
      (define radius-adj (div-integer radius 7/5))
      (list (/ [bounds new-bounds] ref/ `(ref ,id-fruct))
-           (if (selected? (/ ref/ `(ref ,id)))
-               (overlay/align
-                "left" "top"
-                ; outline if selected
-                #;(rounded-rectangle-outline
-                   id-width id-height
-                   radius-adj selected-color 2)
-                ; layout goes inbetween
-                id-image
-                ; backing
-                (rounded-rectangle
-                 id-width id-height radius-adj
-                 selected-color #;(if depth grey-one grey-two)))
-               id-image))]
+           (cond
+             [(selected? (/ ref/ `(ref ,id)))
+              (overlay/align
+               "left" "top"
+               ; layout goes inbetween
+               id-image
+               ; backing
+               (rounded-rectangle
+                id-width id-height radius-adj
+                selected-color #;(if depth grey-one grey-two)))]
+             [else id-image]))]
 
     #;[(/ hole/ '⊙)
        ; HACK: added in this case for padding purposes only
@@ -692,10 +727,13 @@
                       ; just turned this off for giggles
                       #;#;'form-color (color 255 255 255))]
           [_ (hash-set* layout-settings
-                        'force-horizontal-layout? #t
+                        'force-horizontal-layout? #f
+                        'background-block-color (color 0 0 0 0) ; hack to prevent horizontal outlines in menu
                         'grey-one menu-bkg-color
+                        'grey-two (color 90 90 90)
+                        'bkg-color (color 76 76 76) ; set as sort of a hack for cond bkg color in menu...
                         'pattern-grey-one (color 76 76 76)
-                        'form-color (color 255 255 255))])) ; magic color
+                        'form-color (color 255 255 255))])) ; magic colors
       (define search-buffer (match item [(/ [search-buffer search-buffer] a/ a)
                                          search-buffer]
                               ; todo: fix hardcoded init-buffer here:
@@ -1091,8 +1129,8 @@
   (define layout-settings
     (if selected?
         (hash-set* init-layout-settings
-                   'grey-one (color 230 230 230)
-                   'grey-two (color 215 215 215)
+                   #;#;'grey-one (color 230 230 230)
+                   #;#;'grey-two (color 215 215 215)
                    )
         init-layout-settings))
 
@@ -1241,8 +1279,8 @@
                               ((,(+ unit-width (image-width img)) ,(image-height img))))]))
   
   #;(match-define `(,(/ [bounds `(,params-left-bounds
-                                ,params-right-bounds)] _ _) ,_)
-    last-header-child)
+                                  ,params-right-bounds)] _ _) ,_)
+      last-header-child)
   ; hacky error checking
   (match last-row-child
     [(not `(,(/ [bounds `(,last-left-bounds
@@ -1280,7 +1318,7 @@
         [`(,x ,y) `(,(+ x offset) ,y)])))
 
   #;(when (not (empty? middle-rows-children))
-    (error "bounds: not empty middle rows case not implemented"))
+      (error "bounds: not empty middle rows case not implemented"))
   
   (define middle-left-bounds (apply append (map first middle-row-bounds)))
   (define middle-right-bounds (apply append (map second middle-row-bounds)))
@@ -1402,7 +1440,11 @@
      (if selected?
          (rounded-rectangle-outline width height radius selected-color 2)
          ; todo: create arg here for width
-         empty-image)
+         ; THIS IS WHERE HORIZONTAL OUTLINES ARE CREATED
+         (rounded-rectangle-outline
+                     width height radius
+                     background-block-color 1)
+         #;empty-image)
      ; layout goes inbetween
      new-layout
      ; backing
