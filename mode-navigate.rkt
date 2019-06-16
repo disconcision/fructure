@@ -11,12 +11,13 @@
   
   (match key
 
-    ["F1"
+    ["f1"
      (println `(BEGIN-STX ,stx))
      state]
 
     ["up"
      ; moves the cursor up to the nearest containing handle
+     ; alternative handle symbol: ⥰
      (update
       'stx
       (match stx

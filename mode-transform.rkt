@@ -35,6 +35,10 @@
      (update 'mode 'nav
              'search-buffer init-buffer
              'stx (⋱ ctx (strip-menu (perform-selected-transform template))))]
+
+    ["f2"
+     ; hack to remove menu
+     (update 'stx (⋱ ctx (/ [transform (strip-menu template)] r/ reagent)))]
     
     ["right"
      ; apply selected transform and advance the cursor+menu the next hole
@@ -565,6 +569,9 @@
      (str-match? str (symbols->string d))]
     [(/ r/ `(ref ,(/ i/ `(id ,(/ c/ c) ...))))
      (str-match? str (symbols->string c))]
+    #;[(/ r/ `(ref ,(/ _/ r)))
+     ; hack for improper multi-char ids (added for standard library hack)
+     (str-match? str (symbol->string r))]
     [(/ f/ `(, as ... ,(? form-id? f) ,bs ...))
      (str-match? str (symbol->string f))]
     [(/ c/ (? (disjoin symbol? number?) c)) ; should just be chars, digits

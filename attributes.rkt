@@ -26,7 +26,7 @@
      (/ [metavar m] [sort my-sort] [handle #t] a/ a)]
     [(/ [metavar m] a/ a)
      (/ [metavar m] a/ a)]
-    [(/ [sort (and my-sort (or 'expr 'char 'digit))] a/ a)
+    [(/ [sort (and my-sort (or 'expr 'CP #;'pat #;'char #;'digit))] a/ a)
      (/ [sort my-sort] [handle #t] a/ (paint-handle a))]
     [(/ a/ a)
      (/ a/ (paint-handle a))]

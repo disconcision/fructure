@@ -101,6 +101,15 @@
                                                                          ([sort expr] / ⊙)))
                                      (bs ... / ⊙+)))])
          '([⋱
+             ([sort expr] xs ... / (cond
+                                     as ...
+                                     (▹ bs ... / ⊙+)))
+             ([sort expr] xs ... / (cond
+                                     as ...
+                                     (▹ [sort CP] #;[variadic #true] / (cp ([sort else] / else)
+                                                                         ([sort expr] / ⊙)))
+                                     (bs ... / ⊙+)))])
+         '([⋱
              (▹ [sort expr] xs ... / ⊙)
              (▹ [sort expr] xs ... / (match ([sort expr] / ⊙)
                                        ([sort MP] [variadic #true] / (mp ([sort expr] / ⊙)
@@ -157,11 +166,15 @@
         (▹ xs ... / ⊙)])
     '(
       [⋱
+        (▹ xs ... / (num a ...))
+        (▹ xs ... / ⊙)]
+      [⋱
         (▹ xs ... / (if a b c))
         (▹ xs ... / ⊙)]
       [⋱
         (▹ xs ... / (cond a ...))
         (▹ xs ... / ⊙)]
+      
       #;[⋱
         (▹ xs ... / (λm a ...))
         (▹ xs ... / ⊙)]
@@ -227,11 +240,57 @@
          (xs ... / (num as ... (▹ [sort digit] ys ... / ',x) ([sort digit] / ⊙) bs ...))]))))
 
 
+; HACK hacky hack
+(define basic-library
+  '(true
+    false
+    cons
+    empty?
+    length))
+
+(define (symbol->proper-ref sym)
+  ((compose (λ (stuff) `(ref ([sort pat] / (id ,@stuff))))
+            (curry map (λ (s) `([sort char] / ',(string->symbol (string s)))))
+            string->list
+            symbol->string
+            )
+   sym))
+
+(define basic-library-constructors
+  (for/list ([x basic-library])
+    `([⋱
+        (▹ [sort expr] xs ... / ⊙)
+        #;(▹ [sort expr] xs ... / (ref ([sort char] / ,x)))
+        (▹ [sort expr] xs ... / ,(symbol->proper-ref x))])))
+
+(define basic-refactors
+  '(([⋱
+       (▹ [sort expr] xs ... / (cond
+                                       ([sort CP] / (cp a b))
+                                       ([sort CP] / (cp d #;([sort else] / else) c))))
+       (▹ [sort expr] xs ... / (if a
+                                         b
+                                         c))])
+    ([⋱
+       (▹ [sort expr] xs ... / (if a b c
+                                         
+                                         ))
+       (▹ [sort expr] xs ... / (cond
+                                       ([sort CP] / (cp a b))
+                                       ([sort CP] / (cp ([sort else] / else) c))
+                                       #;([sort CP]  / (cp ([sort expr] / ⊙)
+                                                                         ([sort expr] / ⊙)))
+                                       #;([sort CP] [variadic #true] / ⊙+)))
+       ])))
+
+
 (define base-transforms
   (append base-destructors
           base-constructors
           alpha-constructors
-          digit-constructors))
+          digit-constructors
+          basic-library-constructors
+          basic-refactors))
 
 
 ; -------------------------------------------------
@@ -241,12 +300,13 @@
 ; primary symbols
 
 (define unary-ids (append '(ref id) '(quote qq uq p-not num)))
-(define if-like-ids (append '(app and) '(if iff mp lp cp begin list p-and p-or p-list)))
+(define if-like-ids (append '(app and) '(if iff mp lp #;cp begin list p-and p-or p-list)))
 (define lambda-like-ids (append '(λ lambda) '(match let define local)))
 (define cond-like-ids '(cond match-λ λm))
 
 (define affordances '(▹ ⊙ ⊙+ ◇ →))
-(define sort-names (append '(expr char digit pat params) '(MP LP CP def)))
+(define sort-names (append '(expr char digit pat params) '(MP LP CP def else)))
+; else above is hack
 
 
 ; derived symbol functions
