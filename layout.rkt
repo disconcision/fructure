@@ -216,6 +216,23 @@
                     new-image))))
 
 
+(define (metavar-tint-colors m layout-settings)
+  (for/hash ([(k v) (hash-set* layout-settings
+                               ; hacky color overrides
+                               'pattern-grey-one (color 0 0 0)
+                               'grey-one (hash-ref layout-settings 'bkg-color)
+                               'grey-two (hash-ref layout-settings 'background-block-color))])
+    (match v
+      [(color _ _ _ _)
+       (values k ((per-color-linear-dodge-tint
+                   (match m
+                     [0 (color 0 215 215)]
+                     [1 (color 0 215 0)]
+                     [2 (color 215 0 215)]
+                     [3 (color 215 215 0)]
+                     [_ (color 0 215 0)])
+                   0.4) v))]
+      [_ (values k v)])))
 
 
 (define (render fruct layout-settings (depth #t) (bkg 0))
@@ -282,9 +299,13 @@
          [3 (color 215 215 0)]
          [_ (color 0 215 0)]))
      (match-define (list new-fruct id-image)
-       (render (/ a/ a) (hash-set layout-settings
-                                  ; hack to override red bkg for atomic selections
-                                  'selected-color metavar-color)))
+       (render (/ a/ a)
+               (metavar-tint-colors m
+                                    (hash-set* layout-settings
+                                              ; hack to override red bkg for atomic selections
+                                              ; magic color
+                                              'identifier-color (color 215 215 215)
+                                              'selected-color metavar-color))))
      (define id-height (image-height id-image))
      (define id-width (image-width id-image))
      (define radius-adj (div-integer radius 7/5))
@@ -308,23 +329,6 @@
          (/ [metavar m] b/ b)])
       new-img)]
     [(/ [metavar m] a/ a)
-     (define (metavar-tint-colors m layout-settings)
-       (for/hash ([(k v) (hash-set* layout-settings
-                                    ; hacky color overrides
-                                    'pattern-grey-one (color 0 0 0)
-                                    'grey-one bkg-color
-                                    'grey-two background-block-color)])
-         (match v
-           [(color _ _ _ _)
-            (values k ((per-color-linear-dodge-tint
-                        (match m
-                          [0 (color 0 215 215)]
-                          [1 (color 0 215 0)]
-                          [2 (color 215 0 215)]
-                          [3 (color 215 215 0)]
-                          [_ (color 0 215 0)])
-                        0.4) v))]
-           [_ (values k v)])))
      (match-define (list new-fruct new-img)
        (render (/ a/ a) (metavar-tint-colors m layout-settings)))
      (list
@@ -1454,10 +1458,10 @@
      ; AS FORM-ID COLOR WON'T BE WHITE
      ; MAYBE NO EASY HACK HERE
      #;(if selected?
-         (rounded-rectangle width height radius
-                        selected-color)
-         (rounded-rectangle width height radius
-                        (if depth grey-one grey-two)))))
+           (rounded-rectangle width height radius
+                              selected-color)
+           (rounded-rectangle width height radius
+                              (if depth grey-one grey-two)))))
   
   (define new-bounds
     `(((0 ,height)) ((,width ,height))))

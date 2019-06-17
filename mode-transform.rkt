@@ -45,7 +45,7 @@
      ; hack to remove menu
      (update 'stx (⋱ ctx (/ [transform (strip-menu template)] r/ reagent)))]
     
-    ["right"
+    [(or "right" " ")
      ; apply selected transform and advance the cursor+menu the next hole
      ; PROBLEM: when we're inserting through a variadic form
      ; we don't want to move to next hole automatically after transform,
@@ -120,7 +120,7 @@
      (update 'stx new-stx-candidate
              'search-buffer newest-buffer-candidate)]
     ; todo: below should be reinterpreted as a search-buffer operation
-    [" "
+    ["\t" ; FORMERLY SNEED I MEAN SPACE
      ; new proposed logic for space:
      ; if the search buffer cursor is on (any?) hole,
      ; skip filling that hole and move to the next one.
@@ -155,7 +155,7 @@
                                                                  stx init-buffer)]
                               ; above "" is empty search buffer
                               r/ reagent)))]
-    ["(" 
+    [(or "(" "[" "{") 
      (define new-search-buffer
        (match search-buffer
          [(⋱ c⋱ `(▹ ,a))
@@ -165,7 +165,7 @@
        (menu-filter-in-stx "(" stx search-buffer new-search-buffer))
      (update 'search-buffer newest-buffer-candidate
              'stx new-stx-candidate)]
-    [")" 
+    [(or ")" "]" "}") 
      (define new-search-buffer
        (match search-buffer
          [(⋱ c⋱ `(,as ... (,bs ... (▹ ,s))))
