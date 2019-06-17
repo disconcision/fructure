@@ -1442,23 +1442,22 @@
          ; todo: create arg here for width
          ; THIS IS WHERE HORIZONTAL OUTLINES ARE CREATED
          (rounded-rectangle-outline
-                     width height radius
-                     background-block-color 1)
+          width height radius
+          background-block-color 1)
          #;empty-image)
      ; layout goes inbetween
      new-layout
      ; backing
      (rounded-rectangle width height radius
                         (if depth grey-one grey-two))
-     #;(if #t #;selected?
-           (rounded-rectangle width height radius
-                              (if depth grey-one grey-two))
-           (overlay (rounded-rectangle-outline
-                     width height radius
-                     background-block-color 1)
-                    (rounded-rectangle
-                     width height radius
-                     (if depth background-block-color bkg-color))))))
+     ; BELOW ATTEMPT TO MAKE BKG RED WON'T WORK
+     ; AS FORM-ID COLOR WON'T BE WHITE
+     ; MAYBE NO EASY HACK HERE
+     #;(if selected?
+         (rounded-rectangle width height radius
+                        selected-color)
+         (rounded-rectangle width height radius
+                        (if depth grey-one grey-two)))))
   
   (define new-bounds
     `(((0 ,height)) ((,width ,height))))

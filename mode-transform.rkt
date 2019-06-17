@@ -38,7 +38,8 @@
      ; perform selected transform, remove menu, and switch to nav mode
      (update 'mode 'nav
              'search-buffer init-buffer
-             'stx (⋱ ctx (strip-menu (perform-selected-transform template))))]
+             'stx (erase-captures
+                   (⋱ ctx (strip-menu (perform-selected-transform template)))))]
 
     ["f2"
      ; hack to remove menu
@@ -201,6 +202,7 @@
 
 
 (require "language.rkt"
+         #;(only-in "mode-navigate.rkt" capture-at-cursor)
          "attributes.rkt" ; for local-augment. refactor todo
          "common.rkt")
 
@@ -435,9 +437,6 @@
   ; removes existing menu, advances cursor to next hole,
   ; and inserts a menu at that hole. if there is no such
   ; hole, the returned stx will have no menu
-
-  (define hole-under-cursor?
-    (match-lambda? (⋱ c⋱ (/ _/ (▹ (or '⊙ '⊙+))))))
 
   (define candidate
     ((compose #;(curryr insert-menu-at-cursor ambient-stx)

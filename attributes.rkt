@@ -22,7 +22,7 @@
     ; don't recurse into metavariables
     ; whoops, but what about old handles. need to erase them first...
     [(/ [metavar m]
-        [sort (and my-sort (or 'expr 'char 'digit))] a/ a)
+        [sort (and my-sort (or 'expr 'CP #;'pat #;'char #;'digit))] a/ a)
      (/ [metavar m] [sort my-sort] [handle #t] a/ a)]
     [(/ [metavar m] a/ a)
      (/ [metavar m] a/ a)]
@@ -108,6 +108,27 @@
      (/ in-scope _/
         `(app ,(W (/ in-scope f/ f))
               ,(W (/ in-scope a/ a))))]
+
+    [(/ in-scope _/
+        `(begin ,(/ as/ as) ...))
+     (/ in-scope _/
+        `(begin ,@(map (λ (a/ a) (W (/ in-scope a/ a))) as/ as)))]
+
+    [(/ in-scope _/
+        `(if ,(/ a/ a) ,(/ b/ b) ,(/ c/ c)))
+     (/ in-scope _/
+        `(if ,(W (/ in-scope a/ a))
+             ,(W (/ in-scope b/ b))
+             ,(W (/ in-scope c/ c))))]
+
+    [(/ in-scope _/
+        `(cond ,(/ as/ as) ...))
+     (/ in-scope _/
+        `(cond ,@(map (λ (a/ a) (W (/ in-scope a/ a))) as/ as)))]
+    [(/ in-scope _/
+        `(cp ,(/ as/ as) ...))
+     (/ in-scope _/
+        `(cp ,@(map (λ (a/ a) (W (/ in-scope a/ a))) as/ as)))]
 
     [(/ in-scope λ/
         `(λ ,(/ params/ `(,(/ id/ (and my-stx

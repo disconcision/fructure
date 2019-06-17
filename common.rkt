@@ -1,6 +1,7 @@
 #lang racket
 
-(require "../fructerm/fructerm.rkt"
+(require containment-patterns
+         "../fructerm/fructerm.rkt"
          "new-syntax.rkt")
 
 (provide define-from
@@ -14,7 +15,12 @@
          selected?
          select-▹
          desugar-fruct
-         select-first-⊙-under-▹)
+         select-first-⊙-under-▹
+         hole-under-cursor?
+
+         has-captures?
+         erase-captures
+         capture-at-cursor)
 
 
 ; -------------------------------------------------
@@ -88,3 +94,34 @@
      (f/match stx
        [(c ⋱ '⊙) #f]
        [_ #t]))
+
+(define (erase-captures fr)
+  (match fr
+    [(/ metavar a/ a)
+     (/ a/ (erase-captures a))]
+    [(? list? a)
+     (map erase-captures a)]
+    [_ fr]))
+
+(define (has-captures? fr)
+  (match fr
+    [(/ metavar _/ _) #t]
+    [(? list? xs) (ormap has-captures? xs)]
+    [_ #f]))
+
+(define (capture-at-cursor fr)
+  (match fr
+    [(⋱+ c⋱ #;(capture-when (or (/ _ (▹ _)) (/ [metavar _] _ _)))
+         (and ls (or (/ _ (▹ _)) (/ [metavar _] _ _))))
+     (define new-ls
+       (match ls
+         ['() '()]
+         [`(,a ... ,(/ s/ (▹ s)) ,b ...)
+          `(,@a ,(erase-captures (/ s/ (▹ s))) ,@b)]))
+     (⋱+ c⋱
+         (map (λ (t m) (match t [(/ x/ x)
+                                 (/ [metavar m] x/ x)]))
+              new-ls (range 0 (length ls))))]))
+
+(define hole-under-cursor?
+  (match-lambda? (⋱ c⋱ (/ _/ (▹ (or '⊙ '⊙+))))))

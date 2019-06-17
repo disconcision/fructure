@@ -1,6 +1,7 @@
 #lang racket
 
-(provide mode:navigate)
+(provide mode:navigate
+         capture-at-cursor)
 
 (define (mode:navigate key state)
   ; navigation major mode
@@ -22,13 +23,13 @@
       'stx
       (match stx
         [(⋱ c1⋱ (and (/ handle as/
-                         (⋱ c2⋱ (/ bs/ (▹ b))))
-                      (not (/ handle _
-                              (⋱ _ (/ handle _
-                                       (⋱ _ (/ _ (▹ _)))))))))
+                        (⋱ c2⋱ (/ bs/ (▹ b))))
+                     (not (/ handle _
+                             (⋱ _ (/ handle _
+                                     (⋱ _ (/ _ (▹ _)))))))))
          (⋱ c1⋱ (/ [handle handle] as/
-                    ; bug? ▹ isn't bound if no pair attributes?
-                    (▹ (⋱ c2⋱ (/ bs/ b)))))]
+                   ; bug? ▹ isn't bound if no pair attributes?
+                   (▹ (⋱ c2⋱ (/ bs/ b)))))]
         [x x]))]
 
     ["down"
@@ -37,9 +38,9 @@
       'stx
       (match stx
         [(⋱ c⋱ (/ b/
-                   (▹ (⋱ d⋱ (/ handle a/ a)))))
+                  (▹ (⋱ d⋱ (/ handle a/ a)))))
          (⋱ c⋱ (/ b/
-                   (⋱ d⋱ (/ [handle handle] a/ (▹ a)))))]
+                  (⋱ d⋱ (/ [handle handle] a/ (▹ a)))))]
         [x x]))]
     
     ["right"
@@ -50,15 +51,15 @@
      (define new-stx
        (match stx
          [(⋱ c⋱ (/ xs/
-                    (▹ (⋱ d⋱ (/ handle as/ a)))))
+                   (▹ (⋱ d⋱ (/ handle as/ a)))))
           (⋱ c⋱ (/ xs/ ; bug: requires double handle below?
-                    (⋱ d⋱ (/ [handle handle] as/ (▹ a)))))] 
+                   (⋱ d⋱ (/ [handle handle] as/ (▹ a)))))] 
          [(⋱+ c⋱ (capture-when (or (/ _ (▹ _))
-                                    (/ [handle _] _
-                                       (not (⋱ (/ _ (▹ _)))))))
-               `(,as ... ,(/ b/ (▹ b)) ,(/ c/ c) ,ds ...))
+                                   (/ [handle _] _
+                                      (not (⋱ (/ _ (▹ _)))))))
+              `(,as ... ,(/ b/ (▹ b)) ,(/ c/ c) ,ds ...))
           (⋱+ c⋱
-               `(,@as ,(/ b/ b) ,(/ c/ (▹ c)) ,@ds))]
+              `(,@as ,(/ b/ b) ,(/ c/ (▹ c)) ,@ds))]
          [x x]))
      (update 'stx new-stx)]
     
@@ -71,13 +72,13 @@
      (define new-stx
        (match stx
          [(⋱ c1⋱ `(,as ...
-                    ,(⋱+ c2⋱ (capture-when (/ [handle _] _ (not (⋱ _ (/ [handle _] _ _)))))
-                          `(,bs ... ,(/ c/ c)))
-                    ,ds ... ,(/ e/ (▹ e)) ,fs ...))
+                   ,(⋱+ c2⋱ (capture-when (/ [handle _] _ (not (⋱ _ (/ [handle _] _ _)))))
+                        `(,bs ... ,(/ c/ c)))
+                   ,ds ... ,(/ e/ (▹ e)) ,fs ...))
           (⋱ c1⋱ `(,@as ,(⋱+ c2⋱ `(,@bs ,(/ c/ (▹ c))))
-                         ,@ds ,(/ e/ e) ,@fs))]
+                        ,@ds ,(/ e/ e) ,@fs))]
          [(⋱ c1⋱ (and (/ [handle h] a/ (⋱ c2⋱ (/ b/ (▹ b))))
-                       (not (/ [handle _] _ (⋱ _ (/ [handle _] _ (⋱ _ (/ _ (▹ _)))))))))
+                      (not (/ [handle _] _ (⋱ _ (/ [handle _] _ (⋱ _ (/ _ (▹ _)))))))))
           (⋱ c1⋱ (/ [handle h] a/ (▹ (⋱ c2⋱ (/ b/ b)))))]
          
          [x x]))
@@ -86,37 +87,33 @@
     ["\r"
      ; ENTER: insert a menu and switch to transform mode
      ; todo: if possible, factor out insert-menu-at for encapsulation
+     (define (setup-transform-mode stx)
+       (match stx 
+         [(⋱ c⋱ (/ as/
+                   (▹ a)))
+          (⋱ c⋱ (/ [transform
+                    ; todo: fix hardcoded init buffer here:
+                    (insert-menu-at-cursor (/ as/ (▹ a)) stx '(▹ ""))]
+                   as/ a))]))
+     (define hole-under-cursor?
+       (match-lambda? (⋱ c⋱ (/ _/ (▹ (or '⊙ '⊙+))))))
      (update
       'mode 'menu
-      'stx (match stx 
-             [(⋱ c⋱ (/ as/
-                        (▹ a)))
-              (⋱ c⋱ (/ [transform
-                         ; todo: fix hardcoded init buffer here:
-                         (insert-menu-at-cursor (/ as/ (▹ a)) stx '(▹ ""))]
-                        as/ a))]))]
+      'stx ((compose setup-transform-mode
+                     (λ (x) (if ((disjoin hole-under-cursor? has-captures?) x)
+                                x
+                                (capture-at-cursor x))))
+            stx))]
 
     ["\t"
      ; paint selection as metavariable
      ; if there are metavariables under the selection, erase them first
      ; metavariables sibling/cousin to cursor may be renamed
-     (update
-      'stx (match stx
-             [(⋱+ c⋱ #;(capture-when (or (/ _ (▹ _)) (/ [metavar _] _ _)))
-                   (and ls (or (/ _ (▹ _)) (/ [metavar _] _ _))))
-              (define new-ls
-                (match ls
-                  ['() '()]
-                  [`(,a ... ,(/ s/ (▹ s)) ,b ...)
-                   `(,@a ,(erase-metavars (/ s/ (▹ s))) ,@b)]))
-              (⋱+ c⋱
-                   (map (λ (t m) (match t [(/ x/ x)
-                                           (/ [metavar m] x/ x)]))
-                        new-ls (range 0 (length ls))))]))]
+     (update 'stx (capture-at-cursor stx))]
 
     ["escape"
      ; release all extant metavariables
-     (update 'stx (erase-metavars stx))]
+     (update 'stx (erase-captures stx))]
         
     #;[","
        ; COMMA: undo (BUG: currently completely broken)
@@ -141,12 +138,3 @@
 
 (require "new-syntax.rkt"
          containment-patterns)
-
-
-(define (erase-metavars fr)
-  (match fr
-    [(/ metavar a/ a)
-     (/ a/ (erase-metavars a))]
-    [(? list? a)
-     (map erase-metavars a)]
-    [_ fr]))
