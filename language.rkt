@@ -117,27 +117,27 @@
          '([⋱
              (▹ [sort expr] xs ... / ⊙)
              ; sort params below is a hack to use lambda layout routines; TODO fix
-             (▹ [sort expr] xs ... / (let ([sort pairs] / (([sort LP] / (lp
-                                                                         ([sort params]
-                                                                          / (([sort pat]
-                                                                              / (id ([sort char] / ⊙)))))
-                                                                         #;([sort pat]
-                                                                            / (id ([sort char] / ⊙)))
-                                                                         ([sort expr] / ⊙)))
-                                                           ([sort LP] / ⊙+)))
+             (▹ [sort expr] xs ... / (let ([sort LPS] / (lps ([sort LP] / (lp
+                                                                           ([sort params]
+                                                                            / (([sort pat]
+                                                                                / (id ([sort char] / ⊙)))))
+                                                                           #;([sort pat]
+                                                                              / (id ([sort char] / ⊙)))
+                                                                           ([sort expr] / ⊙)))
+                                                             ([sort LP] / ⊙+)))
                                        ([sort expr] / ⊙)))])
          '([⋱
-             ([sort expr] xs ... / (let ([sort pairs] / (a ...
-                                                         (▹ [sort LP] bs ... / ⊙+)))
+             ([sort expr] xs ... / (let ([sort LPS] / (lps a ...
+                                                           (▹ [sort LP] bs ... / ⊙+)))
                                      ([sort expr] / ⊙)))
-             ([sort expr] xs ... / (let ([sort pairs] / (a ...
-                                                         (▹ [sort LP] / (lp
-                                                                         ; HACK, see above
-                                                                         ([sort params]
-                                                                          / (([sort pat]
-                                                                              / (id ([sort char] / ⊙)))))                                                                     
-                                                                         ([sort expr] / ⊙)))
-                                                         ([sort LP] bs ... / ⊙+)))
+             ([sort expr] xs ... / (let ([sort LPS] / (lps a ...
+                                                           (▹ [sort LP] / (lp
+                                                                           ; HACK, see above
+                                                                           ([sort params]
+                                                                            / (([sort pat]
+                                                                                / (id ([sort char] / ⊙)))))                                                                     
+                                                                           ([sort expr] / ⊙)))
+                                                           ([sort LP] bs ... / ⊙+)))
                                      ([sort expr] / ⊙)))])
 
 
@@ -292,10 +292,10 @@
 (define unary-ids (append '(ref id) '(quote qq uq p-not num)))
 (define if-like-ids (append '(app and) '(if iff mp lp #;cp begin list p-and p-or p-list)))
 (define lambda-like-ids (append '(λ lambda) '(match let define local)))
-(define cond-like-ids '(cond match-λ λm pairs)) ; pairs is let pairs
+(define cond-like-ids '(cond match-λ λm lps)) ; pairs is let pairs
 
 (define affordances '(▹ ⊙ ⊙+ ◇ →))
-(define sort-names (append '(expr char digit pat params) '(MP LP CP def else)))
+(define sort-names (append '(expr char digit pat params) '(MP LP LPS CP def else)))
 ; else above is hack
 
 

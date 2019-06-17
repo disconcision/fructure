@@ -61,7 +61,7 @@
   'char-padding-vertical 2 ; 5
   
   ; hide the heads of these forms
-  'implicit-forms '(ref num app cp lp mp)
+  'implicit-forms '(ref num app cp lp lps mp)
 
   ; show a list of the n last keypresses
   'display-keypresses? #t
