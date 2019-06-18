@@ -2,12 +2,12 @@
 Fructure: A structured interaction engine in Racket
 ===================================================
 
-Update: June 2019:
+Update June 2019:
 
 I'll be speaking about [Fructure at RacketCon 2019](https://con.racket-lang.org/#speakers)! Here are some new screenshots of syntax de/restructuring in action:
 
-![Screenshot](2019-06-16.22-36-32.png)
-![Screenshot](2019-06-17.12-30-05.png)
+![Screenshot](screenshots/2019-06-16.22-36-32.png)
+![Screenshot](screenshots/2019-06-17.12-30-05.png)
 
 Fructure is a personal project where I play with ideas in editing, programming languages, and interaction design.
 
