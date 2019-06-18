@@ -753,7 +753,9 @@
         (match stx
           ; sort of hacky exception for ref, num
           ; still not really right, r is still going to select refs maybe?
-          [(/ a/ `(,(or 'ref 'num #;(? (curryr member implicit-forms))) ,xs ...))
+          ; THE REAL ISSUE HERE is that it displays eg. overlaid "r" for all refs
+          ; but they shouldn't be here to begin with; fix on the tranform-mode side...
+          #;[(/ a/ `(,(or 'ref 'num 'mapp #;(? (curryr member implicit-forms))) ,xs ...))
            image]
           [_ (overlay/align
               "left" "top"
@@ -1142,6 +1144,7 @@
   (define if-like? (if-like-id? first-stx))
   (define lambda-like? (lambda-like-id? first-stx))
   (define cond-like? (cond-like-id? first-stx))
+  (define mapp-like? (equal? 'mapp first-stx))
   (define params-like?
     (match fruct
       [(/ [sort 'params] _/ _) #t][_ #f]))
@@ -1202,6 +1205,7 @@
          (render-horizontal layout-settings children))
        ; HACK
        (if (or params-like?
+               mapp-like?
                (not ends-in-atom?))
            ; omit trailing space
            (add-horizontal-backing 

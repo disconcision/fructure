@@ -102,12 +102,17 @@
      (/ in-scope _/
         `(ref ,whatever))]
     
-    [(/ in-scope _/
+    #;[(/ in-scope _/
         `(app ,(/ f/ f)
               ,(/ a/ a)))
      (/ in-scope _/
         `(app ,(W (/ in-scope f/ f))
               ,(W (/ in-scope a/ a))))]
+
+    [(/ in-scope _/
+        `(app ,(/ as/ as) ...))
+     (/ in-scope _/
+        `(app ,@(map (λ (a/ a) (W (/ in-scope a/ a))) as/ as)))]
 
     [(/ in-scope _/
         `(begin ,(/ as/ as) ...))

@@ -525,7 +525,8 @@
     ; we need this or this will just return 'app for applications
     ; after we press "("
     [(? list?)
-     #:when (and (list? stx) (match stx [(/ a/ `(,(or 'app) ,raw-stx ...)) #t][_ #f]))
+     #:when (and (list? stx)
+                 (match stx [(/ a/ `(,(or 'app ) ,raw-stx ...)) #t][_ #f]))
      (match-define (/ a/ `(,implicit-thing ,raw-stx ...)) stx)
      (stx-buf-match-new? (/ a/ raw-stx) buf)]
     [(? list?)
@@ -572,9 +573,6 @@
      (str-match? str (symbols->string d))]
     [(/ r/ `(ref ,(/ i/ `(id ,(/ c/ c) ...))))
      (str-match? str (symbols->string c))]
-    #;[(/ r/ `(ref ,(/ _/ r)))
-     ; hack for improper multi-char ids (added for standard library hack)
-     (str-match? str (symbol->string r))]
     [(/ f/ `(, as ... ,(? form-id? f) ,bs ...))
      (str-match? str (symbol->string f))]
     [(/ c/ (? (disjoin symbol? number?) c)) ; should just be chars, digits
@@ -630,6 +628,9 @@
     [(empty? menu-candidate)
      (values init-stx
              old-buffer)]
+    #;[(and (equal? 1 (length menu-candidate)))]
+    ; make temp special case here for length 1 menu with only hole
+    ; should make a menu based on hole, and splice it to the length-1 menu
     [(and (equal? 1 (length menu-candidate))
           ; make this an option
           ; todo: case where buffer-cursor is on a hole

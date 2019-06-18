@@ -35,6 +35,12 @@
                                           ([sort expr] / ⊙)))])
          '([⋱
              (▹ [sort expr] xs ... / ⊙)
+             (▹ [sort expr] xs ... / (mapp ([sort expr] [variadic #true] / ⊙+)))])
+         '([⋱
+             (xs ... / (mapp as ... (▹ ys ... / ⊙+) ))
+             (xs ... / (mapp as ... (▹ [sort expr] [variadic #true] / ⊙) (ys ... / ⊙+)))])
+         '([⋱
+             (▹ [sort expr] xs ... / ⊙)
              (▹ [sort expr] xs ... / (λ ([sort params]
                                          / (([sort pat]
                                              / (id ([sort char] / ⊙)))))
@@ -99,46 +105,46 @@
                                      (▹ [sort CP] #;[variadic #true] / (cp ([sort else] / else)
                                                                            ([sort expr] / ⊙)))
                                      (bs ... / ⊙+)))])
-         '([⋱
-             (▹ [sort expr] xs ... / ⊙)
-             (▹ [sort expr] xs ... / (match ([sort expr] / ⊙)
-                                       ([sort MP] [variadic #true] / (mp ([sort expr] / ⊙)
-                                                                         ([sort expr] / ⊙)))
-                                       ([sort MP] [variadic #true] / ⊙+)))])
-         '([⋱
-             ([sort expr] xs ... / (match ([sort expr] / ⊙)
-                                     a ...
-                                     (▹ [sort MP] [variadic #true] bs ... / ⊙+)))
-             ([sort expr] xs ... / (match ([sort expr] / ⊙)
-                                     a ...
-                                     (▹ [sort MP] [variadic #true] / (mp ([sort pat] / ⊙)
-                                                                         ([sort expr] / ⊙)))
-                                     ([sort MP] [variadic #true] bs ... / ⊙+)))])
-         '([⋱
-             (▹ [sort expr] xs ... / ⊙)
-             ; sort params below is a hack to use lambda layout routines; TODO fix
-             (▹ [sort expr] xs ... / (let ([sort LPS] / (lps ([sort LP] / (lp
-                                                                           ([sort params]
-                                                                            / (([sort pat]
-                                                                                / (id ([sort char] / ⊙)))))
-                                                                           #;([sort pat]
-                                                                              / (id ([sort char] / ⊙)))
+         #;'([⋱
+               (▹ [sort expr] xs ... / ⊙)
+               (▹ [sort expr] xs ... / (match ([sort expr] / ⊙)
+                                         ([sort MP] [variadic #true] / (mp ([sort expr] / ⊙)
                                                                            ([sort expr] / ⊙)))
-                                                             ([sort LP] / ⊙+)))
+                                         ([sort MP] [variadic #true] / ⊙+)))])
+         #;'([⋱
+               ([sort expr] xs ... / (match ([sort expr] / ⊙)
+                                       a ...
+                                       (▹ [sort MP] [variadic #true] bs ... / ⊙+)))
+               ([sort expr] xs ... / (match ([sort expr] / ⊙)
+                                       a ...
+                                       (▹ [sort MP] [variadic #true] / (mp ([sort pat] / ⊙)
+                                                                           ([sort expr] / ⊙)))
+                                       ([sort MP] [variadic #true] bs ... / ⊙+)))])
+         #;'([⋱
+               (▹ [sort expr] xs ... / ⊙)
+               ; sort params below is a hack to use lambda layout routines; TODO fix
+               (▹ [sort expr] xs ... / (let ([sort LPS] / (lps ([sort LP] / (lp
+                                                                             ([sort params]
+                                                                              / (([sort pat]
+                                                                                  / (id ([sort char] / ⊙)))))
+                                                                             #;([sort pat]
+                                                                                / (id ([sort char] / ⊙)))
+                                                                             ([sort expr] / ⊙)))
+                                                               ([sort LP] / ⊙+)))
+                                         ([sort expr] / ⊙)))])
+         #;'([⋱
+               ([sort expr] xs ... / (let ([sort LPS] / (lps a ...
+                                                             (▹ [sort LP] bs ... / ⊙+)))
+                                       ([sort expr] / ⊙)))
+               ([sort expr] xs ... / (let ([sort LPS] / (lps a ...
+                                                             (▹ [sort LP] / (lp
+                                                                             ; HACK, see above
+                                                                             ([sort params]
+                                                                              / (([sort pat]
+                                                                                  / (id ([sort char] / ⊙)))))                                                                     
+                                                                             ([sort expr] / ⊙)))
+                                                             ([sort LP] bs ... / ⊙+)))
                                        ([sort expr] / ⊙)))])
-         '([⋱
-             ([sort expr] xs ... / (let ([sort LPS] / (lps a ...
-                                                           (▹ [sort LP] bs ... / ⊙+)))
-                                     ([sort expr] / ⊙)))
-             ([sort expr] xs ... / (let ([sort LPS] / (lps a ...
-                                                           (▹ [sort LP] / (lp
-                                                                           ; HACK, see above
-                                                                           ([sort params]
-                                                                            / (([sort pat]
-                                                                                / (id ([sort char] / ⊙)))))                                                                     
-                                                                           ([sort expr] / ⊙)))
-                                                           ([sort LP] bs ... / ⊙+)))
-                                     ([sort expr] / ⊙)))])
 
 
          ; identity transform
@@ -157,7 +163,7 @@
         (▹ xs ... / (ref a))
         (▹ xs ... / ⊙)]
       [⋱
-        (▹ xs ... / (app a b))
+        (▹ xs ... / (app as ...))
         (▹ xs ... / ⊙)]
       [⋱
         (▹ xs ... / (λ a b))
@@ -170,14 +176,10 @@
         (▹ xs ... / (if a b c))
         (▹ xs ... / ⊙)]
       [⋱
-        (▹ xs ... / (cond a ...))
-        (▹ xs ... / ⊙)]
-      
-      #;[⋱
-          (▹ xs ... / (λm a ...))
-          (▹ xs ... / ⊙)]
-      [⋱
         (▹ xs ... / (begin a ...))
+        (▹ xs ... / ⊙)]
+      [⋱
+        (▹ xs ... / (cond a ...))
         (▹ xs ... / ⊙)]
       [⋱
         (▹ xs ... / (match a ...))
@@ -240,11 +242,18 @@
 
 ; HACK hacky hack
 (define basic-library
-  '(true
-    false
-    cons
-    empty?
-    length))
+  (append
+   '(true
+     false
+     |()|)
+   '(cons
+     empty?
+     first
+     rest)
+   '(zero?
+     length
+     add1
+     sub1)))
 
 (define (symbol->proper-ref sym)
   ((compose (λ (stuff) `(ref ([sort pat] / (id ,@stuff))))
@@ -290,7 +299,7 @@
 ; primary symbols
 
 (define unary-ids (append '(ref id) '(quote qq uq p-not num)))
-(define if-like-ids (append '(app and) '(if iff mp lp #;cp begin list p-and p-or p-list)))
+(define if-like-ids (append '(app mapp and) '(if iff mp lp #;cp begin list p-and p-or p-list)))
 (define lambda-like-ids (append '(λ lambda) '(match let define local)))
 (define cond-like-ids '(cond match-λ λm lps)) ; pairs is let pairs
 
