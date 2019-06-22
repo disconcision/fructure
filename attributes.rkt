@@ -93,27 +93,7 @@
               `(ref ,_)
               `(num ,_))
      (/ in-scope a/ a)]
-
-    ; todo: make this work...
-    [(/ [in-scope top-scope] begin/ `(begin ,(and (/ a/ a) (not (/ [in-scope _] _ _))
-                                                  )
-                                            ,as ...))
-     (println 'begin-case-1)
-     (W (/ [in-scope top-scope] begin/ `(begin ,(W (/ [in-scope top-scope] a/ a))
-                                               ,@as)))]
-    [(/ [in-scope top-scope] begin/ `(begin ,(and as (/ [in-scope _] _ _)) ...
-                                            ,(and a (/ [in-scope a-scope] _ _))
-                                            ,(and (/ b/ b) (not (/ [in-scope _] _ _)))
-                                            ,bs ...))
-     (println 'begin-case-2)
-     (W (/ [in-scope top-scope] begin/ `(begin ,@as
-                                               ,a
-                                               ,(W (/ [in-scope a-scope] b/ b))
-                                               ,@bs)))]
-    [(/ [in-scope top-scope] begin/ `(begin ,(and as (/ [in-scope _] _ _)) ...))
-     (println 'begin-case-3-done)
-     (/ [in-scope top-scope] begin/ `(begin ,@as))]
-
+    
     ; simple forms which map scope to children
     [(/ in-scope _/
         `(,head ,(/ as/ as) ...))
@@ -134,13 +114,27 @@
     
     [(/ in-scope define/
         `(define ,params ,body))
-     ; introduce function binding to top-level scope
-     (println `(introducing-to-top-scope ,(match params [(/ p/ `(,p ,ps ...)) p])))
+     ; HACK: introduce function binding to top-level scope
+     ; see begin case below
      (add-to-scope
       in-scope
       (match params [(/ p/ `(,p ,ps ...)) (/ p/ `(,p))])
       (/ define/
-         `(define ,params ,(W (add-to-scope in-scope params body)))))]  
+         `(define ,params ,(W (add-to-scope in-scope params body)))))]
+
+    ; defines splice scope into begins
+    [(/ [in-scope top-scope] begin/ `(begin ,as ...))
+     (define-values (stuff _)
+       (for/fold ([running-stx '()]
+                  [running-scope top-scope])
+                 ([a as])
+         (match a
+           [(/ b/ b)
+            (match-define (/ [in-scope new-scope] x/ x)
+              (W (/ [in-scope running-scope] b/ b)))
+            (values `(,@running-stx ,(/ [in-scope new-scope] x/ x))
+                    new-scope)])))
+     (/ [in-scope top-scope] begin/ `(begin ,@stuff))]
 
     ; NOTE: PERMISSIVE FALLTHROUGH WHILE IMPLEMENTING NEW FORMS
     [_ (println `(WARNING: ATTRIBUTES: NOT-IMPLEMENTED: ,stx)) stx]
