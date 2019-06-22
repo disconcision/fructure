@@ -154,15 +154,18 @@
 ; -------------------------------------------------
 ; INPUT
 
-(define (input-keyboard state key)
+(define ((input-keyboard pr) state key)
   ; mode-loop : key x state -> state
   ; determines the effect of key based on mode
   (define-from state
     stx mode search-buffer
     keypresses layout-settings)
+
+  (when (equal? pr 'release)
+    (println `("RELEASE" ,key)))
   
   ; print debugging information
-  #;(displayln `(mode: ,mode  key: ,key))
+  #;(displayln `(mode: ,mode pr: ,pr key: ,key))
   #;(displayln `(projected: ,(project stx)))
   (displayln `(search-buffer: ,search-buffer))
   #;(displayln `(keypresses ,keypresses))
@@ -172,8 +175,8 @@
   #;(println "transform time: ")
   (define new-state
     (identity (match mode
-      ['menu (mode:transform key state)]
-      ['nav  (mode:navigate key state)])))
+      ['menu (mode:transform pr key state)]
+      ['nav  (mode:navigate pr key state)])))
   
   ; augment syntax with attributes
   ; calculate dynamic settings
@@ -215,7 +218,8 @@
   ; MY LOVE FOR YOU IS LIKE A TRUCK
   [name 'fructure]
   ; BERSERKER
-  [on-key input-keyboard]
+  [on-key (input-keyboard 'press)]
+  [on-release (input-keyboard 'release)]
   [to-draw output screen-x screen-y]
   #;[display-mode 'fullscreen]
   #;[record? "gif-recordings"])

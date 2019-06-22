@@ -5,7 +5,7 @@
 
 (define init-buffer #;"" '(▹ ""))
 
-(define (mode:transform key state)
+(define (mode:transform pr key state)
   ; transformation major mode
   (define-from state
     stx search-buffer history keypresses)
@@ -21,183 +21,185 @@
   #;(define hole-selected-in-menu?
       (match-lambda? (⋱ c⋱ (/ [transform (⋱ d⋱ (/ (menu (⋱ (/ h/ (▹ (or '⊙ '⊙+))))) m/ _))] t/ t))))
   
-  (match key
+  (if (equal? pr 'release)
+      state
+      (match key
 
-    ["f1"
-     (println `(BEGIN-STX ,stx))
-     state]
+        ["f1"
+         (println `(BEGIN-STX ,stx))
+         state]
     
-    ["escape"
-     ; cancel current transform and restore original syntax
-     ; TODO: decide if cursor is conceptually necessary here
-     (update 'mode 'nav
-             'search-buffer init-buffer
-             'stx (⋱ ctx (/ r/ (▹ reagent))))]
+        ["escape"
+         ; cancel current transform and restore original syntax
+         ; TODO: decide if cursor is conceptually necessary here
+         (update 'mode 'nav
+                 'search-buffer init-buffer
+                 'stx (⋱ ctx (/ r/ (▹ reagent))))]
 
-    ["\r"
-     ; perform selected transform, remove menu, and switch to nav mode
-     (update 'mode 'nav
-             'search-buffer init-buffer
-             'stx (erase-captures
-                   (⋱ ctx (strip-menu (perform-selected-transform template)))))]
+        ["\r"
+         ; perform selected transform, remove menu, and switch to nav mode
+         (update 'mode 'nav
+                 'search-buffer init-buffer
+                 'stx (erase-captures
+                       (⋱ ctx (strip-menu (perform-selected-transform template)))))]
 
-    ["f2"
-     ; hack to remove menu
-     (update 'stx (⋱ ctx (/ [transform (strip-menu template)] r/ reagent)))]
+        ["f2"
+         ; hack to remove menu
+         (update 'stx (⋱ ctx (/ [transform (strip-menu template)] r/ reagent)))]
     
-    [(or "right" " ")
-     ; apply selected transform and advance the cursor+menu the next hole
-     ; PROBLEM: when we're inserting through a variadic form
-     ; we don't want to move to next hole automatically after transform,
-     ; because the effect of that transform may have been to insert a new
-     ; hole that we now want to fill.
-     ; HOWEVER: the effect of right, according to the ostensible operative
-     ; logic, is to 'step into' the current menu selection. if the selection is a hole,
-     ; then stepping into it, i.e. doing nothing in most cases, is consistent.
-     ; either we can special-case this somehow, or instead use something else,
-     ; like space, to move forward in these cases.
-     ; proposed logic: right continues to work as before, EXCEPT
-     ; we change the move-to-next-hole logic to stay still if we're on a hole
-     ; and we used space to skip filling a hole.
-     ; BUT: does this work in the general variadic case?
-     ; remember that in the single-char case, we force completion
-     ; does this change things? let's try it out....
-     (update 'search-buffer init-buffer
-             'stx (⋱ ctx (/ [transform (move-menu-to-next-hole
-                                        (perform-selected-transform template)
-                                        stx init-buffer)] ; empty search buffer
-                            r/ reagent)))]
+        [(or "right" " ")
+         ; apply selected transform and advance the cursor+menu the next hole
+         ; PROBLEM: when we're inserting through a variadic form
+         ; we don't want to move to next hole automatically after transform,
+         ; because the effect of that transform may have been to insert a new
+         ; hole that we now want to fill.
+         ; HOWEVER: the effect of right, according to the ostensible operative
+         ; logic, is to 'step into' the current menu selection. if the selection is a hole,
+         ; then stepping into it, i.e. doing nothing in most cases, is consistent.
+         ; either we can special-case this somehow, or instead use something else,
+         ; like space, to move forward in these cases.
+         ; proposed logic: right continues to work as before, EXCEPT
+         ; we change the move-to-next-hole logic to stay still if we're on a hole
+         ; and we used space to skip filling a hole.
+         ; BUT: does this work in the general variadic case?
+         ; remember that in the single-char case, we force completion
+         ; does this change things? let's try it out....
+         (update 'search-buffer init-buffer
+                 'stx (⋱ ctx (/ [transform (move-menu-to-next-hole
+                                            (perform-selected-transform template)
+                                            stx init-buffer)] ; empty search buffer
+                                r/ reagent)))]
 
-    ["left"
-     ; budget undo
-     ; do we actually want to change the history in this way?
-     ; what are the alternatives?
-     (update 'stx (if (empty? history) stx (first history))
-             'history (if (empty? history) history (rest history))
-             'search-buffer init-buffer)]
+        ["left"
+         ; budget undo
+         ; do we actually want to change the history in this way?
+         ; what are the alternatives?
+         (update 'stx (if (empty? history) stx (first history))
+                 'history (if (empty? history) history (rest history))
+                 'search-buffer init-buffer)]
     
-    ["up"
-     ; cycle the cursor to the previous menu item
-     ; it looks a bit noisy because each menu item is actually
-     ; a pair of a (hidden) transformation and its (displayed) result
-     (define new-template
-       (match template
-         [(⋱ c⋱ (/ [menu `((,t1 ,(/ a/ (▹ a))) ,bs ... (,t2 ,(/ c/ c)))] t/ t))
-          (⋱ c⋱ (/ [menu `((,t1 ,(/ a/ a)) ,@bs (,t2 ,(/ c/ (▹ c))))] t/ t))]
-         [(⋱ c⋱ (/ [menu `(,a ... (,t1 ,(/ b/ b)) (,t2 ,(/ c/ (▹ c))) ,d ...)] t/ t))
-          (⋱ c⋱ (/ [menu `(,@a (,t1 ,(/ b/ (▹ b))) (,t2 ,(/ c/ c)) ,@d)] t/ t))]
-         [x (println "warning: couldn't find menu cursor") x]))
-     (update 'stx (⋱ ctx (/ (transform new-template) r/ reagent)))]
+        ["up"
+         ; cycle the cursor to the previous menu item
+         ; it looks a bit noisy because each menu item is actually
+         ; a pair of a (hidden) transformation and its (displayed) result
+         (define new-template
+           (match template
+             [(⋱ c⋱ (/ [menu `((,t1 ,(/ a/ (▹ a))) ,bs ... (,t2 ,(/ c/ c)))] t/ t))
+              (⋱ c⋱ (/ [menu `((,t1 ,(/ a/ a)) ,@bs (,t2 ,(/ c/ (▹ c))))] t/ t))]
+             [(⋱ c⋱ (/ [menu `(,a ... (,t1 ,(/ b/ b)) (,t2 ,(/ c/ (▹ c))) ,d ...)] t/ t))
+              (⋱ c⋱ (/ [menu `(,@a (,t1 ,(/ b/ (▹ b))) (,t2 ,(/ c/ c)) ,@d)] t/ t))]
+             [x (println "warning: couldn't find menu cursor") x]))
+         (update 'stx (⋱ ctx (/ (transform new-template) r/ reagent)))]
 
-    ["down"
-     ; cycle the cursor to the next menu item
-     (define new-template
-       (match template
-         [(⋱ c⋱ (/ [menu `((,t1 ,(/ a/ a)) ,bs ... (,t2 ,(/ c/ (▹ c))))] t/ t))
-          (⋱ c⋱ (/ [menu `((,t1 ,(/ a/ (▹ a))) ,@bs (,t2 ,(/ c/ c)))] t/ t))]
-         [(⋱ c⋱ (/ [menu `(,a ... (,t1 ,(/ b/ (▹ b))) (,t2 ,(/ c/ c)) ,d ...)] t/ t))
-          (⋱ c⋱ (/ [menu `(,@a (,t1 ,(/ b/ b)) (,t2 ,(/ c/ (▹ c))) ,@d)] t/ t))]
-         [x (println "warning: couldn't find menu cursor") x]))
-     (update 'stx (⋱ ctx (/ (transform new-template) r/ reagent)))]
+        ["down"
+         ; cycle the cursor to the next menu item
+         (define new-template
+           (match template
+             [(⋱ c⋱ (/ [menu `((,t1 ,(/ a/ a)) ,bs ... (,t2 ,(/ c/ (▹ c))))] t/ t))
+              (⋱ c⋱ (/ [menu `((,t1 ,(/ a/ (▹ a))) ,@bs (,t2 ,(/ c/ c)))] t/ t))]
+             [(⋱ c⋱ (/ [menu `(,a ... (,t1 ,(/ b/ (▹ b))) (,t2 ,(/ c/ c)) ,d ...)] t/ t))
+              (⋱ c⋱ (/ [menu `(,@a (,t1 ,(/ b/ b)) (,t2 ,(/ c/ (▹ c))) ,@d)] t/ t))]
+             [x (println "warning: couldn't find menu cursor") x]))
+         (update 'stx (⋱ ctx (/ (transform new-template) r/ reagent)))]
 
-    ["\b"
-     ; todo: ideally we'd like to retain current menu selection
-     ; after pressing bksp
-     (define buffer-candidate
-       (match search-buffer
-         [`(▹ "")
-          `(▹ "")]
-         [(⋱ c⋱ `((▹ "")))
-          (⋱ c⋱ `(▹ ""))]
-         [(⋱ c⋱ `(,as ... ,a (▹ "")))
-          (⋱ c⋱ `(,@as (▹ ,a)))]
-         [(⋱ c⋱ `(▹ ,(and s (? string?) (not (== "")))))
-          (⋱ c⋱ `(▹ ,(substring s 0 (sub1 (string-length s)))))]
-         [x (error "backspace sux dood duhhhhhh" x)]))
-     ; note: need case for backspacing sexpr, and out of sexpr
-     (define-values (new-stx-candidate newest-buffer-candidate)
-       (menu-filter-in-stx "\b" stx search-buffer buffer-candidate))
-     (update 'stx new-stx-candidate
-             'search-buffer newest-buffer-candidate)]
-    ; todo: below should be reinterpreted as a search-buffer operation
-    ["\t" ; FORMERLY SNEED I MEAN SPACE
-     ; new proposed logic for space:
-     ; if the search buffer cursor is on (any?) hole,
-     ; skip filling that hole and move to the next one.
-     ; so: need to refactor search to return cursor-match
-     (define new-search-buffer
-       (match search-buffer
-         [(⋱ c⋱ `(,as ... (▹ ,a)))
-          (⋱ c⋱ `(,@as ,a (▹ "")))]
-         ; new special case:
-         #;[`(▹ "")
-            (println `(new special case (▹ "▹ """)))
-            '666-not-matchable]
-         [(⋱ c⋱ `(▹ ,a))
-          (⋱ c⋱ `(,a (▹ "")))]))
-     (define-values (new-stx-candidate
-                     newest-buffer-candidate)
-       ; if pressing space results in there no longer being a match
-       ; (might need to ammend that; maybe really want: total match before space?
-       ;  actually that would work for hole selected in menu too; it is already total match
-       ; total match ==? cursor is last atom in selector pattern, which matches against
-       ; last item in replacement.)
-       ; then (hypothesis) we should execute current transform ie
-       ; advance to next hole AFTER current selection
-       ; EVEN IF cur sel is a hole
-       (menu-filter-in-stx " " stx search-buffer new-search-buffer))
-     (update 'search-buffer newest-buffer-candidate
-             'stx new-stx-candidate)
-     ; if there's a hole after the cursor, advance the cursor+menu to it
-     ; idea for modification to make this feel more natural
-     #;(update 'search-buffer init-buffer
-               'stx (⋱ ctx (/ [transform (move-menu-to-next-hole template
-                                                                 stx init-buffer)]
-                              ; above "" is empty search buffer
-                              r/ reagent)))]
-    [(or "(" "[" "{") 
-     (define new-search-buffer
-       (match search-buffer
-         [(⋱ c⋱ `(▹ ,a))
-          (⋱ c⋱ `((▹ ,a)))])) ; shouldn't need fallthorugh
-     (define-values (new-stx-candidate
-                     newest-buffer-candidate)
-       (menu-filter-in-stx "(" stx search-buffer new-search-buffer))
-     (update 'search-buffer newest-buffer-candidate
-             'stx new-stx-candidate)]
-    [(or ")" "]" "}") 
-     (define new-search-buffer
-       (match search-buffer
-         [(⋱ c⋱ `(,as ... (,bs ... (▹ ,s))))
-          (⋱ c⋱ `(,@as (,@bs ,s) (▹ "")))]
-         ; otherwise, fallthrough
-         ; do we need special force-completeion case?
-         ; for totally completeing a form?
-         ; no... can always (ish) press space to wrap
-         [x x]))
-     (define-values (new-stx-candidate
-                     newest-buffer-candidate)
-       (menu-filter-in-stx ")" stx search-buffer new-search-buffer))
-     (update 'search-buffer newest-buffer-candidate
-             'stx new-stx-candidate)]
-    [(regexp #rx"^[0-9a-z\\]$" c)
-     #:when c
-     ; hack? otherwise this seems to catch everything?
-     ; maybe since we're matching against a key event...
+        ["\b"
+         ; todo: ideally we'd like to retain current menu selection
+         ; after pressing bksp
+         (define buffer-candidate
+           (match search-buffer
+             [`(▹ "")
+              `(▹ "")]
+             [(⋱ c⋱ `((▹ "")))
+              (⋱ c⋱ `(▹ ""))]
+             [(⋱ c⋱ `(,as ... ,a (▹ "")))
+              (⋱ c⋱ `(,@as (▹ ,a)))]
+             [(⋱ c⋱ `(▹ ,(and s (? string?) (not (== "")))))
+              (⋱ c⋱ `(▹ ,(substring s 0 (sub1 (string-length s)))))]
+             [x (error "backspace sux dood duhhhhhh" x)]))
+         ; note: need case for backspacing sexpr, and out of sexpr
+         (define-values (new-stx-candidate newest-buffer-candidate)
+           (menu-filter-in-stx "\b" stx search-buffer buffer-candidate))
+         (update 'stx new-stx-candidate
+                 'search-buffer newest-buffer-candidate)]
+        ; todo: below should be reinterpreted as a search-buffer operation
+        ["\t" ; FORMERLY SNEED I MEAN SPACE
+         ; new proposed logic for space:
+         ; if the search buffer cursor is on (any?) hole,
+         ; skip filling that hole and move to the next one.
+         ; so: need to refactor search to return cursor-match
+         (define new-search-buffer
+           (match search-buffer
+             [(⋱ c⋱ `(,as ... (▹ ,a)))
+              (⋱ c⋱ `(,@as ,a (▹ "")))]
+             ; new special case:
+             #;[`(▹ "")
+                (println `(new special case (▹ "▹ """)))
+                '666-not-matchable]
+             [(⋱ c⋱ `(▹ ,a))
+              (⋱ c⋱ `(,a (▹ "")))]))
+         (define-values (new-stx-candidate
+                         newest-buffer-candidate)
+           ; if pressing space results in there no longer being a match
+           ; (might need to ammend that; maybe really want: total match before space?
+           ;  actually that would work for hole selected in menu too; it is already total match
+           ; total match ==? cursor is last atom in selector pattern, which matches against
+           ; last item in replacement.)
+           ; then (hypothesis) we should execute current transform ie
+           ; advance to next hole AFTER current selection
+           ; EVEN IF cur sel is a hole
+           (menu-filter-in-stx " " stx search-buffer new-search-buffer))
+         (update 'search-buffer newest-buffer-candidate
+                 'stx new-stx-candidate)
+         ; if there's a hole after the cursor, advance the cursor+menu to it
+         ; idea for modification to make this feel more natural
+         #;(update 'search-buffer init-buffer
+                   'stx (⋱ ctx (/ [transform (move-menu-to-next-hole template
+                                                                     stx init-buffer)]
+                                  ; above "" is empty search buffer
+                                  r/ reagent)))]
+        [(or "(" "[" "{") 
+         (define new-search-buffer
+           (match search-buffer
+             [(⋱ c⋱ `(▹ ,a))
+              (⋱ c⋱ `((▹ ,a)))])) ; shouldn't need fallthorugh
+         (define-values (new-stx-candidate
+                         newest-buffer-candidate)
+           (menu-filter-in-stx "(" stx search-buffer new-search-buffer))
+         (update 'search-buffer newest-buffer-candidate
+                 'stx new-stx-candidate)]
+        [(or ")" "]" "}") 
+         (define new-search-buffer
+           (match search-buffer
+             [(⋱ c⋱ `(,as ... (,bs ... (▹ ,s))))
+              (⋱ c⋱ `(,@as (,@bs ,s) (▹ "")))]
+             ; otherwise, fallthrough
+             ; do we need special force-completeion case?
+             ; for totally completeing a form?
+             ; no... can always (ish) press space to wrap
+             [x x]))
+         (define-values (new-stx-candidate
+                         newest-buffer-candidate)
+           (menu-filter-in-stx ")" stx search-buffer new-search-buffer))
+         (update 'search-buffer newest-buffer-candidate
+                 'stx new-stx-candidate)]
+        [(regexp #rx"^[0-9a-z\\]$" c)
+         #:when c
+         ; hack? otherwise this seems to catch everything?
+         ; maybe since we're matching against a key event...
 
-     (define buffer-candidate
-       (match search-buffer
-         [(⋱ c⋱ `(▹ ,(? string? s)))
-          (⋱ c⋱ `(▹ ,(string-append s
-                                    (hash-ref (hash "\\" "λ")
-                                              (first c) (first c)))))]))
+         (define buffer-candidate
+           (match search-buffer
+             [(⋱ c⋱ `(▹ ,(? string? s)))
+              (⋱ c⋱ `(▹ ,(string-append s
+                                        (hash-ref (hash "\\" "λ")
+                                                  (first c) (first c)))))]))
 
-     (define-values (new-stx-candidate newest-buffer-candidate)
-       (menu-filter-in-stx c stx search-buffer buffer-candidate))
-     (update 'stx new-stx-candidate
-             'search-buffer newest-buffer-candidate)]
+         (define-values (new-stx-candidate newest-buffer-candidate)
+           (menu-filter-in-stx c stx search-buffer buffer-candidate))
+         (update 'stx new-stx-candidate
+                 'search-buffer newest-buffer-candidate)]
     
-    [_ (println "warning: transform-mode: no programming for that key") state]))
+        [_ (println "warning: transform-mode: no programming for that key") state])))
 
 
 
