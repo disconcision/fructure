@@ -160,14 +160,11 @@
   (define-from state
     stx mode search-buffer
     keypresses layout-settings)
-
-  (when (equal? pr 'release)
-    (println `("RELEASE" ,key)))
   
   ; print debugging information
   #;(displayln `(mode: ,mode pr: ,pr key: ,key))
   #;(displayln `(projected: ,(project stx)))
-  (displayln `(search-buffer: ,search-buffer))
+  #; (displayln `(search-buffer: ,search-buffer))
   #;(displayln `(keypresses ,keypresses))
   #;(displayln state)
 
@@ -175,15 +172,16 @@
   #;(println "transform time: ")
   (define new-state
     (identity (match mode
-      ['menu (mode:transform pr key state)]
-      ['nav  (mode:navigate pr key state)])))
+                ['menu (mode:transform pr key state)]
+                ['transform-shift (mode:transform-shift pr key state)]
+                ['nav  (mode:navigate pr key state)])))
   
   ; augment syntax with attributes
   ; calculate dynamic settings
   #;(println "augment time: ")
   (identity (update-map new-state
-              [stx fruct-augment]
-              [layout-settings add-dynamic-settings])))
+                        [stx fruct-augment]
+                        [layout-settings add-dynamic-settings])))
 
 
 ; -------------------------------------------------
@@ -200,7 +198,7 @@
     ; second here skips the top (diamond) affo
     ; todo: make this less hacky by going fs
     (identity (fructure-layout (second stx) layout-settings
-                     screen-x screen-y)))
+                               screen-x screen-y)))
 
   (if display-keypresses?
       (overlay/align

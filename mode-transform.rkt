@@ -1,6 +1,7 @@
 #lang racket
 
 (provide mode:transform
+         mode:transform-shift
          insert-menu-at-cursor)
 
 (define init-buffer #;"" '(▹ ""))
@@ -24,6 +25,9 @@
   (if (equal? pr 'release)
       state
       (match key
+
+        ["shift"
+         (update 'mode 'transform-shift)]
 
         ["f1"
          (println `(BEGIN-STX ,stx))
@@ -202,6 +206,40 @@
         [_ (println "warning: transform-mode: no programming for that key") state])))
 
 
+(define (mode:transform-shift pr key state)
+  (define-from state
+    stx history keypresses layout-settings)
+  (define (update . stuff)
+    (define base-state
+      (hash-set* state
+                 'history (cons stx history)
+                 'keypresses (cons key keypresses)))
+    (apply hash-set* base-state stuff))
+  (if (equal? pr 'release)
+      (match key
+        ["shift" (update 'mode 'menu)]
+        [_ state])
+      (match key
+        ["left" (update 'layout-settings
+                        (hash-set layout-settings
+                                  'transform-template-only #true))]
+        ["right" (update 'layout-settings
+                         (hash-set layout-settings
+                                   'transform-template-only #false))]
+        ["up"
+         (define current-length (hash-ref layout-settings 'max-menu-length))
+         (define new-length (if (equal? 1 current-length) current-length (sub1 current-length)))
+         (update 'layout-settings
+                 (hash-set* layout-settings
+                            'simple-menu? (equal? 1 new-length)
+                            'max-menu-length new-length))]
+        ["down"
+         (define current-length (hash-ref layout-settings 'max-menu-length))
+         (update 'layout-settings
+                 (hash-set* layout-settings
+                            'simple-menu? #false
+                            'max-menu-length (add1 current-length)))]
+        [_ state])))
 
 (require "language.rkt"
          #;(only-in "mode-navigate.rkt" capture-at-cursor)
