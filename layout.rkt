@@ -29,9 +29,11 @@
         'typeface "Iosevka, Light"
         'max-menu-length 3
         'max-menu-length-chars 1
+        'transform-template-only #f
         'popout-transform? #t
         'popout-menu? #t
         'custom-menu-selector? #t
+        'simple-menu? #f
         'force-horizontal-layout? #f
         'length-conditional-layout? #t
         'length-conditional-cutoff 14
@@ -115,7 +117,7 @@
 ; fructure-layout : syntax -> pixels
 (define (fructure-layout fruct layout-settings (screen-x 800) (screen-y 400))
   (define-from layout-settings
-    bkg-color text-size popout-transform? popout-menu?)
+    bkg-color text-size popout-transform? popout-menu? simple-menu?)
  
   (define expander-height
     (round (* 1/4 text-size))) ; magic af
@@ -195,7 +197,7 @@
                              ; ULTRA MAGIC NUMBER
                              ; empirically -12 works for text-size 30 (width is 18)
                              (* -12/30 text-size) 0))
-                  (+ y (- expander-height)))]
+                  (+ y (if simple-menu? 0 (- expander-height))))]
       [_ backing-image]))
  
           
@@ -302,10 +304,10 @@
        (render (/ a/ a)
                (metavar-tint-colors m
                                     (hash-set* layout-settings
-                                              ; hack to override red bkg for atomic selections
-                                              ; magic color
-                                              'identifier-color (color 215 215 215)
-                                              'selected-color metavar-color))))
+                                               ; hack to override red bkg for atomic selections
+                                               ; magic color
+                                               'identifier-color (color 215 215 215)
+                                               'selected-color metavar-color))))
      (define id-height (image-height id-image))
      (define id-width (image-width id-image))
      (define radius-adj (div-integer radius 7/5))
@@ -688,7 +690,7 @@
 (define (render-menu stx layout-settings)
   (define-from layout-settings
     text-size typeface max-menu-length max-menu-length-chars implicit-forms unit-width
-    custom-menu-selector? line-spacing selected-color menu-bkg-color radius)
+    simple-menu? custom-menu-selector? line-spacing selected-color menu-bkg-color radius)
   (match-define (/ [menu `((,transforms ,resultants) ...)] p/ place) stx)
 
   #| this function currently renders ALL menu items
@@ -756,7 +758,7 @@
           ; THE REAL ISSUE HERE is that it displays eg. overlaid "r" for all refs
           ; but they shouldn't be here to begin with; fix on the tranform-mode side...
           #;[(/ a/ `(,(or 'ref 'num 'mapp #;(? (curryr member implicit-forms))) ,xs ...))
-           image]
+             image]
           [_ (overlay/align
               "left" "top"
               (match search-buffer
@@ -847,21 +849,28 @@
 
   ; stylish backing
   (define cool-menu
-    (overlay
-     (above (ellipses expander-height expander-ellipses-color)
-            truncated-menu-image
-            (ellipses expander-height expander-ellipses-color))
-     (rounded-rectangle
-      (image-width truncated-menu-image)
-      (image-height truncated-menu-image)
-      radius
-      menu-bkg-color)
-     (rounded-rectangle
-      (+ 0 (image-width truncated-menu-image))
-      (+ (* 2 expander-height)
-         (image-height truncated-menu-image))
-      radius
-      (color 125 125 125)))) ; magic color
+    (if simple-menu?
+        (overlay truncated-menu-image
+                 (rounded-rectangle
+                  (image-width truncated-menu-image)
+                  (image-height truncated-menu-image)
+                  radius
+                  (color 40 40 40)))
+        (overlay
+         (above (ellipses expander-height expander-ellipses-color)
+                truncated-menu-image
+                (ellipses expander-height expander-ellipses-color))
+         (rounded-rectangle
+          (image-width truncated-menu-image)
+          (image-height truncated-menu-image)
+          radius
+          menu-bkg-color)
+         (rounded-rectangle
+          (+ 0 (image-width truncated-menu-image))
+          (+ (* 2 expander-height)
+             (image-height truncated-menu-image))
+          radius
+          (color 125 125 125))))) ; magic color
 
   ; all this is just to put the rewritten fructs back in the right place
   ; TODO: check to make sure the data is going in the right place!!
@@ -897,7 +906,7 @@
 
 (define (render-transform fruct layout-settings)
   (define-from layout-settings
-    text-size typeface selected-color
+    text-size typeface selected-color transform-template-only
     dodge-enabled? transform-tint-color radius)
   
   (match-define (/ [transform template] t/ target) fruct)
@@ -929,18 +938,27 @@
                                  transform-tint-color 0.5) v))]
                     [_ (values k v)])))
         (render template layout-settings)))
+
+
+  ; determines menu offset
+  (define template-offset
+    (list (if transform-template-only
+              ; whether to show only the template
+              ; (no target or arrow)
+              0
+              (apply + (map image-width
+                            (list target-image
+                                  (space text-size typeface)
+                                  arrow-image
+                                  (space text-size typeface)))))
+          0))
  
   (define new-template
     (match template-fruct
       [(? (disjoin symbol? number?)) template]
       [(/ a/ a)
        (/ [display-offset
-           (list (apply + (map image-width
-                               (list target-image
-                                     (space text-size typeface)
-                                     arrow-image
-                                     (space text-size typeface))))
-                 0)]
+           template-offset]
           [display-box
            (list (image-width template-image)
                  (image-height template-image))]
@@ -981,20 +999,26 @@
      target-bounds template-bounds layout-settings))
   
   (define new-image
-    (overlay/align
-     "left" "top"
-     (beside/align
-      "top"     
-      (overlay/align "left" "top"
-                     target-backing
-                     target-image)
-      (beside (space text-size typeface)
-              arrow-image 
-              (space text-size typeface))
-      (overlay/align "left" "top"
-                     template-backing
-                     template-image))
-     transform-backing))
+    (if transform-template-only
+        ; show only template
+        (overlay/align "left" "top"
+                       template-backing
+                       template-image)
+        ; show target - >template
+        (overlay/align
+         "left" "top"
+         (beside/align
+          "top"     
+          (overlay/align "left" "top"
+                         target-backing
+                         target-image)
+          (beside (space text-size typeface)
+                  arrow-image 
+                  (space text-size typeface))
+          (overlay/align "left" "top"
+                         template-backing
+                         template-image))
+         transform-backing)))
   
   (list (/ [transform new-template] new-t/ new-target)
         new-image))

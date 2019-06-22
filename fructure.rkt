@@ -72,8 +72,11 @@
   'max-menu-length-chars 1
   
   ; layer transform/menu above structure
+  'transform-template-only #f
+  'simple-menu? #f
   'popout-transform? #t
   'popout-menu? #t
+
 
   'force-horizontal-layout? #f
   ; invade the second dimension 
