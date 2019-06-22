@@ -131,8 +131,8 @@
           (⋱ c⋱ `(,@as ,a (▹ "")))]
          ; new special case:
          #;[`(▹ "")
-          (println `(new special case (▹ "▹ """)))
-          '666-not-matchable]
+            (println `(new special case (▹ "▹ """)))
+            '666-not-matchable]
          [(⋱ c⋱ `(▹ ,a))
           (⋱ c⋱ `(,a (▹ "")))]))
      (define-values (new-stx-candidate
@@ -239,19 +239,6 @@
         menu)))
 
 
-(define (make-menu in-scope metavar-transforms current-selection)
-  (transforms->menu
-   (append metavar-transforms
-           base-transforms
-           (for/list ([id in-scope])
-             `([⋱
-                 (▹ [sort expr] xs ... / ⊙)
-                 (▹ [sort expr] xs ... /
-                    (ref ',id))])))
-   current-selection))
-
-
-
 ; -------------------------------------------------
 
 
@@ -308,7 +295,7 @@
     ; past any unfilled hole
     ; HACK: dont skip past variadic holes
     [(⋱ c⋱ (/ [variadic #true] a/ (▹ (and h (or '⊙ '⊙+)))))
-       (⋱ c⋱ (/ [variadic #true] a/ (▹ h)))]
+     (⋱ c⋱ (/ [variadic #true] a/ (▹ h)))]
     #;[(⋱ c⋱ (/ a/ (▹ (and h (or '⊙ '⊙+)))))
        (⋱ c⋱ (/ a/ (▹ h)))]
     [(⋱ c⋱ (and (/ y/ (▹ (⋱ d⋱ (/ x/ (and h (or '⊙ '⊙+))))))
@@ -341,8 +328,6 @@
     (match ambient-stx
       [(⋱+ c⋱ (and m (/ metavar _/ _)))
        m]))
-
-  
   ; problem: need to project metavar contents into
   ; a format runtime-match understands
   ; soln: fruct-to-runtime
@@ -384,8 +369,7 @@
                   (▹ ,@a / ,b)])]))
          (extract-metavars (erase-attrs ambient-stx))))
 
-  ; hack:
-  ; if the template is a metavar
+  ; HACK: if the template is a metavar
   ; all transformed menu items will be the same metavar
   ; so we strip it
   (define stx
@@ -393,14 +377,23 @@
       [(/ metavar a/ a) (/ a/ a)]
       [x x]))
 
-  
-  (define (expand-menu menu-stx)
-    0)
+  ; todo: expand holes in menu
+  #; (define (expand-menu menu-stx) 0)
 
+  (define in-scope-transforms
+    (for/list ([id (extract-scope stx)])
+      `([⋱
+          (▹ [sort expr] xs ... / ⊙)
+          (▹ [sort expr] xs ... / (ref ',id))])))
   
-  (define in-scope
-    (extract-scope stx))
-  (define menu-stx (make-menu in-scope metavar-transforms stx))
+  (define menu-stx
+    (transforms->menu
+     (append metavar-transforms
+             base-transforms
+             in-scope-transforms
+             base-library-transforms)
+     stx))
+  
   (match stx
     [(⋱ c⋱ (/ xs/ (▹ x)))
      #:when (not (empty? menu-stx))

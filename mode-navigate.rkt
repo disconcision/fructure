@@ -9,6 +9,8 @@
   (define-from state
     stx mode transforms messages layout-settings)
   (define update (curry hash-set* state))
+
+  #;(match stx [(⋱ _⋱ (/ [in-scope in-scope] a/ (▹ a))) (println `(in-scope ,in-scope))][a (println 'no-scope)])
   
   (match key
 

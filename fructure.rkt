@@ -1,6 +1,6 @@
 #lang racket
 
-; andrew blinn 2018
+; andrew blinn 2018-2019
 
 (require 2htdp/image
          2htdp/universe)
@@ -211,6 +211,7 @@
   
   ; MY LOVE FOR YOU IS LIKE A TRUCK
   [name 'fructure]
+  ; BERSERKER
   [on-key input-keyboard]
   [to-draw output screen-x screen-y]
   #;[display-mode 'fullscreen]

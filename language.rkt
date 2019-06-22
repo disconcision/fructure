@@ -9,6 +9,7 @@
 ; but ai will reward us when it reigns
 
 (provide base-transforms
+         base-library-transforms
          initial-stx)
 
 (provide stx->fruct
@@ -42,10 +43,15 @@
          '([⋱
              (▹ [sort expr] xs ... / ⊙)
              (▹ [sort expr] xs ... / (λ ([sort params]
-                                         / (([sort pat]
-                                             / (id ([sort char] / ⊙)))))
+                                         / (([sort pat] / (id ([sort char] / ⊙)))))
                                        ([sort expr] / ⊙)))]))
    (list '([⋱
+             (▹ [sort expr] xs ... / ⊙)
+             (▹ [sort expr] xs ... / (define ([sort params]
+                                              / (([sort pat] / (id ([sort char] / ⊙)))
+                                                 ([sort pat] / (id ([sort char] / ⊙)))))
+                                       ([sort expr] / ⊙)))])
+         '([⋱
              (▹ [sort expr] xs ... / ⊙)
              (▹ [sort expr] xs ... / (num ([sort digit] / ⊙)))])
          
@@ -176,17 +182,20 @@
         (▹ xs ... / (if a b c))
         (▹ xs ... / ⊙)]
       [⋱
+        (▹ xs ... / (define a ...))
+        (▹ xs ... / ⊙)]
+      [⋱
         (▹ xs ... / (begin a ...))
         (▹ xs ... / ⊙)]
       [⋱
         (▹ xs ... / (cond a ...))
         (▹ xs ... / ⊙)]
-      [⋱
-        (▹ xs ... / (match a ...))
-        (▹ xs ... / ⊙)]
-      [⋱
-        (▹ xs ... / (let a ...))
-        (▹ xs ... / ⊙)]
+      #;[⋱
+          (▹ xs ... / (match a ...))
+          (▹ xs ... / ⊙)]
+      #;[⋱
+          (▹ xs ... / (let a ...))
+          (▹ xs ... / ⊙)]
      
       ; general fallthough for now
       ; don't need identity constructor with this
@@ -241,7 +250,7 @@
 
 
 ; HACK hacky hack
-(define basic-library
+(define base-library
   (append
    '(true
      false
@@ -263,20 +272,21 @@
             )
    sym))
 
-(define basic-library-constructors
-  (for/list ([x basic-library])
+(define base-library-transforms
+  (for/list ([x base-library])
     `([⋱
         (▹ [sort expr] xs ... / ⊙)
         #;(▹ [sort expr] xs ... / (ref ([sort char] / ,x)))
         (▹ [sort expr] xs ... / ,(symbol->proper-ref x))])))
 
 (define basic-refactors
-  '(([⋱
+  (list
+   '([⋱
        (▹ [sort expr] xs ... / (cond
                                  ([sort CP] / (cp a b))
                                  ([sort CP] / (cp ([sort else] / else) c))))
        (▹ [sort expr] xs ... / (if a b c))])
-    ([⋱
+   '([⋱
        (▹ [sort expr] xs ... / (if a b c))
        (▹ [sort expr] xs ... / (cond
                                  ([sort CP] [variadic #true] / (cp a b))
@@ -288,7 +298,6 @@
           base-constructors
           alpha-constructors
           digit-constructors
-          basic-library-constructors
           basic-refactors))
 
 

@@ -5,9 +5,9 @@
          augment-transform
          paint-handle)
 
-(require "new-syntax.rkt"
+(require "common.rkt"
+         "new-syntax.rkt"
          containment-patterns)
-
 
 
 (define (paint-handle fr)
@@ -44,7 +44,6 @@
   ; augment: stx -> stx
   (augment-internal stx))
 
-
 (define (augment-transform stx)
   ; augment-transform: stx -> stx
   ; writes attributes into the the transform product
@@ -59,7 +58,6 @@
            as/ a))]
     [x x]))
 
-
 (module+ test
   (require rackunit)
   (check-equal? (augment-internal
@@ -70,8 +68,6 @@
                 `(◇ ,(/ (in-scope '())
                         `(app ,(/ (in-scope '()) 0)
                               ,(/ (in-scope '()) 0)))))
-
-  ; id refactor
   (check-equal? (augment-internal
                  `(◇ ,(/ `(λ ,(/ `(,(/ `(id ,(/ 'a) ,(/ 'b) ,(/ '⊙)))))
                             ,(/ 0)))))
@@ -80,92 +76,86 @@
                            ,(/ (in-scope `((id ,(/ 'a) ,(/ 'b) ,(/ '⊙))))
                                0))))))
 
-
-
-
 (define (augment-internal stx)
-  #;(println `(augment-internal ,stx))
   (define W (curry augment-internal))
   (match stx
-    
+    ; at the top, nothing is in scope
+    ; todo: properly add starter library to scope here
     [`(◇ ,(/ a/ prog))
      `(◇ ,(W (/ (in-scope '()) a/ prog)))]
 
-    [(/ anns/ '⊙)
-     (/ anns/ '⊙)]
+    ; atomic forms which don't pass down scope
+    [(/ in-scope a/ a)
+     #:when (match? a
+              '⊙
+              '⊙+
+              0
+              `(ref ,_)
+              `(num ,_))
+     (/ in-scope a/ a)]
 
-    [(/ anns/ 0)
-     (/ anns/ 0)]
+    ; todo: make this work...
+    [(/ [in-scope top-scope] begin/ `(begin ,(and (/ a/ a) (not (/ [in-scope _] _ _))
+                                                  )
+                                            ,as ...))
+     (println 'begin-case-1)
+     (W (/ [in-scope top-scope] begin/ `(begin ,(W (/ [in-scope top-scope] a/ a))
+                                               ,@as)))]
+    [(/ [in-scope top-scope] begin/ `(begin ,(and as (/ [in-scope _] _ _)) ...
+                                            ,(and a (/ [in-scope a-scope] _ _))
+                                            ,(and (/ b/ b) (not (/ [in-scope _] _ _)))
+                                            ,bs ...))
+     (println 'begin-case-2)
+     (W (/ [in-scope top-scope] begin/ `(begin ,@as
+                                               ,a
+                                               ,(W (/ [in-scope a-scope] b/ b))
+                                               ,@bs)))]
+    [(/ [in-scope top-scope] begin/ `(begin ,(and as (/ [in-scope _] _ _)) ...))
+     (println 'begin-case-3-done)
+     (/ [in-scope top-scope] begin/ `(begin ,@as))]
 
+    ; simple forms which map scope to children
     [(/ in-scope _/
-        `(ref ,whatever))
+        `(,head ,(/ as/ as) ...))
+     #:when (set-member? (set 'app
+                              #;'begin
+                              'if
+                              'cond
+                              'cp)
+                         head)
      (/ in-scope _/
-        `(ref ,whatever))]
-    
-    #;[(/ in-scope _/
-        `(app ,(/ f/ f)
-              ,(/ a/ a)))
-     (/ in-scope _/
-        `(app ,(W (/ in-scope f/ f))
-              ,(W (/ in-scope a/ a))))]
+        `(,head ,@(map (λ (a/ a) (W (/ in-scope a/ a))) as/ as)))]   
 
-    [(/ in-scope _/
-        `(app ,(/ as/ as) ...))
-     (/ in-scope _/
-        `(app ,@(map (λ (a/ a) (W (/ in-scope a/ a))) as/ as)))]
-
-    [(/ in-scope _/
-        `(begin ,(/ as/ as) ...))
-     (/ in-scope _/
-        `(begin ,@(map (λ (a/ a) (W (/ in-scope a/ a))) as/ as)))]
-
-    [(/ in-scope _/
-        `(if ,(/ a/ a) ,(/ b/ b) ,(/ c/ c)))
-     (/ in-scope _/
-        `(if ,(W (/ in-scope a/ a))
-             ,(W (/ in-scope b/ b))
-             ,(W (/ in-scope c/ c))))]
-
-    [(/ in-scope _/
-        `(cond ,(/ as/ as) ...))
-     (/ in-scope _/
-        `(cond ,@(map (λ (a/ a) (W (/ in-scope a/ a))) as/ as)))]
-    [(/ in-scope _/
-        `(cp ,(/ as/ as) ...))
-     (/ in-scope _/
-        `(cp ,@(map (λ (a/ a) (W (/ in-scope a/ a))) as/ as)))]
-
+    ; the real mcdeal, scopewise speaking
     [(/ in-scope λ/
-        `(λ ,(/ params/ `(,(/ id/ (and my-stx
-                                       `(id ,(/ chars/ chars) ...)))))
-           ,(/ body/ body)))
-     (define new-var
-       ; trying to refactor to make identifiers handled generically
-       (match (/ id/ my-stx)
-         [(/ id/ `(id ,chars ... ,(/ hole/ '⊙)))
-          (if (empty? chars)
-              '||
-              (/ id/ `(id ,@chars )))])
-       #; (string->symbol
-           (apply string-append
-                  (map symbol->string
-                       (drop-right chars 1)))))
-     (define new-in-scope
-       (if (equal? '|| new-var)
-           in-scope
-           `(,new-var ,@in-scope)))
-     ; for now we leave duplicate things in scope
-     ; later we'll deal with this with unique identifier ids
+        `(λ ,params ,body))
      (/ in-scope λ/
-        `(λ ,(/ params/ `(,(/ id/ my-stx)))
-           ,(W (/ (in-scope new-in-scope) body/ body))))]
-
-    ; SILENT FALLTHROUGH WHILE IMPLEMENTING NEW FORMS
-    [_ stx]
+        `(λ ,params ,(W (add-to-scope in-scope params body))))]
     
-    [_ (error (~a `("attribute generation error on stx: ", stx))) 0]
-    ))
+    [(/ in-scope define/
+        `(define ,params ,body))
+     ; introduce function binding to top-level scope
+     (println `(introducing-to-top-scope ,(match params [(/ p/ `(,p ,ps ...)) p])))
+     (add-to-scope
+      in-scope
+      (match params [(/ p/ `(,p ,ps ...)) (/ p/ `(,p))])
+      (/ define/
+         `(define ,params ,(W (add-to-scope in-scope params body)))))]  
 
+    ; NOTE: PERMISSIVE FALLTHROUGH WHILE IMPLEMENTING NEW FORMS
+    [_ (println `(WARNING: ATTRIBUTES: NOT-IMPLEMENTED: ,stx)) stx]
+    [_ (error (~a `(ERROR: ATTRIBUTES: NOT-IMPLEMENTED: ,stx))) void]))
+
+(define (add-to-scope in-scope params-fr fr)
+  (define (introduce-to-scope my-stx)
+    (match my-stx
+      [(/ id/ `(id ,chars ... ,(/ _/ '⊙)))
+       (if (empty? chars) '() `(,(/ id/ `(id ,@chars))))]))
+  (match-define (/ body/ body) fr)
+  (match-define (/ _/ params) params-fr)
+  (/ [in-scope (remove-duplicates
+                (append in-scope (append-map introduce-to-scope params)))]
+     body/ body))
 
 (define fruct-augment
   ; augments syntax with attributes
