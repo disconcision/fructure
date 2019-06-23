@@ -9,15 +9,9 @@
 (define (mode:transform pr key state)
   ; transformation major mode
   (define-from state
-    stx search-buffer history keypresses)
-  (define (update . stuff)
-    (define base-state
-      (hash-set* state
-                 'history (cons stx history)
-                 'keypresses (cons key keypresses)))
-    (apply hash-set* base-state stuff))
+    stx search-buffer history)
+  (define update (updater state key))
   (match-define (⋱ ctx (/ [transform template] r/ reagent)) stx)
-  #;(define template (insert-menu-at-cursor pre-template))
 
   #;(define hole-selected-in-menu?
       (match-lambda? (⋱ c⋱ (/ [transform (⋱ d⋱ (/ (menu (⋱ (/ h/ (▹ (or '⊙ '⊙+))))) m/ _))] t/ t))))

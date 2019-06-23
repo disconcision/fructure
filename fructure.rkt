@@ -73,7 +73,8 @@
   'implicit-forms '(ref num app cp lp lps mp mapp) ; hide heads
 
   ; TRANSFORM & MENU OPTIONS
-  'menu-bkg-color (color 112 112 112)
+  'menu-bkg-color (color 0 35 39)
+  'menu-secondary-color (color 0 24 27)
   'transform-tint-color (color 160 0 0) ;selected-color
   'transform-arrow-color (color 255 255 255)
   'transform-template-only #f ; don't show -> and target
@@ -107,7 +108,7 @@
   'hole-bottom-color (color 252 225 62)
   'hole-side-color (color 193 115 23)
   '+hole-color (color 25 80 84)
-)
+  )
 
 
 ; calculates dynamic settings derived from the above
@@ -161,24 +162,24 @@
   ; print debugging information
   #;(displayln `(mode: ,mode pr: ,pr key: ,key))
   #;(displayln `(projected: ,(project stx)))
-  #; (displayln `(search-buffer: ,search-buffer))
+  #;(displayln `(search-buffer: ,search-buffer))
   #;(displayln `(keypresses ,keypresses))
   #;(displayln state)
 
   ; dispatch based on current mode
   #;(println "transform time: ")
   (define new-state
-    (identity (match mode
-                ['menu (mode:transform pr key state)]
-                ['transform-shift (mode:transform-shift pr key state)]
-                ['nav  (mode:navigate pr key state)])))
+    (match mode
+      ['menu (mode:transform pr key state)]
+      ['transform-shift (mode:transform-shift pr key state)]
+      ['nav  (mode:navigate pr key state)]))
   
   ; augment syntax with attributes
   ; calculate dynamic settings
   #;(println "augment time: ")
-  (identity (update-map new-state
-                        [stx fruct-augment]
-                        [layout-settings add-dynamic-settings])))
+  (update-map new-state
+              [stx fruct-augment]
+              [layout-settings add-dynamic-settings]))
 
 
 ; -------------------------------------------------
@@ -189,18 +190,18 @@
   (define-from state
     stx layout-settings keypresses)
   (define-from layout-settings
-    display-keypresses?)
+    display-keypresses? text-size)
   #;(println "output time: ")
   (match-define (list _ image-out)
     ; second here skips the top (diamond) affo
     ; todo: make this less hacky by going fs
     (fructure-layout (second stx) layout-settings
-                               screen-x screen-y))
+                     screen-x screen-y))
   (if display-keypresses?
-      (overlay/align
-       "left" "top"
-       (display-keypresses keypresses)
-       image-out)
+      (place-image/align (display-keypresses keypresses)
+                         (* 4 text-size) (* 1 text-size)
+                         "left" "top"
+                         image-out)
       image-out))
 
 

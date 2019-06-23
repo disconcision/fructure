@@ -60,6 +60,7 @@
         'pattern-bkg-color (color 230 230 230)
         'pattern-grey-one (color 17 39 46)#;(color 76 76 76)
         'pattern-grey-two (color 110 110 110)
+        'menu-secondary-color (color 40 40 40)
         ))
 
 ; COPIED from fructure.rkt TODO REFACTOR
@@ -83,19 +84,20 @@
 
 
 (define (display-keypresses keypresses)
-  (define keypress-text-size 40)
+  (define keypress-text-size 50)
+  (define keypress-typeface "Iosevka, Light")
   (define keypress-radius 8)
-  (define keypress-color (color 0 148 286))
+  (define keypress-color (color 0 118 172))
   (define keypress-nonlit-color (color 0 47 54))
   (define keypress-nonlit-outline-color (color 0 47 54))
-  (define keypress-nonlit-background-color (color 0 94 108))
+  (define keypress-nonlit-background-color (color 0 74 84))
   (define keypress-num 36)
   (define keypress-axis 'horizontal)
   (define keypress-direction "bottom")
-  (define (render-key-core str text-color outline-color bkg-color)
+  (define (render-key-core str typeface text-color outline-color bkg-color)
     (define text-image
       (text/font str keypress-text-size text-color
-                 #f 'modern 'normal 'normal #;'bold #f))
+                 typeface 'modern 'normal 'normal #;'bold #f))
     (overlay (rounded-rectangle-outline
               (image-width text-image) (image-height text-image)
               keypress-radius outline-color 2)
@@ -104,26 +106,29 @@
               (image-width text-image) (image-height text-image)
               keypress-radius bkg-color)))
   (define (render-keypress str)
-    (render-key-core str keypress-color
+    (render-key-core str keypress-typeface keypress-color
                      (color 0 57 66)
                      (color 0 0 0 0)))
   (define (render-keypress-nonlit str)
-    (render-key-core str keypress-nonlit-color
+    (render-key-core str #f keypress-nonlit-color
                      keypress-nonlit-outline-color
                      keypress-nonlit-background-color))
   (define (render-key k)
     (match k
-      ["right" (render-keypress-nonlit "→")]
-      ["left" (render-keypress-nonlit "←")]
-      ["up" (render-keypress-nonlit "↑")]
-      ["down" (render-keypress-nonlit "↓")]
-      ["\r" (render-keypress-nonlit "↪")]
-      ["\b" (render-keypress-nonlit "⌫")]
-      ["shift" (render-keypress-nonlit "⇧")] ; untested
-      ["control" (render-keypress-nonlit) "⌘"] ; untested
-      [" " (render-keypress " ")] ; space
-      ["[" (render-keypress "(")]
-      ["]" (render-keypress ")")]
+      ; nonliterals
+      ["right"  (render-keypress-nonlit "→")]
+      ["left"   (render-keypress-nonlit "←")]
+      ["up"     (render-keypress-nonlit "↑")]
+      ["down"   (render-keypress-nonlit "↓")]
+      ["\r"     (render-keypress-nonlit "↪")]
+      ["\b"     (render-keypress-nonlit "⌫")]
+      ["\t"     (render-keypress-nonlit "↹")]
+      ["shift"  (render-keypress-nonlit "⇧")]
+      ["escape" (render-keypress-nonlit "⎋")]
+      ; pseudoliterals
+      [" "      (render-keypress " ")]
+      ["["      (render-keypress "(")]
+      ["]"      (render-keypress ")")]
       [else (render-keypress k)]))
   (define last-num-keypresses
     (reverse (if (< (length keypresses) keypress-num)
@@ -715,8 +720,9 @@
 
 (define (render-menu stx layout-settings)
   (define-from layout-settings
-    text-size typeface max-menu-length max-menu-length-chars implicit-forms unit-width
-    simple-menu? custom-menu-selector? line-spacing selected-color menu-bkg-color radius)
+    text-size typeface max-menu-length max-menu-length-chars
+    implicit-forms unit-width simple-menu? custom-menu-selector?
+    line-spacing selected-color menu-bkg-color menu-secondary-color radius)
   (match-define (/ [menu `((,transforms ,resultants) ...)] p/ place) stx)
 
   #| this function currently renders ALL menu items
@@ -881,7 +887,7 @@
                   (image-width truncated-menu-image)
                   (image-height truncated-menu-image)
                   radius
-                  (color 40 40 40)))
+                  (color 40 40 40))) ; magic color
         (overlay
          (above (ellipses expander-height expander-ellipses-color)
                 truncated-menu-image
@@ -896,7 +902,7 @@
           (+ (* 2 expander-height)
              (image-height truncated-menu-image))
           radius
-          (color 125 125 125))))) ; magic color
+          menu-secondary-color)))) ; magic color
 
   ; all this is just to put the rewritten fructs back in the right place
   ; TODO: check to make sure the data is going in the right place!!
@@ -922,7 +928,10 @@
   
   
   (list (/ [menu `(,@(map list transforms new-fruct))] p/ place)
-        cool-menu))
+        (overlay (rounded-rectangle-outline (image-width cool-menu)
+                                            (image-height cool-menu)
+                                            radius selected-color 1)
+                 cool-menu)))
 
 
 
@@ -1027,9 +1036,10 @@
   (define new-image
     (if transform-template-only
         ; show only template
-        (overlay/align "left" "top"
-                       template-backing
-                       template-image)
+        template-image
+        #;(overlay/align "left" "top"
+                         template-backing
+                         template-image)
         ; show target - >template
         (overlay/align
          "left" "top"

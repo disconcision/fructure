@@ -8,7 +8,7 @@
   
   (define-from state
     stx mode transforms messages layout-settings)
-  (define update (curry hash-set* state))
+  (define update (updater state key))
   
   (if (equal? pr 'release)
       state

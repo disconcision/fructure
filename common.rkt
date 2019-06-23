@@ -11,6 +11,8 @@
          define-map
          match?
          match-lambda?
+
+         updater
          
          atomic?
          selected?
@@ -60,6 +62,15 @@
 
 (define-syntax-rule (match? <expr> <pat> ...)
   (match <expr> [<pat> #t] ... [_ #f]))
+
+(define ((updater state key) . stuff)
+  (define-from state
+    stx history keypresses)
+  (define base-state
+    (hash-set* state
+               'history (cons stx history)
+               'keypresses (cons key keypresses)))
+  (apply hash-set* base-state stuff))
 
 
 ; -------------------------------------------------
