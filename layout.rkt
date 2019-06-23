@@ -83,33 +83,61 @@
 
 
 (define (display-keypresses keypresses)
-  (define (key-remap k)
+  (define keypress-text-size 40)
+  (define keypress-radius 8)
+  (define keypress-color (color 0 148 286))
+  (define keypress-nonlit-color (color 0 47 54))
+  (define keypress-nonlit-outline-color (color 0 47 54))
+  (define keypress-nonlit-background-color (color 0 94 108))
+  (define keypress-num 36)
+  (define keypress-axis 'horizontal)
+  (define keypress-direction "bottom")
+  (define (render-key-core str text-color outline-color bkg-color)
+    (define text-image
+      (text/font str keypress-text-size text-color
+                 #f 'modern 'normal 'normal #;'bold #f))
+    (overlay (rounded-rectangle-outline
+              (image-width text-image) (image-height text-image)
+              keypress-radius outline-color 2)
+             text-image
+             (rounded-rectangle
+              (image-width text-image) (image-height text-image)
+              keypress-radius bkg-color)))
+  (define (render-keypress str)
+    (render-key-core str keypress-color
+                     (color 0 57 66)
+                     (color 0 0 0 0)))
+  (define (render-keypress-nonlit str)
+    (render-key-core str keypress-nonlit-color
+                     keypress-nonlit-outline-color
+                     keypress-nonlit-background-color))
+  (define (render-key k)
     (match k
-      [" " "SPACE"]
-      ["\r" "↪"]
-      ["\b" "BACK"]
-      ["right" "→"]
-      ["left" "←"]
-      ["up" "↑"]
-      ["down" "↓"]
-      [else k]))
-  (if (empty? keypresses)
-      empty-image
-      (above/align
-       "left"
-       (text/font " " 20 (color 255 255 255) #f 'modern 'normal 'normal #f)
-       (beside/align
-        "top"
-        (text/font " " 20 (color 255 255 255) #f 'modern 'normal 'normal #f)
-        (text/font (string-append " " (key-remap (first keypresses)))
-                   20 (color 255 255 255 220) #f 'modern 'normal 'bold #f)
-        (text/font (apply string-append
-                          (map (λ (x) (string-append " " (key-remap x)))
-                               (if (< (length (rest keypresses)) 10)
-                                   (rest keypresses) (take (rest keypresses) 10))))
-                   20 (color 255 255 255 160) #f 'modern 'normal 'normal #f)
-        (text/font " ..."
-                   20 (color 255 255 255 220) #f 'modern 'normal 'bold #f)))))
+      ["right" (render-keypress-nonlit "→")]
+      ["left" (render-keypress-nonlit "←")]
+      ["up" (render-keypress-nonlit "↑")]
+      ["down" (render-keypress-nonlit "↓")]
+      ["\r" (render-keypress-nonlit "↪")]
+      ["\b" (render-keypress-nonlit "⌫")]
+      ["shift" (render-keypress-nonlit "⇧")] ; untested
+      ["control" (render-keypress-nonlit) "⌘"] ; untested
+      [" " (render-keypress " ")] ; space
+      ["[" (render-keypress "(")]
+      ["]" (render-keypress ")")]
+      [else (render-keypress k)]))
+  (define last-num-keypresses
+    (reverse (if (< (length keypresses) keypress-num)
+                 keypresses
+                 (take keypresses keypress-num))))
+  (match keypresses
+    ['() empty-image]
+    [(? list?)
+     (apply (case keypress-axis
+              [('vertical) above/align*]
+              [('horizontal) beside/align*]
+              [else beside/align*])
+            keypress-direction
+            (map render-key last-num-keypresses))]))
 
 
 ; fructure-layout : syntax -> pixels

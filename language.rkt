@@ -23,12 +23,11 @@
          affo-id?)
 
 ; -------------------------------------------------
-; BASE TRANSFORMS
 
 (define base-constructors
-  ; constructors for app and λ
-  ; constructors for variable references are introduced dynamically
+  ; CONSTRUCTORS FOR BASE SYNTACTIC FORMS
   (append
+   ; LAMBDA CALC
    (list '([⋱
              (▹ [sort expr] xs ... / ⊙)
              (▹ [sort expr] xs ... / (app ([sort expr] / ⊙)
@@ -44,6 +43,7 @@
              (▹ [sort expr] xs ... / (λ ([sort params]
                                          / (([sort pat] / (id ([sort char] / ⊙)))))
                                        ([sort expr] / ⊙)))]))
+   ; EXTENDED FORMS
    (list '([⋱
              (▹ [sort expr] xs ... / ⊙)
              (▹ [sort expr] xs ... / (define ([sort params]
@@ -71,20 +71,15 @@
              (▹ [sort expr] xs ... / (begin
                                        ([sort expr] [variadic #true] / ⊙)
                                        ([sort expr] [variadic #true] / ⊙+)))])
+         
+         ; problem we're trying to solve: autoadvances to next hole after transformation,
+         ; but in this case, we're inserting a new hole and want to stay on it
+         ; HACK: mark as 'variadic' and special-case it in select-next-hole in transform
+         ; basically for these variadic holes, we don't autoadvance the cursor if its on one
+         ; disadvantage: can't leave placeholder holes in variadic forms
          '([⋱
-             (xs ... / (begin
-                         as ...
-                         (▹ bs ... / ⊙+) ))
-             (xs ... / (begin
-                         as ...
-                         ; problem we're trying to solve: autoadvances to next hole after transformation,
-                         ; but in this case, we're inserting a new hole and want to stay on it
-                         ; HACK: mark as 'variadic' and special-case it in select-next-hole in transform
-                         ; basically for these variadic holes, we don't autoadvance the cursor if its on one
-                         ; disadvantage: can't leave placeholder holes in variadic forms
-                         (▹ [sort expr] [variadic #true] / ⊙)
-                         (bs ... / ⊙+)
-                         ))])
+             (xs ... / (begin as ... (▹ bs ... / ⊙+) ))
+             (xs ... / (begin  as ... (▹ [sort expr] [variadic #true] / ⊙)(bs ... / ⊙+)))])
 
          '([⋱
              (▹ [sort expr] xs ... / ⊙)
@@ -150,18 +145,16 @@
                                                                              ([sort expr] / ⊙)))
                                                              ([sort LP] bs ... / ⊙+)))
                                        ([sort expr] / ⊙)))])
-
-
+         
          ; identity transform
          ; redundant to generalmost destructor
          #;'([⋱
                (▹ [sort expr] xs ... / ⊙)
-               (▹ [sort expr] xs ... / ⊙)])))
-  )
+               (▹ [sort expr] xs ... / ⊙)]))))
 
 
 (define base-destructors
-  ; destructors for all syntactic forms
+  ; DESTRUCTORS FOR BASE SYNTACTIC FORMS
   (list
    (append
     '([⋱
@@ -173,8 +166,7 @@
       [⋱
         (▹ xs ... / (λ a b))
         (▹ xs ... / ⊙)])
-    '(
-      [⋱
+    '([⋱
         (▹ xs ... / (num a ...))
         (▹ xs ... / ⊙)]
       [⋱
@@ -195,7 +187,6 @@
       #;[⋱
           (▹ xs ... / (let a ...))
           (▹ xs ... / ⊙)]
-     
       ; general fallthough for now
       ; don't need identity constructor with this
       ; but needs this hacky guard
@@ -208,8 +199,7 @@
           (▹ xs ... / ⊙+)]
       #;[⋱
           (▹ xs ... / a)
-          (▹ xs ... / ⊙)]
-      ))))
+          (▹ xs ... / ⊙)]))))
 
 
 (define alphabet
@@ -248,11 +238,9 @@
          (xs ... / (num as ... (▹ [sort digit] ys ... / ⊙) bs ...))
          (xs ... / (num as ... (▹ [sort digit] ys ... / ',x) ([sort digit] / ⊙) bs ...))]))))
 
-
-; BASE LIBRARY FUNCTIONS & SIGNATURES
-; later: populate base sigs from contracts? procedure-props?
-
 (define base-library-signatures
+  ; BASE LIBRARY FUNCTIONS & SIGNATURES
+  ; later: populate base sigs from contracts? procedure-props?
   (append
    '(true false (not ⊙))
    '((zero? ⊙) (add1 ⊙) (sub1 ⊙))
@@ -278,15 +266,16 @@
         `(([⋱
              (▹ [sort expr] xs ... / ⊙)
              (▹ [sort expr] xs ... / (app ([sort expr] / ,(symbol->proper-ref a))
-                                          ,@(map (λ (_) `([sort expr] / ⊙)) as)))])([⋱
+                                          ,@(map (λ (_) `([sort expr] / ⊙)) as)))])
+          ([⋱
              (▹ [sort expr] xs ... / ⊙)
              (▹ [sort expr] xs ... / ,(symbol->proper-ref a))]))]))))
 
 #;(define base-library
-  (append
-   '(true false not)
-   '(zero? add1 sub1)
-   '(null empty? cons first rest)))
+    (append
+     '(true false not)
+     '(zero? add1 sub1)
+     '(null empty? cons first rest)))
 
 #;(define base-library-transforms
     (for/list ([x base-library])
