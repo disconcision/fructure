@@ -1,12 +1,12 @@
 #lang racket
 
-; andrew blinn 2018
+; andrew blinn 2018-2019
 
 (require "common.rkt"
          "new-syntax.rkt")
 
 ; you may think that we're insane
-; but ai will reward us when it reigns
+; ai will reward us when it reigns
 
 (provide base-transforms
          base-library-transforms
@@ -21,7 +21,6 @@
          cond-like-id?
          form-id?
          affo-id?)
-
 
 ; -------------------------------------------------
 ; BASE TRANSFORMS
@@ -215,8 +214,9 @@
 
 (define alphabet
   ; character set for identifiers
-  '(😗 🤟 😮 🤛 😉 ✌ 😏 👌 😎 👈 👉 😣 🤙 😁
-      a b c d e f g h i j k l m n o p q r s t u v w x y z))
+  (append #;'(😗 🤟 😮 🤛 😉 ✌ 😏 👌 😎 👈 👉 😣 🤙 😁)
+          '(a b c d e f g h i j k l m n o p q r s t u v w x y z)
+          '(? ! - \| 😗 🤟)))
 
 (define alpha-constructors
   ; char constructors for each letter in the alphabet
@@ -249,37 +249,56 @@
          (xs ... / (num as ... (▹ [sort digit] ys ... / ',x) ([sort digit] / ⊙) bs ...))]))))
 
 
-; HACK hacky hack
-(define base-library
+; BASE LIBRARY FUNCTIONS & SIGNATURES
+; later: populate base sigs from contracts? procedure-props?
+
+(define base-library-signatures
   (append
-   '(true
-     false
-     |()|)
-   '(cons
-     empty?
-     first
-     rest)
-   '(zero?
-     length
-     add1
-     sub1)))
+   '(true false (not ⊙))
+   '((zero? ⊙) (add1 ⊙) (sub1 ⊙))
+   '(null (empty? ⊙) (cons ⊙ ⊙) (first ⊙) (rest ⊙))))
 
 (define (symbol->proper-ref sym)
   ((compose (λ (stuff) `(ref ([sort pat] / (id ,@stuff))))
             (curry map (λ (s) `([sort char] / ',(string->symbol (string s)))))
-            string->list
-            symbol->string
-            )
+            string->list symbol->string)
    sym))
 
 (define base-library-transforms
-  (for/list ([x base-library])
-    `([⋱
-        (▹ [sort expr] xs ... / ⊙)
-        #;(▹ [sort expr] xs ... / (ref ([sort char] / ,x)))
-        (▹ [sort expr] xs ... / ,(symbol->proper-ref x))])))
+  (apply
+   append
+   (for/list ([x base-library-signatures])
+     (match x
+       [(? symbol?)
+        `(([⋱
+             (▹ [sort expr] xs ... / ⊙)
+             (▹ [sort expr] xs ... / ,(symbol->proper-ref x))]))]
+       [`(,a ,as ...)
+        ; order of these two is very intentional
+        `(([⋱
+             (▹ [sort expr] xs ... / ⊙)
+             (▹ [sort expr] xs ... / (app ([sort expr] / ,(symbol->proper-ref a))
+                                          ,@(map (λ (_) `([sort expr] / ⊙)) as)))])([⋱
+             (▹ [sort expr] xs ... / ⊙)
+             (▹ [sort expr] xs ... / ,(symbol->proper-ref a))]))]))))
 
-(define basic-refactors
+#;(define base-library
+  (append
+   '(true false not)
+   '(zero? add1 sub1)
+   '(null empty? cons first rest)))
+
+#;(define base-library-transforms
+    (for/list ([x base-library])
+      `([⋱
+          (▹ [sort expr] xs ... / ⊙)
+          #;(▹ [sort expr] xs ... / (ref ([sort char] / ,x)))
+          (▹ [sort expr] xs ... / ,(symbol->proper-ref x))])))
+
+; BASIC REFACTORING TRANSFORMATIONS
+; eventually, populate some of these from macros
+
+(define base-refactors
   (list
    '([⋱
        (▹ [sort expr] xs ... / (cond
@@ -292,35 +311,33 @@
                                  ([sort CP] [variadic #true] / (cp a b))
                                  ([sort CP] [variadic #true] / (cp ([sort else] / else) c))))])))
 
-
+; BASE TRANSFORMATION MARSHALLING
 (define base-transforms
-  (append base-destructors
+  (append base-destructors 
           base-constructors
+          base-refactors
           alpha-constructors
-          digit-constructors
-          basic-refactors))
+          digit-constructors))
 
 
 ; -------------------------------------------------
 ; LANGUAGE DATA
+; metadata which will be eventually derived automatically
 
-
-; primary symbols
-
+; RESERVED primary symbols
 (define unary-ids (append '(ref id) '(quote qq uq p-not num)))
 (define if-like-ids (append '(app mapp and) '(if iff mp lp #;cp begin list p-and p-or p-list)))
 (define lambda-like-ids (append '(λ lambda) '(match let define local)))
-(define cond-like-ids '(cond match-λ λm lps)) ; pairs is let pairs
+(define cond-like-ids '(cond match-λ λm lps)) ; lps is let pairs
 
+; RESERVED meta symbols
 (define affordances '(▹ ⊙ ⊙+ ◇ →))
 (define sort-names (append '(expr char digit pat params) '(MP LP LPS CP def else)))
 ; else above is hack
 
 
 ; derived symbol functions
-
 (define form-ids (append unary-ids if-like-ids lambda-like-ids cond-like-ids))
-
 (define if-like-id? (curryr member if-like-ids))
 (define lambda-like-id? (curryr member lambda-like-ids))
 (define cond-like-id? (curryr member cond-like-ids))
@@ -331,8 +348,7 @@
   (for/fold ([hs (hash)])
             ([lit (append form-ids
                           affordances
-                          sort-names
-                          )])
+                          sort-names)])
     (hash-set hs lit '())))
 
 

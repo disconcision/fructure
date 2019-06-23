@@ -42,7 +42,6 @@
         'line-spacing 0 ; 1
         'char-padding-vertical 0 ; 5
         'show-parens? #f
-
         'hole-bottom-color (color 252 225 62)
         'hole-side-color (color 193 115 23)
         'background-block-color (color 25 80 84)
@@ -61,7 +60,6 @@
         'pattern-bkg-color (color 230 230 230)
         'pattern-grey-one (color 17 39 46)#;(color 76 76 76)
         'pattern-grey-two (color 110 110 110)
-
         ))
 
 ; COPIED from fructure.rkt TODO REFACTOR
@@ -126,7 +124,7 @@
   (match fruct
     [`(◇ ,x) (error "strip top before calling")] [_ 0])
 
-  (match-define `(,x-offset ,y-offset) `(,text-size ,(* 3 text-size)))
+  (match-define `(,x-offset ,y-offset) `(,(* 4 text-size) ,(* 4 text-size)))
   ; magic 3 above leaves room for key display
 
   (match-define `(,new-fruct ,scene-image)

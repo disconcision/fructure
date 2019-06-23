@@ -19,7 +19,7 @@
          "common.rkt")
 
 (define-values (screen-x screen-y)
-  (values 1200 800))
+  (values 1904 1012))
 
 #|
 
@@ -54,63 +54,60 @@
 
 (define-map initial-layout
 
-  ; scaling parameters
-  'text-size 30
+  ; SCALING PARAMETERS
+  'text-size 50
   'typeface "Iosevka, Light"
   'line-spacing 0 ; 1
   'char-padding-vertical 2 ; 5
   
-  ; hide the heads of these forms
-  'implicit-forms '(ref num app cp lp lps mp mapp)
+  ; BUSTED & EXPERIMENTAL OPTIONS
+  'custom-menu-selector? #t ; beautify menu selector ?
+  'show-parens? #f ; show parentheses. not fully implemented
+  'background-block-color (color 25 80 84) ;? what even is this?
+  'dodge-enabled? #t  ; beautify menu - TODO: REMOVE THIS
 
-  ; show a list of the n last keypresses
-  'display-keypresses? #t
-  
-  ; maximum completions
-  'max-menu-length 4
-  ; for single-character menus
-  'max-menu-length-chars 1
-  
-  ; layer transform/menu above structure
-  'transform-template-only #f
-  'simple-menu? #f
-  'popout-transform? #t
-  'popout-menu? #t
+  ; DEBUGGING OPTIONS
+  'display-keypresses? #t ; show a list of the n last keypresses
 
+  ; PROJECTION OPTIONS
+  'implicit-forms '(ref num app cp lp lps mp mapp) ; hide heads
 
-  'force-horizontal-layout? #f
-  ; invade the second dimension 
-  'length-conditional-layout? #t
-  ; but only if our children weigh more than
-  'length-conditional-cutoff 14
-  
-  ; beautify menu
-  'dodge-enabled? #t
-  ; beautify menu selector
-  'custom-menu-selector? #t
-
-  ; show parentheses. not fully implemented
-  'show-parens? #f
-
-  ; look at the pretty colors
-  'hole-bottom-color (color 252 225 62)
-  'hole-side-color (color 193 115 23)
-  'background-block-color (color 25 80 84)
-  'transform-tint-color (color 160 0 0) ;selected-color
-  'selected-atom-color (color 255 255 255)
+  ; TRANSFORM & MENU OPTIONS
   'menu-bkg-color (color 112 112 112)
+  'transform-tint-color (color 160 0 0) ;selected-color
+  'transform-arrow-color (color 255 255 255)
+  'transform-template-only #f ; don't show -> and target
+  'simple-menu? #f ; only red outline, dark backing
+  'max-menu-length 4 ; maximum completions
+  'max-menu-length-chars 1 ; same, for single-character menus
+  'popout-transform? #t ; layer transform above structure
+  'popout-menu? #t ; same
+
+  ; NAVIGATION & SELECTION OPTIONS
+  'selected-color (color 230 0 0)
+  'selected-atom-color (color 255 255 255)
+  
+  ; LAYOUT OPTIONS
+  'force-horizontal-layout? #f ; uninvade the second dimension 
+  'length-conditional-layout? #t ; unless our children weigh more than
+  'length-conditional-cutoff 14
+    
+  ; BACKGROUND COLORS
+  'bkg-color (color 0 47 54)
+  'grey-one (color 0 47 54) #;(color 230 230 230)
+  'grey-two (color 0 47 54) #;(color 215 215 215)
+  'pattern-bkg-color (color 230 230 230)
+  'pattern-grey-one (color 17 39 46) #;(color 84 84 84)
+  'pattern-grey-two (color 110 110 110)
+
+  ; FORM COLORS
   'form-color (color 0 130 214)
   'literal-color (color 255 131 50)
-  'grey-one (color 0 47 54)#;(color 230 230 230)
-  'grey-two (color 0 47 54)#;(color 215 215 215)
-  'identifier-color (color 48 161 182)#;(color 0 0 0)
-  'selected-color (color 230 0 0)
+  'identifier-color (color 48 161 182) #;(color 0 0 0)
+  'hole-bottom-color (color 252 225 62)
+  'hole-side-color (color 193 115 23)
   '+hole-color (color 25 80 84)
-  'transform-arrow-color (color 255 255 255)
-  'bkg-color (color 0 47 54)
-  'pattern-bkg-color (color 230 230 230)
-  'pattern-grey-one (color 17 39 46)#;(color 84 84 84)
-  'pattern-grey-two (color 110 110 110))
+)
 
 
 ; calculates dynamic settings derived from the above
@@ -197,9 +194,8 @@
   (match-define (list _ image-out)
     ; second here skips the top (diamond) affo
     ; todo: make this less hacky by going fs
-    (identity (fructure-layout (second stx) layout-settings
-                               screen-x screen-y)))
-
+    (fructure-layout (second stx) layout-settings
+                               screen-x screen-y))
   (if display-keypresses?
       (overlay/align
        "left" "top"

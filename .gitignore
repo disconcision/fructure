@@ -3,3 +3,4 @@
 *.zo
 *.1
 *.rkt~
+compiled/
