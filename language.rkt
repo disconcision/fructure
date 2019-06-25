@@ -281,7 +281,6 @@
     (for/list ([x base-library])
       `([⋱
           (▹ [sort expr] xs ... / ⊙)
-          #;(▹ [sort expr] xs ... / (ref ([sort char] / ,x)))
           (▹ [sort expr] xs ... / ,(symbol->proper-ref x))])))
 
 ; BASIC REFACTORING TRANSFORMATIONS

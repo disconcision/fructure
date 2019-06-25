@@ -112,6 +112,16 @@
      (/ in-scope λ/
         `(λ ,params ,(W (add-to-scope in-scope params body))))]
     
+    #;[(/ in-scope define/
+          `(define ,params ,body))
+       ; HACK: introduce function binding to top-level scope
+       ; see begin case below
+       (add-to-scope
+        in-scope
+        (match params [(/ p/ `(,p ,ps ...)) (/ p/ `(,p))])
+        (/ define/
+           `(define ,params ,(W (add-to-scope in-scope params body)))))]
+
     [(/ in-scope define/
         `(define ,params ,body))
      ; HACK: introduce function binding to top-level scope
@@ -120,7 +130,12 @@
       in-scope
       (match params [(/ p/ `(,p ,ps ...)) (/ p/ `(,p))])
       (/ define/
-         `(define ,params ,(W (add-to-scope in-scope params body)))))]
+         `(define ,params ,(W (add-to-scope-define in-scope params body)))))]
+
+    #; ((⋱ (▹ (sort expr) xs ... / ⊙)
+           (▹ (sort expr) xs ... /
+              (app ((sort expr) / (ref ((sort pat) / (id ((sort char) / 'f) ((sort char) / 'i) ((sort char) / 'r) ((sort char) / 's) ((sort char) / 't)))))
+                   ((sort expr) / ⊙)))))
 
     ; defines splice scope into begins
     [(/ [in-scope top-scope] begin/ `(begin ,as ...))
@@ -140,15 +155,37 @@
     [_ (println `(WARNING: ATTRIBUTES: NOT-IMPLEMENTED: ,stx)) stx]
     [_ (error (~a `(ERROR: ATTRIBUTES: NOT-IMPLEMENTED: ,stx))) void]))
 
-(define (add-to-scope in-scope params-fr fr)
-  (define (introduce-to-scope my-stx)
+(define (introduce-to-scope my-stx)
     (match my-stx
       [(/ id/ `(id ,chars ... ,(/ _/ '⊙)))
-       (if (empty? chars) '() `(,(/ id/ `(id ,@chars))))]))
+       (if (empty? chars) '() `(([⋱
+                                   (▹ [sort expr] xs ... / ⊙)
+                                   (▹ [sort expr] xs ... / (ref ',(/ id/ `(id ,@chars))))])))
+       #;(if (empty? chars) '() `(,(/ id/ `(id ,@chars))))]))
+
+(define (add-to-scope in-scope params-fr fr)
   (match-define (/ body/ body) fr)
   (match-define (/ _/ params) params-fr)
   (/ [in-scope (remove-duplicates
                 (append in-scope (append-map introduce-to-scope params)))]
+     body/ body))
+
+(define (add-to-scope-define in-scope params-fr fr)
+  (define (introduce-to-scope-define my-stx)
+    (match my-stx
+      [`(,(/ id-1/ `(id ,chars-a ... ,(/ _ '⊙)))
+         ,(/ id-2/ `(id ,chars-as ... ,(/ _ '⊙))) ...)
+       `(([⋱
+            (▹ [sort expr] xs ... / ⊙)
+            (▹ [sort expr] xs ... / (app ([sort expr] / (ref ',(/ id-1/ `(id ,@chars-a))))
+                                         ,@(map (λ (_) `([sort expr] / ⊙)) chars-as)))]))]
+      [_ '()]))
+  (match-define (/ body/ body) fr)
+  (match-define (/ _/ params) params-fr)
+  (/ [in-scope (remove-duplicates
+                (append in-scope
+                        (introduce-to-scope-define params)
+                        (append-map introduce-to-scope params)))]
      body/ body))
 
 (define fruct-augment

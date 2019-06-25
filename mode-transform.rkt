@@ -415,6 +415,10 @@
   #; (define (expand-menu menu-stx) 0)
 
   (define in-scope-transforms
+    (extract-scope stx)
+    ; refactored: scope now consists of actual transforms,
+    ; not just identifiers
+    #;
     (for/list ([id (extract-scope stx)])
       `([⋱
           (▹ [sort expr] xs ... / ⊙)
