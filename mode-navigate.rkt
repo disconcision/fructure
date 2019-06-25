@@ -1,11 +1,11 @@
 #lang racket
 
 (provide mode:navigate
+         mode:navigate-ctrl
          capture-at-cursor)
 
 (define (mode:navigate pr key state)
   ; navigation major mode
-  
   (define-from state
     stx mode transforms messages layout-settings)
   (define update (updater state key))
@@ -13,6 +13,9 @@
   (if (equal? pr 'release)
       state
       (match key
+
+        ["control"
+         (update 'mode 'nav-ctrl)]
 
         ["f1"
          (println `(BEGIN-STX ,stx))
@@ -131,7 +134,32 @@
         [_
          ; fallthrough: legacy transformation mode
          (println "warning: legacy fallthrough binding")
-         (mode:legacy key state) ])))
+         (mode:legacy key state)])))
+
+
+(define (mode:navigate-ctrl pr key state)
+  ; navigation control mode
+  (define-from state
+    stx mode layout-settings)
+  (define update (updater state key))
+  (if (equal? pr 'release)
+      (match key
+        ["control" (update 'mode 'nav)]
+        [_ state])
+      (match key
+        ["left"
+         (define current-size (hash-ref layout-settings 'text-size))
+         (define new-size (if (>= 10 current-size) current-size (- current-size 10)))
+         (update 'layout-settings
+                 (hash-set* layout-settings
+                            'text-size new-size))]
+        ["right"
+         (define current-size (hash-ref layout-settings 'text-size))
+         (define new-size (if (>= current-size 240) current-size (+ current-size 10)))
+         (update 'layout-settings
+                 (hash-set* layout-settings
+                            'text-size new-size))]
+        [_ state])))
 
 
 (require "common.rkt"

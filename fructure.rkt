@@ -156,8 +156,7 @@
   ; mode-loop : key x state -> state
   ; determines the effect of key based on mode
   (define-from state
-    stx mode search-buffer
-    keypresses layout-settings)
+    stx mode search-buffer)
   
   ; print debugging information
   #;(displayln `(mode: ,mode pr: ,pr key: ,key))
@@ -168,18 +167,21 @@
 
   ; dispatch based on current mode
   #;(println "transform time: ")
-  (define new-state
+  (define mode-handler
     (match mode
-      ['menu (mode:transform pr key state)]
-      ['transform-shift (mode:transform-shift pr key state)]
-      ['nav  (mode:navigate pr key state)]))
+      ['menu            mode:transform]
+      ['transform-shift mode:transform-shift]
+      ['nav             mode:navigate]
+      ['nav-ctrl        mode:navigate-ctrl]))
+  (define new-state
+    (mode-handler pr key state))
   
   ; augment syntax with attributes
   ; calculate dynamic settings
   #;(println "augment time: ")
   (update-map new-state
-              [stx fruct-augment]
-              [layout-settings add-dynamic-settings]))
+              ['stx fruct-augment]
+              ['layout-settings add-dynamic-settings]))
 
 
 ; -------------------------------------------------
@@ -190,7 +192,7 @@
   (define-from state
     stx layout-settings keypresses)
   (define-from layout-settings
-    display-keypresses? text-size)
+    display-keypresses?)
   #;(println "output time: ")
   (match-define (list _ image-out)
     ; second here skips the top (diamond) affo
@@ -199,7 +201,7 @@
                      screen-x screen-y))
   (if display-keypresses?
       (place-image/align (display-keypresses keypresses)
-                         (* 4 text-size) (* 1 text-size)
+                         200 50
                          "left" "top"
                          image-out)
       image-out))

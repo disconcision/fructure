@@ -36,11 +36,9 @@
       [(hash-table ('attr attr))
        (hash-set state 'attr (f attr))]))
 
-(define-syntax-rule (update-map state (attr f) ...)
+(define-syntax-rule (update-map state [kw f] ...)
   ((compose
-    (match-lambda
-      [(hash-table ('attr attr))
-       (hash-set state 'attr (f attr))]) ...)
+    (λ (s) (hash-update s kw f)) ...)
    state))
 
 (define-syntax-rule (apply-in! object 'attr f)

@@ -124,6 +124,7 @@
       ["\b"     (render-keypress-nonlit "⌫")]
       ["\t"     (render-keypress-nonlit "↹")]
       ["shift"  (render-keypress-nonlit "⇧")]
+      ["control"(render-keypress-nonlit "✲")]
       ["escape" (render-keypress-nonlit "⎋")]
       ; pseudoliterals
       [" "      (render-keypress " ")]
@@ -157,8 +158,8 @@
   (match fruct
     [`(◇ ,x) (error "strip top before calling")] [_ 0])
 
-  (match-define `(,x-offset ,y-offset) `(,(* 4 text-size) ,(* 4 text-size)))
-  ; magic 3 above leaves room for key display
+  (match-define `(,x-offset ,y-offset) `(200 200))
+  ; magic numbers. leaves room for key display
 
   (match-define `(,new-fruct ,scene-image)
     (render
