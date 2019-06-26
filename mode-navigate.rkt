@@ -2,6 +2,7 @@
 
 (provide mode:navigate
          mode:navigate-ctrl
+         mode:navigate-shift
          capture-at-cursor)
 
 (define (mode:navigate pr key state)
@@ -16,6 +17,9 @@
 
         ["control"
          (update 'mode 'nav-ctrl)]
+        
+        ["shift"
+         (update 'mode 'nav-shift)]
 
         ["f1"
          (println `(BEGIN-STX ,stx))
@@ -105,9 +109,13 @@
          (update
           'mode 'menu
           'stx ((compose setup-transform-mode
-                         (λ (x) (if ((disjoin hole-under-cursor? has-captures?) x)
-                                    x
-                                    (capture-at-cursor x))))
+                         (λ (x)
+                           x
+                           ; TODO: add prop
+                           ; UNCOMMENT TO AUTOCAPTURE SOURCE SYNTAX IN A TRANSFORM
+                           #;(if ((disjoin hole-under-cursor? has-captures?) x)
+                                 x
+                                 (capture-at-cursor x))))
                 stx))]
 
         ["\t"
@@ -159,7 +167,120 @@
          (update 'layout-settings
                  (hash-set* layout-settings
                             'text-size new-size))]
+
+        [(and save-number (or "f9" "f10" "f11" "f12"))
+         (save! stx save-number)
+         state]
+        
+        #;["f9"
+           (define out (open-output-file "fructure-sav-f9.fruct" #:exists 'replace))
+           (write stx out)
+           (close-output-port out)
+           state]
         [_ state])))
+
+(define (mode:navigate-shift pr key state)
+  ; navigation settings shifter
+  ; primitive scrobber
+  ; control scheme:
+  ; - use search buffer to filter menu of prop-names
+  ; - up/down moves props
+  ; - left/right cycles props
+  ; supported properties:
+  ; for each property, we must provide an inc and dec
+  ; - numeric: calculate from [operation inverse delta max min]
+  ; - boolean: inc = dec = not
+  ; - enum: integer inc/dec index of (index, [vector of values])
+  #;(; numeric
+     'text-size
+     'line-spacing 'char-padding-vertical 'max-menu-length
+     'max-menu-length-chars 'length-conditional-cutoff
+     ; boolean
+     'force-horizontal-layout? 'display-keypresses?
+     ;enum
+     'typeface)
+
+  (define property 'length-conditional-cutoff)
+  (define prop-inc-decs
+    (hash 'length-conditional-cutoff (numeric-inc-dec * div 1.5 3 100)))
+
+  ; ACTUAL fn BEGINS -------------------
+  (define-from state
+    stx mode layout-settings)
+  (define update (updater state key))
+ 
+  (match-define (list inc dec)
+    (hash-ref prop-inc-decs property
+              (list identity identity)))
+
+  (if (equal? pr 'release)
+      (match key
+        ["shift" (update 'mode 'nav)]
+        [_ state])
+      (match key
+        ["left"
+         (update 'layout-settings
+                 (hash-update layout-settings
+                              property dec))]
+        ["right"
+         (update 'layout-settings
+                 (hash-update layout-settings
+                              property inc))]
+        [(and save-number (or "f9" "f10" "f11" "f12"))
+         (update 'stx (load! save-number))]
+        
+        [_ state])))
+
+(define (load! save-number)
+  (println `(loading ,save-number))
+  (define in
+    (open-input-file
+     (string-append "saves/fructure-sav-" save-number ".fruct")))
+  (define saved-state (read in))
+  (close-input-port in)
+  saved-state)
+
+(define (save! stx save-number)
+  (println `(saving ,save-number))
+  (define out
+    (open-output-file
+     (string-append "saves/fructure-sav-" save-number ".fruct")
+     #:exists 'replace))
+  (write stx out)
+  (close-output-port out))
+
+(define (numeric-inc-dec prop-operation
+                         prop-inverse
+                         prop-delta
+                         prop-min
+                         prop-max)
+  (define (apply-if p f x)
+    (define fx (f x))
+    (if (p fx) fx x))
+  (define (in-range prop)
+    (< prop-min prop prop-max))
+  (define inc
+    (curry apply-if in-range
+           (curryr prop-operation
+                   prop-delta)))
+  (define dec
+    (curry apply-if in-range
+           (curryr prop-inverse
+                   prop-delta)))
+  (list inc dec))
+
+; idea for changed properties to unfixed point
+; need a different level of abstraction
+#;(define ((adaptive f) prop)
+    (let loop ([prop-cur prop]
+               [iters 10]
+               [fp (f prop)])
+      (println `(iters ,iters))
+      (when (zero? iters)
+        (println "WARNING: ADAPTIVE PROP CHANGER TIMED OUT"))
+      (if (or (not (equal? fp f)) (zero? iters))
+          fp
+          (loop fp (sub1 iters)))))
 
 
 (require "common.rkt"

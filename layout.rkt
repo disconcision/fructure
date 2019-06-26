@@ -766,6 +766,7 @@
                       ; just turned this off for giggles
                       #;#;'form-color (color 255 255 255))]
           [_ (hash-set* layout-settings
+                        ; BUG: FIGURE OUT WTF THESE DO WTF
                         'force-horizontal-layout? #f
                         'background-block-color (color 0 0 0 0) ; hack to prevent horizontal outlines in menu
                         'grey-one menu-bkg-color
@@ -948,7 +949,12 @@
   (match-define (/ [transform template] t/ target) fruct)
 
   (match-define (list target-fruct target-image)
-    (render (/ t/ target) layout-settings))
+    (render (/ t/ target) (hash-set* layout-settings
+                                     ; BUG 663832872:
+                                     ; below only triggers horizontal bkgcolors
+                                     ; figure out why not vertical
+                                     #;#;'grey-one (color 230 230 230)
+                                     #;#;'grey-two (color 215 215 215))))
   
   (match-define (/ new-t/ new-target)
     (match target-fruct

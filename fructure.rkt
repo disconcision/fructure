@@ -145,6 +145,7 @@
   'transforms '()
   'history '()
   'keypresses '()
+  'key-state #hash()
   ; messages: log, currently disused
   'messages '("bang"))
 
@@ -156,10 +157,10 @@
   ; mode-loop : key x state -> state
   ; determines the effect of key based on mode
   (define-from state
-    stx mode search-buffer)
+    stx mode search-buffer key-state)
   
   ; print debugging information
-  #;(displayln `(mode: ,mode pr: ,pr key: ,key))
+  (displayln `(mode: ,mode pr: ,pr key: ,key))
   #;(displayln `(projected: ,(project stx)))
   #;(displayln `(search-buffer: ,search-buffer))
   #;(displayln `(keypresses ,keypresses))
@@ -170,9 +171,11 @@
   (define mode-handler
     (match mode
       ['menu            mode:transform]
+      #;['transform-ctrl  mode:transform-ctrl]
       ['transform-shift mode:transform-shift]
       ['nav             mode:navigate]
-      ['nav-ctrl        mode:navigate-ctrl]))
+      ['nav-ctrl        mode:navigate-ctrl]
+      ['nav-shift       mode:navigate-shift]))
   (define new-state
     (mode-handler pr key state))
   
@@ -181,7 +184,8 @@
   #;(println "augment time: ")
   (update-map new-state
               ['stx fruct-augment]
-              ['layout-settings add-dynamic-settings]))
+              ['layout-settings add-dynamic-settings]
+              ['key-state (curryr hash-set key pr)]))
 
 
 ; -------------------------------------------------
@@ -206,6 +210,26 @@
                          image-out)
       image-out))
 
+; -------------------------------------------------
+; EXPPERIMENTAL ON-TICK UPDATER
+
+#;(define (do-it state)
+    #;(println "doing it")
+    (define-from state
+      stx layout-settings key-state)
+    (define pr-left (hash-ref key-state "left" 0))
+    (define pr-right (hash-ref key-state "right" 0))
+    (define mod-left (if (equal? 'press pr-left) 1 0))
+    (define mod-right (if (equal? 'press pr-right) 1 0))
+    #;(define simu-key (match (- mod-left mod-right)
+                         [0 state]
+                         [(? (curry > 0)) (mode:navigate-ctrl 'press "left" state)]
+                         [(? (curry < 0)) (mode:navigate-ctrl 'press "left" state)]))
+    (match (- mod-left mod-right)
+      [0 state]
+      [(? (curry > 0)) (mode:navigate-ctrl 'press "left" state)]
+      [(? (curry < 0)) (mode:navigate-ctrl 'press "right" state)])
+    #;(mode:navigate-ctrl 'press simu-key state))
 
 ; -------------------------------------------------
 ; FRUCTURE CORE
@@ -217,6 +241,7 @@
   ; BERSERKER
   [on-key (input-keyboard 'press)]
   [on-release (input-keyboard 'release)]
+  #;[on-tick do-it 1/4]
   [to-draw output screen-x screen-y]
   #;[display-mode 'fullscreen]
   #;[record? "gif-recordings"])
