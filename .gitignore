@@ -4,3 +4,4 @@
 *.1
 *.rkt~
 compiled/
+saves/
