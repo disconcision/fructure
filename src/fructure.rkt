@@ -42,8 +42,8 @@
   interaction buffers with external devices, are represented in the state.
 
   Between interactions, we automatically annotate our structure with
-  contextual cues (attributes.rkt) to inform further interaction. These (morally)
-  represent an attribute grammar, permitting context-free
+  contextual cues (attributes.rkt) to inform further interaction. These
+  (morally, lol) represent an attribute grammar, permitting context-free
   rewriting to respect context-sensitive properties.
 
 |#
@@ -160,7 +160,7 @@
     stx mode search-buffer key-state)
   
   ; print debugging information
-  (displayln `(mode: ,mode pr: ,pr key: ,key))
+  #;(displayln `(mode: ,mode ': ,pr key: ,key))
   #;(displayln `(projected: ,(project stx)))
   #;(displayln `(search-buffer: ,search-buffer))
   #;(displayln `(keypresses ,keypresses))
@@ -234,15 +234,18 @@
 ; -------------------------------------------------
 ; FRUCTURE CORE
 
-(big-bang initial-state
-  
-  ; MY LOVE FOR YOU IS LIKE A TRUCK
-  [name 'fructure]
-  ; BERSERKER
-  [on-key (input-keyboard 'press)]
-  [on-release (input-keyboard 'release)]
-  #;[on-tick do-it 1/4]
-  [to-draw output screen-x screen-y]
-  #;[display-mode 'fullscreen]
-  #;[record? "gif-recordings"])
+(define (go)
+  (big-bang initial-state  
+    ; MY LOVE FOR YOU IS LIKE A TRUCK
+    [name 'fructure]
+    ; BERSERKER
+    [on-key (input-keyboard 'press)]
+    [on-release (input-keyboard 'release)]
+    #;[on-tick do-it 1/4]
+    [to-draw output screen-x screen-y]
+    #;[display-mode 'fullscreen]
+    #;[record? "gif-recordings"]))
 
+(let ([msg "bye felicia"])
+  ; wrapped to supress printing of final state
+  (go) msg)
