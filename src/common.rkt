@@ -4,27 +4,35 @@
          "../shared/fructerm/fructerm.rkt"
          "../shared/slash-patterns/slash-patterns.rkt")
 
-(provide define-from
-         update-map
-         apply-in!
-
-         define-map
-         match?
+(provide match?
          match-lambda?
 
-         updater
+         div-integer
          
+         define-from
+         update-map
+         apply-in!
+         define-map
+
+         updater
+
+         desugar-fruct
          atomic?
+
+         ref->symbol
+         
          selected?
          select-▹
-         desugar-fruct
          select-first-⊙-under-▹
          hole-under-cursor?
-
+         
          has-captures?
          erase-captures
          capture-at-cursor)
 
+
+(define (div-integer x y)
+  (inexact->exact (round (div x y))))
 
 ; -------------------------------------------------
 ; 👻👻 SPOOKY GHOST OO STUFF 👻👻
@@ -138,3 +146,9 @@
 
 (define hole-under-cursor?
   (match-lambda? (⋱ c⋱ (/ _/ (▹ (or '⊙ '⊙+))))))
+
+(define (ref->symbol ref)
+  (match ref
+    [(/ r/ `(ref ,(/ [sort pat] p/ `(id ,(/ [sort char] c/ chars) ...))))
+     (string->symbol (apply string-append (map symbol->string chars)))]
+    [_ '||]))

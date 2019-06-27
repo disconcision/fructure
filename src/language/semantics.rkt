@@ -134,7 +134,11 @@
 
     #; ((⋱ (▹ (sort expr) xs ... / ⊙)
            (▹ (sort expr) xs ... /
-              (app ((sort expr) / (ref ((sort pat) / (id ((sort char) / 'f) ((sort char) / 'i) ((sort char) / 'r) ((sort char) / 's) ((sort char) / 't)))))
+              (app ((sort expr) / (ref ((sort pat) / (id ((sort char) / 'f)
+                                                         ((sort char) / 'i)
+                                                         ((sort char) / 'r)
+                                                         ((sort char) / 's)
+                                                         ((sort char) / 't)))))
                    ((sort expr) / ⊙)))))
 
     ; defines splice scope into begins
@@ -156,12 +160,12 @@
     [_ (error (~a `(ERROR: ATTRIBUTES: NOT-IMPLEMENTED: ,stx))) void]))
 
 (define (introduce-to-scope my-stx)
-    (match my-stx
-      [(/ id/ `(id ,chars ... ,(/ _/ '⊙)))
-       (if (empty? chars) '() `(([⋱
-                                   (▹ [sort expr] xs ... / ⊙)
-                                   (▹ [sort expr] xs ... / (ref ',(/ id/ `(id ,@chars))))])))
-       #;(if (empty? chars) '() `(,(/ id/ `(id ,@chars))))]))
+  (match my-stx
+    [(/ id/ `(id ,chars ... ,(/ _/ '⊙)))
+     (if (empty? chars) '() `(([⋱
+                                 (▹ [sort expr] xs ... / ⊙)
+                                 (▹ [sort expr] xs ... / (ref ',(/ id/ `(id ,@chars))))])))
+     #;(if (empty? chars) '() `(,(/ id/ `(id ,@chars))))]))
 
 (define (add-to-scope in-scope params-fr fr)
   (match-define (/ body/ body) fr)

@@ -2,7 +2,7 @@
 
 (require racket/hash
          "../../shared/fructerm/fructerm.rkt"
-         "../language/language.rkt"
+         "../language/syntax.rkt"
          "../common.rkt")
 
 (provide mode:legacy)

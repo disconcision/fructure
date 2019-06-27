@@ -1,6 +1,7 @@
 #lang racket
 
-(require 2htdp/image)
+(require 2htdp/image
+         "../common.rkt")
 
 (provide rounded-rectangle
          rounded-rectangle-outline
@@ -8,10 +9,13 @@
          rounded-profile
          beside* above* beside/align* above/align*
          invisible
+         
          per-color-linear-dodge-tint)
 
 
 (define invisible (color 0 0 0 0))
+
+
 
 
 (define (per-color-linear-dodge-tint tint-color opacity)

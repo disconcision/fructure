@@ -3,8 +3,8 @@
 (require "../../shared/containment-patterns/containment-patterns/main.rkt"
          "../../shared/slash-patterns/slash-patterns.rkt"
          "../../shared/fructerm/fructerm.rkt"
-         "../language/language.rkt"
-         "../language/attributes.rkt" ; for local-augment. TODO: refactor
+         "../language/syntax.rkt"
+         "../language/semantics.rkt" ; for local-augment. TODO: refactor
          "../common.rkt")
 
 (provide mode:transform

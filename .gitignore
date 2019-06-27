@@ -4,5 +4,4 @@
 *.1
 *.rkt~
 compiled/
-saves/
-src/saves/
+src/saves/*

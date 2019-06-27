@@ -6,16 +6,16 @@
          2htdp/universe)
 
 ; internal structure
-(require "language/language.rkt"
+(require "language/syntax.rkt"
          ; syntax generators
-         "language/attributes.rkt"
+         "language/semantics.rkt"
          ; syntax->attributed-syntax
-         "layout/layout.rkt"
-         ; syntax->pixels
-         "mode/transform.rkt"
-         ; input mode
+         "layout/draw-fruct-layers.rkt" ; syntax->pixels
+         "layout/input-history.rkt"
+         
+         "mode/transform.rkt" 
          "mode/navigate.rkt"
-         ; input mode
+         "mode/command.rkt"
          "common.rkt")
 
 (define-values (screen-x screen-y)
@@ -144,7 +144,7 @@
   ; transforms: history, currently broken
   'transforms '()
   'history '()
-  'keypresses '()
+  'keypresses '(">")
   'key-state #hash()
   ; messages: log, currently disused
   'messages '("bang"))
@@ -160,7 +160,7 @@
     stx mode search-buffer key-state)
   
   ; print debugging information
-  #;(displayln `(mode: ,mode ': ,pr key: ,key))
+  (displayln `(mode: ,mode ': ,pr key: ,key))
   #;(displayln `(projected: ,(project stx)))
   #;(displayln `(search-buffer: ,search-buffer))
   #;(displayln `(keypresses ,keypresses))
@@ -171,6 +171,7 @@
   (define mode-handler
     (match mode
       ['menu            mode:transform]
+      ['command         mode:command]
       #;['transform-ctrl  mode:transform-ctrl]
       ['transform-shift mode:transform-shift]
       ['nav             mode:navigate]
@@ -196,19 +197,42 @@
   (define-from state
     stx layout-settings keypresses)
   (define-from layout-settings
-    display-keypresses?)
+    display-keypresses? text-size bkg-color)
   #;(println "output time: ")
   (match-define (list _ image-out)
     ; second here skips the top (diamond) affo
     ; todo: make this less hacky by going fs
-    (fructure-layout (second stx) layout-settings
-                     screen-x screen-y))
-  (if display-keypresses?
-      (place-image/align (display-keypresses keypresses)
-                         200 50
-                         "left" "top"
-                         image-out)
-      image-out))
+    (draw-fruct-layers (second stx) layout-settings
+                       screen-x screen-y))
+
+  (define keypress-card
+    ; keypresses needs padding to match fruct
+    (overlay/align/offset
+     "left" "top"
+     (display-keypresses keypresses text-size)
+     (- (round (* 1/4 text-size))) (- (round (* 1/4 text-size)))
+     (rectangle screen-x text-size "solid" (color 0 0 0 0))))
+
+  (define empty-card
+    (rectangle text-size text-size "solid"(color 0 0 0 0)))
+  
+  (define card-stack
+    (if display-keypresses?
+        (above/align "left"
+                     empty-card
+                     keypress-card
+                     empty-card
+                     empty-card
+                     image-out)
+        image-out))
+
+  (define background
+    (rectangle screen-x screen-y "solid" bkg-color))
+  
+  (overlay/align/offset "left" "top"
+                 card-stack
+                 -100 0
+                 background))
 
 ; -------------------------------------------------
 ; EXPPERIMENTAL ON-TICK UPDATER

@@ -27,6 +27,9 @@
         ["shift"
          (update 'mode 'nav-shift)]
 
+        [" "
+         (update 'mode 'command)]
+
         ["f1"
          (println `(BEGIN-STX ,stx))
          state]
@@ -241,7 +244,7 @@
   (println `(loading ,save-number))
   (define in
     (open-input-file
-     (string-append "saves/fructure-sav-" save-number ".fruct")))
+     (string-append "../saves/fructure-sav-" save-number ".fruct")))
   (define saved-state (read in))
   (close-input-port in)
   saved-state)
@@ -250,7 +253,7 @@
   (println `(saving ,save-number))
   (define out
     (open-output-file
-     (string-append "saves/fructure-sav-" save-number ".fruct")
+     (string-append "../saves/fructure-sav-" save-number ".fruct")
      #:exists 'replace))
   (write stx out)
   (close-output-port out))
@@ -287,3 +290,28 @@
       (if (or (not (equal? fp f)) (zero? iters))
           fp
           (loop fp (sub1 iters)))))
+
+
+; below is old work on search from layout.rkt; usable?
+
+(define (my-matches? prefix-string form-name)
+  (regexp-match (regexp (string-append "^" prefix-string ".*"))
+                (symbol->string form-name)))
+
+(define (add-hooks prefix-string fruct)
+  (define AH (curry add-hooks prefix-string))
+  (match fruct
+    [(/ a/ `(,(? (conjoin symbol? (curry my-matches? prefix-string)) form-name) ,xs ...))
+     (/ [hook prefix-string] a/ (map AH `(,form-name ,@xs)))]
+    [(/ a/ (? list? as))
+     (/ a/ (map AH as))]
+    [(/ a/ (? symbol? thing))
+     (if (my-matches? prefix-string thing)
+         (/ [hook prefix-string] a/ thing)
+         (/ a/ thing))]
+    [_ fruct]))
+
+#;(add-hooks "x" (stx->fruct
+                  '(lambda (x)
+                     (and x (▹ (and true false)))
+                     x)))
