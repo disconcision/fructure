@@ -33,6 +33,13 @@
     [(? list?) (map paint-handle fr)]
     [_ fr]))
 
+(define (add-depth fr (running-depth 0))
+  (match fr
+    [(/ a/ a)
+     (/ [depth running-depth] a/ (add-depth a (add1 running-depth)))]
+    [(? list?) (map (curryr add-depth running-depth) fr)]
+    [_ fr]))
+
 (define (erase-handles fr)
   (match fr
     [(/ handle a/ a)
@@ -195,6 +202,7 @@
 (define fruct-augment
   ; augments syntax with attributes
   (compose augment-transform
+           add-depth
            augment
            paint-handle
            erase-handles))

@@ -44,13 +44,19 @@
 
 (define (draw-fruct fruct layout-settings (depth #t) (bkg 0))
   (define-from layout-settings
-     popout-transform? popout-menu? implicit-forms
+    popout-transform? popout-menu? implicit-forms
     pattern-identifier-color pattern-shade-one pattern-shade-two
-      unit-width unit-height
+    unit-width unit-height radius
     selected-color +hole-color-pattern +hole-color-number selected-atom-color
     capture-color-a capture-color-b capture-color-c capture-color-d
-    capture-color-x capture-atom-color
-     radius)
+    capture-color-x capture-atom-color)
+
+  ; replaced threaded depth with precalculated one
+  ; to prevent bkg color shifting in popout transform
+  ; TODO: remove threaded version
+  (define depth (match fruct
+                  [(/ [depth d] a/ _) (zero? (modulo d 2))]
+                  [_ #f]))
     
   (match fruct
 

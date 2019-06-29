@@ -58,7 +58,7 @@
                       ,(app (curry + y-offset) y))] s/ (▹ _)))
            (⋱ _ (and this-selection
                      (/ [display-absolute-offset `(,x ,y)] s/ (▹ _)))))
-       (render-in draw-fruct
+      (render-in draw-fruct
                   this-selection backing-image
                   x y)]
       [_ backing-image]))

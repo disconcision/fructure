@@ -5,3 +5,4 @@
 *.rkt~
 compiled/
 src/saves/*
+src/fructure
