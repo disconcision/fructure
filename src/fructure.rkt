@@ -169,6 +169,7 @@
   'stx (fruct-augment initial-stx)
   ; new: current selection filter
   'search-buffer '(▹ "")
+  'command-buffer ""
   ; new: initial layout settings
   'layout-settings (add-dynamic-settings initial-layout)
   ; transforms: history, currently broken
@@ -187,11 +188,13 @@
   ; mode-loop : key x state -> state
   ; determines the effect of key based on mode
   (define-from state
-    stx mode search-buffer key-state)
+    stx mode search-buffer
+    command-buffer key-state)
   
   ; print debugging information
   (displayln `(mode: ,mode ': ,pr key: ,key))
   #;(displayln `(projected: ,(project stx)))
+  (displayln `(command-buffer ,command-buffer))
   #;(displayln `(search-buffer: ,search-buffer))
   #;(displayln `(keypresses ,keypresses))
   #;(displayln state)
@@ -225,7 +228,7 @@
 (define (output state)
   ; output : state -> image
   (define-from state
-    stx layout-settings keypresses)
+    stx layout-settings keypresses command-buffer)
   (define-from layout-settings
     menu-expander-height menu-outline-width
     display-keypresses? text-size top-background-color)
@@ -242,7 +245,9 @@
     ; keypresses needs padding to match fruct
     (overlay/align/offset
      "left" "top"
-     (display-keypresses keypresses layout-settings)
+     (above/align "left"
+            (display-command-line command-buffer layout-settings)
+            (display-keypresses keypresses layout-settings))
      (- offset) (- offset)
      (rectangle screen-x text-size "solid" (color 0 0 0 0))))
 

@@ -30,7 +30,7 @@
 
   ; ACTUAL fn BEGINS -------------------
   (define-from state
-    stx mode layout-settings)
+    stx mode layout-settings command-buffer)
   (define update (updater state key))
 
   (define property (hash-ref layout-settings
@@ -51,7 +51,7 @@
         #;["shift" (update 'mode 'nav)]
         [_ state])
       (match key
-        [" "
+        [(or " " "escape")
          (update 'mode 'nav)]
         ["left"
          (update 'layout-settings
@@ -70,6 +70,40 @@
          (update 'layout-settings
                  (hash-set layout-settings
                            'temp-command-property 'length-conditional-cutoff))]
+
+        ["\b"
+         ; todo: ideally we'd like to retain current menu selection
+         ; after pressing bksp
+         (define buffer-candidate
+           (match command-buffer
+             [""
+              ""]
+             [(and s (? string?) (not (== "")))
+              (substring s 0 (sub1 (string-length s)))]
+             [x (error "command-buffer:bksp" x)]))
+         #;(define-values (new-stx-candidate newest-buffer-candidate)
+             (menu-filter-in-stx "\b" stx search-buffer buffer-candidate))
+         (update #;#;'stx new-stx-candidate
+                 'command-buffer buffer-candidate)]
+
+        [(regexp #rx"^[0-9A-Za-z?!\\\\-]$" c)
+         #:when c
+         ; hack? otherwise this seems to catch everything?
+         ; maybe since we're matching against a key event...
+
+         (define (convert-special-chars c)
+           (hash-ref (hash "\\" "λ")
+                                       (first c) (first c)))
+
+         (define buffer-candidate
+           (match command-buffer
+             [(? string? s)
+              (string-append s (convert-special-chars c))]))
+
+         #;(define-values (new-stx-candidate newest-buffer-candidate)
+           (menu-filter-in-stx c stx search-buffer buffer-candidate))
+         (update #;#;'stx new-stx-candidate
+                 'command-buffer buffer-candidate)]
         
         
         [_ state])))
