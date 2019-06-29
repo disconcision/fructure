@@ -14,16 +14,17 @@
 (define (draw-fruct-layers fruct layout-settings
                            (screen-x 800) (screen-y 400))
   (define-from layout-settings
-    bkg-color text-size popout-transform? popout-menu? simple-menu?)
- 
-  (define expander-height
-    (round (* 1/4 text-size))) ; magic af
-  
-  ; sanity checks
+     text-size menu-expander-height menu-outline-width
+    popout-transform? popout-menu? simple-menu?)
+
+  ; sanity check
   (match fruct
     [`(◇ ,x) (error "strip top before calling")] [_ 0])
-
-  (match-define `(,x-offset ,y-offset) `(,expander-height ,expander-height))
+  
+  ; prevent cut-off of overlapping menu
+  (define offset
+    (+ menu-expander-height menu-outline-width))
+  (match-define `(,x-offset ,y-offset) `(,offset ,offset))
   ; MAGIC AF PIXEL OFFSET TO AVOID CUTOFF FOR MENU
   ; BUT ALSO FOR RED OUTLINES
 
@@ -107,7 +108,7 @@
                              ; ULTRA MAGIC NUMBER
                              ; empirically -12 works for text-size 30 (width is 18)
                              (* -12/30 text-size) 0))
-                  (+ y (if simple-menu? 0 (- expander-height))))]
+                  (+ y (if simple-menu? 0 (- offset))))]
       [_ backing-image]))
  
           

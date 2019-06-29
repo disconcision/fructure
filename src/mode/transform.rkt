@@ -18,6 +18,13 @@
   (define-from state
     stx search-buffer history)
   (define update (updater state key))
+
+  (match stx
+    ; sanity check
+    [(⋱ ctx (/ [transform template] r/ reagent)) "cool"]
+    [_ (println `(ERROR: TRANSFORM: no match for stx: ,stx))
+       (error "see above")])
+  
   (match-define (⋱ ctx (/ [transform template] r/ reagent)) stx)
 
   #;(define hole-selected-in-menu?
@@ -223,10 +230,10 @@
       (match key
         ["left" (update 'layout-settings
                         (hash-set layout-settings
-                                  'transform-template-only #true))]
+                                  'transform-template-only? #true))]
         ["right" (update 'layout-settings
                          (hash-set layout-settings
-                                   'transform-template-only #false))]
+                                   'transform-template-only? #false))]
         ["up"
          (define current-length (hash-ref layout-settings 'max-menu-length))
          (define new-length (if (equal? 1 current-length) current-length (sub1 current-length)))

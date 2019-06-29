@@ -59,25 +59,25 @@
   'typeface "Iosevka, Light"
   'line-spacing 0 ; 1
   'char-padding-vertical 2 ; 5
-  
-  ; BUSTED & EXPERIMENTAL OPTIONS
-  'custom-menu-selector? #t ; beautify menu selector ?
-  'show-parens? #f ; show parentheses. not fully implemented
-  'background-block-color (color 25 80 84) ;? what even is this?
-  'dodge-enabled? #t  ; beautify menu - TODO: REMOVE THIS
 
   ; DEBUGGING OPTIONS
   'display-keypresses? #t ; show a list of the n last keypresses
 
   ; PROJECTION OPTIONS
+  ; BUG: removing ref is WEIRD
+  ; BUG: removing num has no effect
   'implicit-forms '(ref num app cp lp lps mp mapp) ; hide heads
+
+  ; BUSTED OPTIONS
+  'custom-menu-selector? #t ; needs work
 
   ; TRANSFORM & MENU OPTIONS
   'menu-bkg-color (color 0 35 39)
   'menu-secondary-color (color 0 24 27)
-  'transform-tint-color (color 160 0 0) ;selected-color
+  'tint-template? #t
+  'transform-tint-color (color 70 0 0) ;based on selected-color
   'transform-arrow-color (color 255 255 255)
-  'transform-template-only #f ; don't show -> and target
+  'transform-template-only? #f ; don't show -> and target
   'simple-menu? #f ; only red outline, dark backing
   'max-menu-length 4 ; maximum completions
   'max-menu-length-chars 1 ; same, for single-character menus
@@ -85,29 +85,58 @@
   'popout-menu? #t ; same
 
   ; NAVIGATION & SELECTION OPTIONS
+  'selection-outline-width 2
+  'transform-outline-width 2
+  'menu-outline-width 2
   'selected-color (color 230 0 0)
+  'transform-color (color 230 0 0)
+  'menu-outline-color (color 230 0 0)
+  'menu-search-color (color 230 0 0)
   'selected-atom-color (color 255 255 255)
+  'simple-menu-background-color (color 40 40 40)
   
   ; LAYOUT OPTIONS
   'force-horizontal-layout? #f ; uninvade the second dimension 
   'length-conditional-layout? #t ; unless our children weigh more than
   'length-conditional-cutoff 14
     
-  ; BACKGROUND COLORS
-  'bkg-color (color 0 47 54)
-  'grey-one (color 0 47 54) #;(color 230 230 230)
-  'grey-two (color 0 47 54) #;(color 215 215 215)
-  'pattern-bkg-color (color 230 230 230)
-  'pattern-grey-one (color 17 39 46) #;(color 84 84 84)
-  'pattern-grey-two (color 110 110 110)
+  ; FRUCT BACKDROP / OUTLINE
+  'outline-block-width 1
+  'background-block-width 2
+  'top-background-color (color 0 47 54)
+  'bkg-color (color 0 47 54) ; main primary color
+  'background-block-color (color 0 52 59) #;(color 25 80 84) ; main secondary color
+  'outline-block-color (color 0 61 65)
+  'pattern-shade-one (color 11 38 53) #;(color 84 84 84) ; pattern background
+  'pattern-shade-two (color 110 110 110) ; mostly unused - future secondary pattern color
+  'alternate-bkg-vertical? #t
+  'alternate-bkg-horizontal? #t
 
-  ; FORM COLORS
+  ; CAPTURE OPTIONS
+  'capture-pattern-shade-one (color 0 0 0)
+  ;capture-pattern-shade-two
+  'capture-atom-color (color 160 160 160)
+  'capture-shade-one (color 40 40 40) #;(color 160 160 160)
+  'capture-shade-two (color 70 70 70) #;(color 170 170 170)
+  'capture-color-a (color 0 215 215)
+  'capture-color-b (color 0 215 0)
+  'capture-color-c (color 255 0 255)
+  'capture-color-d (color 215 215 0)
+  'capture-color-x (color 0 215 0)
+
+  ; ATOMS
   'form-color (color 0 130 214)
-  'literal-color (color 255 131 50)
+  'literal-color (color 255 199 50)
   'identifier-color (color 48 161 182) #;(color 0 0 0)
+  'pattern-identifier-color (color 230 230 230)
+
+  ; HOLES
+  ; TODO: option to display holes as text
   'hole-bottom-color (color 252 225 62)
   'hole-side-color (color 193 115 23)
   '+hole-color (color 25 80 84)
+  '+hole-color-pattern (color 170 170 170 120)
+  '+hole-color-number (color 130 0 0)
   )
 
 
@@ -122,6 +151,7 @@
     (text/font " " text-size "black"
                typeface 'modern 'normal 'normal #f))
   (hash-set* layout
+             'menu-expander-height (round (* 1/4 text-size))
              'radius (sub1 (div-integer text-size 2))
              'margin (div-integer text-size 5)
              'unit-width (image-width space-image)
@@ -197,7 +227,10 @@
   (define-from state
     stx layout-settings keypresses)
   (define-from layout-settings
-    display-keypresses? text-size bkg-color)
+    menu-expander-height menu-outline-width
+    display-keypresses? text-size top-background-color)
+  (define offset
+    (+ menu-expander-height menu-outline-width))
   #;(println "output time: ")
   (match-define (list _ image-out)
     ; second here skips the top (diamond) affo
@@ -209,8 +242,8 @@
     ; keypresses needs padding to match fruct
     (overlay/align/offset
      "left" "top"
-     (display-keypresses keypresses text-size)
-     (- (round (* 1/4 text-size))) (- (round (* 1/4 text-size)))
+     (display-keypresses keypresses layout-settings)
+     (- offset) (- offset)
      (rectangle screen-x text-size "solid" (color 0 0 0 0))))
 
   (define empty-card
@@ -227,12 +260,12 @@
         image-out))
 
   (define background
-    (rectangle screen-x screen-y "solid" bkg-color))
+    (rectangle screen-x screen-y "solid" top-background-color))
   
   (overlay/align/offset "left" "top"
-                 card-stack
-                 -100 0
-                 background))
+                        card-stack
+                        -100 0
+                        background))
 
 ; -------------------------------------------------
 ; EXPPERIMENTAL ON-TICK UPDATER

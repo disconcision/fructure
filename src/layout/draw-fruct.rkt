@@ -18,38 +18,39 @@
 
 
 (define (metavar-tint-colors m layout-settings)
+  (define-from layout-settings
+    capture-pattern-shade-one
+    capture-shade-one capture-shade-two capture-color-a
+    capture-color-b capture-color-c capture-color-d
+    capture-color-x)
   (for/hash ([(k v) (hash-set* layout-settings
-                               ; hacky color overrides. todo magic colors
-                               'pattern-grey-one (color 0 0 0)
-                               'grey-one (hash-ref layout-settings 'bkg-color)
-                               'grey-two (hash-ref layout-settings 'background-block-color))])
+                               ; hacky color overrides.
+                               'pattern-shade-one capture-pattern-shade-one 
+                               'bkg-color capture-shade-one
+                               'background-block-color capture-shade-two)])
     (match v
       [(color _ _ _ _)
        ; HACKY HACK TO MAKE SELECTED METAVARS MARGINALLY PRETTIER
-       (values k ((if #f #;(equal? v (color 255 255 255))
-                      (const (match m
-                               [0 (color 0 215 215)]
-                               [1 (color 0 215 0)]
-                               [2 (color 215 0 215)]
-                               [3 (color 215 215 0)]
-                               [_ (color 0 215 0)]))
-                      (per-color-linear-dodge-tint
-                       (match m
-                         [0 (color 0 215 215)]
-                         [1 (color 0 215 0)]
-                         [2 (color 215 0 215)]
-                         [3 (color 215 215 0)]
-                         [_ (color 0 215 0)])
-                       0.4)) v))]
+       (values k ((per-color-linear-dodge-tint
+                   (match m
+                     [0 capture-color-a]
+                     [1 capture-color-b]
+                     [2 capture-color-c]
+                     [3 capture-color-d]
+                     [_ capture-color-x])
+                   0.4) v))]
       [_ (values k v)])))
 
 
 (define (draw-fruct fruct layout-settings (depth #t) (bkg 0))
   (define-from layout-settings
-    text-size popout-transform? popout-menu? implicit-forms
-    pattern-bkg-color pattern-grey-one pattern-grey-two
-    bkg-color background-block-color unit-width unit-height
-    selected-color  selected-atom-color grey-one grey-two unit-width radius)
+     popout-transform? popout-menu? implicit-forms
+    pattern-identifier-color pattern-shade-one pattern-shade-two
+      unit-width unit-height
+    selected-color +hole-color-pattern +hole-color-number selected-atom-color
+    capture-color-a capture-color-b capture-color-c capture-color-d
+    capture-color-x capture-atom-color
+     radius)
     
   (match fruct
 
@@ -121,28 +122,37 @@
      ; this is a hack case
      (define metavar-color
        (match m
-         [0 (color 0 215 215)]
-         [1 (color 0 215 0)]
-         [2 (color 215 0 215)]
-         [3 (color 215 215 0)]
-         [_ (color 0 215 0)]))
+         [0 capture-color-a]
+         [1 capture-color-b]
+         [2 capture-color-c]
+         [3 capture-color-d]
+         [_ capture-color-x]))
+
+     (define tinted-layout-settings
+       (metavar-tint-colors m layout-settings))
 
      (define selected-layout-settings
-       (hash-set* (metavar-tint-colors m
-                                       layout-settings)
+       (hash-set* tinted-layout-settings
+                  ; colors hacks
                   'selected-color selected-color
-                  'literal-color metavar-color
-                  'identifier-color metavar-color))
+                  #;#;'selected-atom-color (hash-ref tinted-layout-settings 'identifier-color)
+                  #;#;'literal-color metavar-color
+                  #;#;'identifier-color metavar-color))
+     (define unselected-layout-settings
+       (metavar-tint-colors
+        m
+        (hash-set* layout-settings
+                   ; hack to override red bkg for atomic selections
+                   'identifier-color capture-atom-color
+                   'literal-color capture-atom-color)))
+     (define atomic-metavar-background-color
+       (hash-ref unselected-layout-settings 'capture-shade-two))
+     
      (match-define (list new-fruct id-image)
        (draw-fruct (/ a/ a)
                    (if (selected? fruct)
                        selected-layout-settings
-                       (metavar-tint-colors m
-                                            (hash-set* layout-settings
-                                                       ; hack to override red bkg for atomic selections
-                                                       ; magic color
-                                                       'identifier-color selected-atom-color
-                                                       'literal-color selected-atom-color)))))
+                       unselected-layout-settings)))
      (define id-height (image-height id-image))
      (define id-width (image-width id-image))
      (define radius-adj (div-integer radius 7/5))
@@ -150,28 +160,31 @@
        (overlay/align
         "left" "top"
         ; hack to outline selected atomic metavars
-        (if #f #;(selected? (/ a/ a))
-            (rounded-rectangle-outline
-             id-width id-height
-             radius-adj selected-color 2)
-            empty-image)
+        #;(if #f #;(selected? (/ a/ a))
+              (rounded-rectangle-outline
+               id-width id-height
+               radius-adj selected-color selection-outline-width)
+              empty-image)
         id-image
         ; backing
         (rounded-rectangle
          id-width id-height radius-adj
-         metavar-color)))
+         atomic-metavar-background-color)))
      (list
       (match new-fruct
         [(/ b/ b)
          (/ [metavar m] b/ b)])
       new-img)]
+    
     [(/ [metavar m] a/ a)
+     (define tinted-layout-settings
+       (metavar-tint-colors m layout-settings))
      (match-define (list new-fruct new-img)
        (draw-fruct (/ a/ a)
-                   #;(metavar-tint-colors m layout-settings)
-                   (hash-set (metavar-tint-colors m layout-settings)
+                   (hash-set* tinted-layout-settings
                              ; HACK TO PREVENT OVERRIDE OF SELECTION COLOR
-                             'selected-color selected-color)))
+                             'selected-color selected-color
+                             'selected-atom-color (hash-ref tinted-layout-settings 'identifier-color))))
      (list
       ; hack
       ; this took forever to figure out
@@ -193,8 +206,7 @@
        (if (selected? (/ ref/ `(ref ,id)))
            ; hacky - properly seperate selected and metavar logic
            (draw-fruct id (hash-set layout-settings
-                                    ; todo: magic color
-                                    'identifier-color "white"))
+                                    'identifier-color selected-atom-color))
            (draw-fruct id layout-settings)))
      ; TODO: properly add position information here
      (define id-height (image-height id-image))
@@ -214,7 +226,7 @@
                ; backing
                (rounded-rectangle
                 id-width id-height radius-adj
-                selected-color #;(if depth grey-one grey-two)))]
+                selected-color #;(if depth  )))]
              [else id-image]))]
 
     #;[(/ hole/ '⊙)
@@ -253,9 +265,8 @@
      (define children
        (map (curryr draw-fruct (if (selected? (/ n/ `(num ,xs ...)))
                                    (hash-set* layout-settings
-                                              ; todo: magic colors
-                                              '+hole-color (color 130 0 0)
-                                              'literal-color "white")
+                                              '+hole-color +hole-color-number
+                                              'literal-color selected-atom-color)
                                    layout-settings))
             xs))
      (define-values (new-frs between-image _)
@@ -277,13 +288,13 @@
             ; outline
             #;(rounded-rectangle-outline
                id-width id-height
-               radius-adj selected-color 2)
+               radius-adj selected-color selection-outline-width)
             ; layout goes inbetween
             between-image
             ; backing
             (rounded-rectangle
              (image-width between-image) (image-height between-image) radius-adj
-             selected-color #;(if depth grey-one grey-two)))
+             selected-color #;(if depth  )))
            between-image))
      (list (/ [bounds new-bounds] n/ `(num ,@new-frs)) my-new-image)]
 
@@ -292,11 +303,11 @@
      (define local-layout-settings
        (hash-set* layout-settings
                   ; TODO magic colors
-                  'identifier-color pattern-bkg-color
+                  'identifier-color pattern-identifier-color
                   ; HACK need to update when patterns move beyond chars
-                  '+hole-color (color 170 170 170 120)
-                  'grey-one pattern-grey-one
-                  'grey-two pattern-grey-two))
+                  '+hole-color +hole-color-pattern
+                  'bkg-color pattern-shade-one
+                  'background-block-color pattern-shade-two))
      (render-list ps
                   ; HACK reset depth for params-list
                   #t
@@ -333,7 +344,7 @@
 
 (define (render-horizontal layout-settings children)
   (define-from layout-settings
-    typeface text-size unit-width show-parens?)
+      unit-width )
 
   (define-values (new-children new-image _)
     (layout-row (list unit-width 0)
@@ -343,11 +354,12 @@
   ; experimental : show parentheses option
   ; misses a parens when we skip the space after a terminal non-atom
   (define newest-image
-    (if show-parens?
+    new-image
+    #;(if show-parens?
         (overlay/align "left" "top"
-                       (render-symbol "(" (color 255 255 255 90) layout-settings)
+                       (render-symbol "(" identifier-color layout-settings)
                        (overlay/align "right" "bottom"
-                                      (render-symbol ")" (color 255 255 255 90) layout-settings)
+                                      (render-symbol ")" identifier-color layout-settings)
                                       new-image))
         new-image))
 
@@ -395,19 +407,15 @@
 
 (define (render-list fruct depth bkg init-layout-settings selected?)
   (define-from init-layout-settings
-    radius
-    selected-color unit-width implicit-forms
-    length-conditional-layout? length-conditional-cutoff
-    force-horizontal-layout? show-parens?)
+    unit-width implicit-forms length-conditional-layout?
+    length-conditional-cutoff force-horizontal-layout?)
   
   (match-define (/ a/ `(,first-stx ,rest-stx ...)) fruct)
 
   (define layout-settings
     (if selected?
-        (hash-set* init-layout-settings
-                   #;#;'grey-one (color 230 230 230)
-                   #;#;'grey-two (color 215 215 215)
-                   )
+        init-layout-settings
+        #;(hash-set* init-layout-settings)
         init-layout-settings))
 
   ; figure this out here in case we truncate the names below
@@ -510,9 +518,9 @@
   #;(define newest-image
       (if show-parens?
           (overlay/align "left" "top"
-                         (render-symbol "(" (color 255 255 255 90) layout-settings)
+                         (render-symbol "(" identifier-color layout-settings)
                          (overlay/align "right" "bottom"
-                                        (render-symbol ")" (color 255 255 255 90) layout-settings)
+                                        (render-symbol ")" identifier-color layout-settings)
                                         newer-image))
           newer-image)))
 
@@ -521,8 +529,9 @@
                               new-layout-local selected? depth
                               straight-left? header-exception?)
   (define-from layout-settings
-    unit-width radius
-    selected-color grey-one grey-two bkg-color background-block-color)
+    unit-width radius outline-block-width background-block-width
+    outline-block-color selected-color bkg-color alternate-bkg-vertical?
+    selection-outline-width background-block-color)
   ; the following is a somewhat hacky way of adding a unit
   ; of right-padding to lines ending in atomic forms
   ; there might be a better way of doing this, but it
@@ -646,24 +655,38 @@
                                       selected? new-layout-local layout-settings)
                    (if selected?
                        empty-image
-                       (if depth
+                       (if alternate-bkg-vertical?
+                           (if depth
+                               (overlay
+                                ; todo: rewfactor rounded-backing to avoid double-call
+                                (rounded-backing
+                                 final-right-bounds
+                                 final-left-bounds
+                                 radius outline-block-color "outline" outline-block-width
+                                 header-exception?)
+                                (rounded-backing
+                                 final-right-bounds
+                                 final-left-bounds
+                                 radius bkg-color "solid" background-block-width
+                                 header-exception?))
+                               (rounded-backing
+                                final-right-bounds
+                                final-left-bounds
+                                radius background-block-color "solid" background-block-width
+                                header-exception?))
                            (overlay
                             ; todo: rewfactor rounded-backing to avoid double-call
                             (rounded-backing
                              final-right-bounds
                              final-left-bounds
-                             radius background-block-color "outline" 1
+                             radius outline-block-color "outline" outline-block-width
                              header-exception?)
                             (rounded-backing
                              final-right-bounds
                              final-left-bounds
-                             radius bkg-color "solid" 2
-                             header-exception?))
-                           (rounded-backing
-                            final-right-bounds
-                            final-left-bounds
-                            radius background-block-color "solid" 2
-                            header-exception?)))))
+                             radius bkg-color "solid" background-block-width
+                             header-exception?)))
+                       )))
   
   (define possibly-selected-image
     (if selected?
@@ -671,7 +694,7 @@
                        (rounded-backing
                         final-right-bounds
                         final-left-bounds
-                        radius selected-color "outline" 2
+                        radius selected-color "outline" selection-outline-width
                         header-exception?)
                        basic-image
                        ; if we want red backgrounds
@@ -691,8 +714,9 @@
 
 (define (add-horizontal-backing whole-stx children new-layout rear-padded? selected? depth layout-settings)
   (define-from layout-settings
-    text-size typeface radius unit-width unit-height
-    selected-color background-block-color bkg-color grey-one grey-two)
+    radius unit-width alternate-bkg-horizontal?
+    outline-block-width selection-outline-width background-block-color
+    selected-color outline-block-color bkg-color)
   (define width
     (+ (image-width new-layout)
        (if rear-padded? unit-width 0)))
@@ -703,19 +727,24 @@
      "left" "top"
      (if selected?
          (rounded-rectangle-outline
-          width height radius selected-color 2)
+          width height radius selected-color selection-outline-width)
          ; todo: create arg here for width
          ; THIS IS WHERE HORIZONTAL OUTLINES ARE CREATED
          (rounded-rectangle-outline
-          width height radius background-block-color 1))
+          width height radius outline-block-color outline-block-width))
      ; layout goes inbetween
      new-layout
      ; backing
      (if selected?
          (rounded-rectangle width height radius
                             selected-color)
+         ; WTF. if i change below colors, things go screwy
+         ; in weird ways... like it changes pattern background color???
          (rounded-rectangle width height radius
-                            (if depth grey-one grey-two)))))
+                            (if alternate-bkg-horizontal?
+                                (if depth bkg-color background-block-color)
+                                bkg-color))
+         )))
   ; HACK to RECOLOR head if form-id or function-call-ref
   (define new-image
     (head-overlay-hack (first (first children))
@@ -750,8 +779,11 @@
 (define (render-menu stx layout-settings)
   (define-from layout-settings
     text-size typeface max-menu-length max-menu-length-chars
-    implicit-forms unit-width simple-menu? custom-menu-selector?
-    line-spacing selected-color menu-bkg-color menu-secondary-color radius)
+    implicit-forms simple-menu? custom-menu-selector?
+    selection-outline-width line-spacing selected-color
+    menu-bkg-color menu-search-color menu-secondary-color radius
+    menu-outline-color menu-outline-width simple-menu-background-color
+    menu-expander-height)
   (match-define (/ [menu `((,transforms ,resultants) ...)] p/ place) stx)
 
   #| this function currently renders ALL menu items
@@ -790,18 +822,9 @@
           ; but it doesn't work either way...
           [(/ [metavar m] b/ b)
            (hash-set* layout-settings
-                      'force-horizontal-layout? #f
-                      ; just turned this off for giggles
-                      #;#;'form-color (color 255 255 255))]
+                      'force-horizontal-layout? #f)]
           [_ (hash-set* layout-settings
-                        ; BUG: FIGURE OUT WTF THESE DO WTF
-                        'force-horizontal-layout? #f
-                        'background-block-color (color 0 0 0 0) ; hack to prevent horizontal outlines in menu
-                        'grey-one menu-bkg-color
-                        'grey-two (color 90 90 90)
-                        'bkg-color (color 76 76 76) ; set as sort of a hack for cond bkg color in menu...
-                        'pattern-grey-one (color 76 76 76)
-                        'form-color (color 255 255 255))])) ; magic colors
+                        'force-horizontal-layout? #f)]))
       (define search-buffer (match item [(/ [search-buffer search-buffer] a/ a)
                                          search-buffer]
                               ; todo: fix hardcoded init-buffer here:
@@ -826,13 +849,13 @@
               (match search-buffer
                 [`(▹ ,(? string? s))
                  (render-symbol (string->symbol (string-append " " s))
-                                selected-color layout-settings)]
+                                menu-search-color layout-settings)]
                 [x (render-symbol (string->symbol
                                    ; todo: once implemented ")" properly
                                    ; then make below work
                                    #;(substring (~a (strip▹ x)) 0 (+ -1 (string-length (~a (strip▹ x)))))
                                    (string-replace (~a (strip▹ x)) ")" " "))
-                                  selected-color layout-settings)]
+                                  menu-search-color layout-settings)]
                 [_ (error "complex search buffer layout not implemented")])
               
               image)]))
@@ -846,9 +869,7 @@
                   (overlay-search-buffer
                    (/ b/ (▹ b))
                    (if (single-char-menu? resultants)
-                       ; HACK: color change... is it even working?
-                       (second (draw-fruct (/ b/ b) (hash-set override-layout-settings
-                                                              'identifier-color "white")))
+                       (second (draw-fruct (/ b/ b) override-layout-settings))
                        (overlay/align
                         "left" "top"
                         (space text-size typeface)
@@ -862,8 +883,7 @@
                             ; HACK below throws off offset alignment
                             ; need to refactor as popped layer
                             (let ([temp (beside (space text-size typeface)
-                                                (second (draw-fruct (/ b/ b) (hash-set override-layout-settings
-                                                                                       'identifier-color "white")))
+                                                (second (draw-fruct (/ b/ b)  override-layout-settings))
                                                 (space text-size typeface))])
                               (overlay (rounded-rectangle-outline
                                         (image-width temp)
@@ -871,7 +891,7 @@
                                         ; to make outline entirely inside line-height
                                         (max 0 (- (image-height temp) 1))
                                         radius
-                                        selected-color 2)
+                                        selected-color selection-outline-width)
                                        temp))
                             (let ([temp (second (draw-fruct (/ b/ b) override-layout-settings))])
                               (overlay (rounded-rectangle-outline
@@ -879,7 +899,7 @@
                                         ; slightly hacky see above
                                         (max 0 (- (image-height temp) 1))
                                         radius
-                                        selected-color 2)
+                                        selected-color selection-outline-width)
                                        temp)))))))]
            [(/ b/ b)
             (list (first (draw-fruct item override-layout-settings))
@@ -890,8 +910,7 @@
                                                (and (member 'num implicit-forms)
                                                     (match b [`(num ,_) #t][_ #f]))))
                        (beside (space text-size typeface)
-                               (second (draw-fruct item (hash-set override-layout-settings
-                                                                  'identifier-color "white")))
+                               (second (draw-fruct item override-layout-settings))
                                (space text-size typeface))
                        ; below is call that should have tint when metavar 666
                        (second (draw-fruct item override-layout-settings)))))])]
@@ -902,12 +921,8 @@
                   truncated-menu-image _)
     (layout-column '(0 0) line-spacing fruct-image-pairs))
   
-
-  ; magic number, colors
-  (define expander-height
-    (round (* 1/4 text-size)))
   (define expander-ellipses-color
-    (color 200 200 200))
+    menu-outline-color)
 
   ; stylish backing
   (define cool-menu
@@ -917,11 +932,11 @@
                   (image-width truncated-menu-image)
                   (image-height truncated-menu-image)
                   radius
-                  (color 40 40 40))) ; magic color
+                  simple-menu-background-color)) ; magic color
         (overlay
-         (above (ellipses expander-height expander-ellipses-color)
+         (above (ellipses menu-expander-height expander-ellipses-color)
                 truncated-menu-image
-                (ellipses expander-height expander-ellipses-color))
+                (ellipses menu-expander-height expander-ellipses-color))
          (rounded-rectangle
           (image-width truncated-menu-image)
           (image-height truncated-menu-image)
@@ -929,7 +944,7 @@
           menu-bkg-color)
          (rounded-rectangle
           (+ 0 (image-width truncated-menu-image))
-          (+ (* 2 expander-height)
+          (+ (* 2 menu-expander-height)
              (image-height truncated-menu-image))
           radius
           menu-secondary-color)))) ; magic color
@@ -960,15 +975,16 @@
   (list (/ [menu `(,@(map list transforms new-fruct))] p/ place)
         (overlay (rounded-rectangle-outline (image-width cool-menu)
                                             (image-height cool-menu)
-                                            radius selected-color 1)
+                                            radius menu-outline-color menu-outline-width)
                  cool-menu)))
 
 
 
 (define (render-transform fruct layout-settings)
   (define-from layout-settings
-    text-size typeface selected-color transform-template-only
-    dodge-enabled? transform-tint-color radius)
+    text-size typeface selected-color transform-template-only?
+    tint-template? transform-tint-color radius
+    selection-outline-width)
   
   (match-define (/ [transform template] t/ target) fruct)
 
@@ -977,8 +993,8 @@
                                          ; BUG 663832872:
                                          ; below only triggers horizontal bkgcolors
                                          ; figure out why not vertical
-                                         #;#;'grey-one (color 230 230 230)
-                                         #;#;'grey-two (color 215 215 215))))
+                                         #;'gry-one 
+                                         #;'gry-two )))
   
   (match-define (/ new-t/ new-target)
     (match target-fruct
@@ -993,22 +1009,29 @@
     (second (draw-fruct '→ layout-settings)))
 
   (match-define (list template-fruct template-image)
-    (if dodge-enabled?
+    (if tint-template?
         ; debtably a hack:
         ; apply a color tint to every color in layout-settings
         (draw-fruct template
                     (for/hash ([(k v) layout-settings])
                       (match v
                         [(color _ _ _ _)
+                         #:when (not (set-member? (set 'capture-shade-one
+                                                       'capture-shade-two
+                                                       'capture-color-a
+                                              'capture-color-b
+                                              'capture-color-c
+                                              'capture-color-d
+                                              'capture-color-x)k))
                          (values k ((per-color-linear-dodge-tint
-                                     transform-tint-color 0.5) v))]
+                                     transform-tint-color 0.0) v))]
                         [_ (values k v)])))
         (draw-fruct template layout-settings)))
 
 
   ; determines menu offset
   (define template-offset
-    (list (if transform-template-only
+    (list (if transform-template-only?
               ; whether to show only the template
               ; (no target or arrow)
               0
@@ -1052,25 +1075,29 @@
         (rounded-backing
          (second target-bounds)
          (first target-bounds)
-         radius selected-color "outline" 2 #f)))
+         radius selected-color "outline" selection-outline-width #f)))
 
   (define template-backing
     (rounded-backing
      (second template-bounds)
      (first template-bounds)
-     radius selected-color "outline" 2 #f))
-
+     radius selected-color "outline" selection-outline-width #f))
+  
   (define transform-backing
     (make-transform-backing
      target-bounds template-bounds layout-settings))
   
   (define new-image
-    (if transform-template-only
+    (if transform-template-only?
         ; show only template
-        template-image
-        #;(overlay/align "left" "top"
+        ; HACK: since rounded-backing is currently bugged
+        ; for scales < 2xradius. remove when this is fixed
+        (if (< (first (first (second template-bounds))) text-size)
+            template-image
+            (overlay/align "left" "top"
                          template-backing
-                         template-image)
+                         template-image))
+        
         ; show target - >template
         (overlay/align
          "left" "top"
@@ -1094,7 +1121,9 @@
 (define (make-transform-backing target-bounds template-bounds
                                 layout-settings)
   (define-from layout-settings
-    unit-width unit-height radius selected-color)
+    unit-width unit-height radius
+    transform-color
+    transform-outline-width)
   #| better transform backing plan:
      mw = max width of right profile of target
      mh = min height of target and template profiles
@@ -1144,13 +1173,13 @@
    (overlay (rounded-backing
              left-backing-right-bounds
              left-backing-left-bounds
-             radius selected-color "solid" 0 #f)
+             radius transform-color "solid" 0 #f)
             ; todo: refactor rounded-backing
             ; to avoid double-call here
             (rounded-backing
              left-backing-right-bounds
              left-backing-left-bounds
-             radius selected-color "outline" 2 #f))
+             radius transform-color "outline" transform-outline-width #f))
    (+ (* 1 unit-width) max-target-width) 0
 
    (if (>= template-target-height-diff 0)
@@ -1158,4 +1187,4 @@
        (rounded-backing
         right-backing-right-bounds
         right-backing-left-bounds
-        radius selected-color "solid" 0 #f))))
+        radius transform-color "solid" 0 #f))))

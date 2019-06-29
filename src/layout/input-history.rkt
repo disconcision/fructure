@@ -3,22 +3,23 @@
 (provide display-keypresses)
 
 (require 2htdp/image
+         "../common.rkt"
          "common-layout.rkt")
 
-(define (display-keypresses keypresses text-size)
-  (define keypress-text-size text-size)
-  (define keypress-typeface "Iosevka, Light")
-  (define keypress-radius 8)
-  (define keypress-color (color 0 118 172))
-  (define keypress-nonlit-color (color 0 47 54))
-  (define keypress-nonlit-outline-color (color 0 47 54))
-  (define keypress-nonlit-background-color (color 0 74 84))
+(define (display-keypresses keypresses layout-settings)
+  (define-from layout-settings
+    text-size typeface background-block-color form-color outline-block-color bkg-color #;radius)
+  (define keypress-radius 6)
+  (define keypress-color (color 38 111 122))
+  (define keypress-nonlit-color form-color)
+  (define keypress-nonlit-outline-color outline-block-color)
+  (define keypress-nonlit-background-color background-block-color)
   (define keypress-num 36)
   (define keypress-axis 'horizontal)
   (define keypress-direction "bottom")
   (define (render-key-core str typeface text-color outline-color bkg-color)
     (define text-image
-      (text/font str keypress-text-size text-color
+      (text/font str text-size text-color
                  typeface 'modern 'normal 'normal #;'bold #f))
     (overlay (rounded-rectangle-outline
               (image-width text-image) (image-height text-image)
@@ -28,7 +29,7 @@
               (image-width text-image) (image-height text-image)
               keypress-radius bkg-color)))
   (define (render-keypress str)
-    (render-key-core str keypress-typeface keypress-color
+    (render-key-core str typeface keypress-color
                      (color 0 57 66)
                      (color 0 0 0 0)))
   (define (render-keypress-nonlit str)

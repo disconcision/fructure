@@ -34,7 +34,7 @@
 
 (define (render-symbol s my-color layout-settings)
   (define-from layout-settings
-    typeface text-size char-padding-vertical unit-width unit-height
+    typeface text-size unit-width unit-height
     hole-bottom-color hole-side-color)
 
   (overlay
@@ -43,9 +43,7 @@
       (text/font "+"
                  (round (* 7/12 text-size))
                  my-color
-                 typeface 'modern 'normal 'normal #f)
-      #;(circle (* 1/15 text-size) "solid"
-                (color 180 180 180))]
+                 typeface 'modern 'normal 'normal #f)]
      [(equal? s '⊙)
       (define my-radius
         ; TODO: magic numbers
@@ -57,12 +55,7 @@
        (circle (+ -0.5 (div-integer my-radius 29/26)) "solid"
                hole-bottom-color)
        (circle my-radius "solid"
-               hole-side-color))
-      #;(overlay
-         (circle my-radius "outline"
-                 (color 74 241 237))
-         (circle my-radius "solid"
-                 "white"))]
+               hole-side-color))]
      [else
       (text/font (string-append (~a s))
                  ; HACK: hole char is slightly weird
@@ -71,7 +64,7 @@
                      (round (* 0.8 text-size))
                      text-size)
                  my-color
-                 typeface #;#f
+                 typeface
                  'modern 'normal 'normal #f)])
    ; padding
    (rectangle unit-width

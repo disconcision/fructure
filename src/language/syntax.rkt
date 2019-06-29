@@ -281,18 +281,26 @@
 ; BASIC REFACTORING TRANSFORMATIONS
 ; eventually, populate some of these from macros
 
+#; '([⋱
+       (▹ [sort expr] xs ... / ⊙)
+       (▹ [sort expr] xs ... / (cond
+                                 ([sort CP] [variadic #true] / (cp ([sort expr] / ⊙)
+                                                                   ([sort expr] / ⊙)))
+                                 ([sort CP] [variadic #true] / ⊙+)))])
 (define base-refactors
   (list
    '([⋱
        (▹ [sort expr] xs ... / (cond
                                  ([sort CP] / (cp a b))
-                                 ([sort CP] / (cp ([sort else] / else) c))))
+                                 ([sort CP] / (cp ([sort else] / else) c))
+                                 ([sort CP] / ⊙+)))
        (▹ [sort expr] xs ... / (if a b c))])
    '([⋱
        (▹ [sort expr] xs ... / (if a b c))
        (▹ [sort expr] xs ... / (cond
                                  ([sort CP] [variadic #true] / (cp a b))
-                                 ([sort CP] [variadic #true] / (cp ([sort else] / else) c))))])))
+                                 ([sort CP] [variadic #true] / (cp ([sort else] / else) c))
+                                 ([sort CP] [variadic #true] / ⊙+)))])))
 
 ; BASE TRANSFORMATION MARSHALLING
 (define base-transforms
