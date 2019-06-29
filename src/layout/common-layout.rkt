@@ -42,10 +42,11 @@
 
 (define (augment polarity init-width source-rows)
   (define (3> a b)
-    (cond
-      [(> a b) polarity]
-      [(= a b) 0]
-      [else (- polarity)]))
+    (* #;(if (> b  1000000) a (- a b))
+       (cond
+         [(> a b) polarity]
+         [(= a b) 0]
+         [else (- polarity)])))
   (define-values (rows-with-ltp _)
     (for/fold ([acc '()]
                [prev-w init-width])
@@ -71,6 +72,9 @@
   ; ltn - longer than next
   ; init-h - initial height of row
   ; final-h - final height of row
+
+  #;(define ltp (if (zero? ltp-num) ltp-num (div-integer ltp-num (abs ltp-num))))
+  #;(println `(ltp ,ltp ltpnum ,ltp-num))
     
   (define y1 (+ (* 2 n r) init-h))
   (define y2 (+ (* 2 n r) (* p r) init-h))
@@ -100,7 +104,8 @@
   ; ltn - longer than next
   ; init-h - initial height of row
   ; final-h - final height of row
-    
+
+  
   (define y1 (+ #;(* 2 n r) init-h))
   (define y2 (+ #;(* 2 n r) (* p r) init-h))
   (define y3 (+ #;(* 2 n r) (* p r) final-h))
@@ -224,10 +229,10 @@
   
   (define-values (right-profile num-rows total-h)
     (calc-rows-profile +1 0 0 0
-               source-right-profile header-exception? r t))
+                       source-right-profile header-exception? r t))
   (define-values (left-profile _ __)
     (calc-rows-profile -1 +inf.f num-rows total-h
-               (reverse source-left-profile) #f r t))
+                       (reverse source-left-profile) #f r t))
 
   (define (correct rp)
     (if (< (length rp) 4) rp
@@ -337,28 +342,28 @@
 
 
 #;(define (rounded-profile ls color)
-  (pretty-print ls)
-  (define (destroy-list ls)
-    (match-define `(,x ,ys ... ,z) ls)
-    (define a2 (for/list ([x ys]) (list x x)))
-    (define a3 (apply append a2))
-    (define a4 `(,x ,@a3 ,z))
-    (define (make-into-pairs ls)
-      (if (empty? ls) ls
-          `((,(first ls) ,(second ls))
-            . ,(make-into-pairs (rest (rest ls))))))
-    (make-into-pairs a4))
-  (pretty-print (destroy-list ls))
-  (for/fold ([acc empty-image])
-            ([pair (destroy-list ls)])
-    (match pair
-      [`(,(list _     _     x1 y1 pull1 angle1)
-         ,(list pull2 angle2 x2 y2 _ _))
-       (add-curve acc
-                  ; 90 is total hack, and it still looks wrong
-                  x1 y1 (+ 90 angle1) (if (zero? pull1) 0 pull1)	 	 	 	 
-                  x2 y2 (+ 90 angle2) (if (zero? pull2) 0 pull2)	 	 	 	 
-                  color)])))
+    (pretty-print ls)
+    (define (destroy-list ls)
+      (match-define `(,x ,ys ... ,z) ls)
+      (define a2 (for/list ([x ys]) (list x x)))
+      (define a3 (apply append a2))
+      (define a4 `(,x ,@a3 ,z))
+      (define (make-into-pairs ls)
+        (if (empty? ls) ls
+            `((,(first ls) ,(second ls))
+              . ,(make-into-pairs (rest (rest ls))))))
+      (make-into-pairs a4))
+    (pretty-print (destroy-list ls))
+    (for/fold ([acc empty-image])
+              ([pair (destroy-list ls)])
+      (match pair
+        [`(,(list _     _     x1 y1 pull1 angle1)
+           ,(list pull2 angle2 x2 y2 _ _))
+         (add-curve acc
+                    ; 90 is total hack, and it still looks wrong
+                    x1 y1 (+ 90 angle1) (if (zero? pull1) 0 pull1)	 	 	 	 
+                    x2 y2 (+ 90 angle2) (if (zero? pull2) 0 pull2)	 	 	 	 
+                    color)])))
 
 #;(rounded-profile '((0 0 109 0 0.39 -45) (0.39 45 119 10 0 0) (0 0 119 31 0.39 -45) (0.39 45 109 41 0 0) (0 0 313 41 0.39 -45) (0.39 45 323 51 0 0) (0 0 323 72 0.39 0) (0.39 0 323 82 0 0) (0 0 323 82 0.39 0) (0.39 0 323 92 0 0) (0 0 323 113 0.39 -45) (0.39 45 313 123 0 0)) "red")
 
