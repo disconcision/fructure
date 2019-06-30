@@ -71,6 +71,8 @@
               unit-height
               "solid" invisible)))
 
+
+
 (define (render-atom a selected? layout-settings)
   
   (match-define (/ s/ s) a)
@@ -78,30 +80,47 @@
     selected-color literal-color
     form-color +hole-color transform-arrow-color 
     identifier-color selected-atom-color
-    radius unit-width)
+    radius unit-width text-size typeface hole-as-sort?)
   (define literal? (disjoin boolean? number? string?))
-  
+
   (define candidate
-    (render-symbol
-     (match (/ s/ s) [(or (/ (sort 'char) _/ '⊙)
-                          (/ (sort 'digit) _/ '⊙)
-                          (/ _/ '⊙+))
-                      '⊙+] [_ s])
-     (if selected?
-         (if (form-id? s)
-             selected-color
-             selected-atom-color)
-         (cond
-           [(equal? s '→) transform-arrow-color]
-           [(equal? s '⊙) +hole-color]
-           [(equal? s '⊙+) +hole-color]
-           [(equal? s '+) +hole-color]
-           [(literal? s) literal-color]
-           [(form-id? s) form-color]
-           [(equal? s '▹) selected-color]
-           [else identifier-color]))
-     layout-settings))
-  
+    (match a
+      [(/ [sort sort] _/ (or '⊙ '⊙+))
+       #:when hole-as-sort?
+       ; render sort name instead of hole
+       (define blank
+         (render-symbol " " (color 0 0 0 0) layout-settings))
+       (define sort-image
+         (text/font (string-upcase (string-append (~a sort)))
+                    (round (* 0.4 text-size))
+                    (if selected? selected-atom-color literal-color)
+                    typeface
+                    'modern 'normal 'normal #f))
+       (overlay/align "middle" "middle"
+                      sort-image
+                      blank)]
+      [_
+       (render-symbol
+          (match (/ s/ s)
+            [(or (/ (sort 'char) _/ '⊙)
+                 (/ (sort 'digit) _/ '⊙)
+                 (/ _/ '⊙+))
+             '⊙+] [_ s])
+          (if selected?
+              (if (form-id? s)
+                  selected-color
+                  selected-atom-color)
+              (cond
+                [(equal? s '→) transform-arrow-color]
+                [(equal? s '⊙) +hole-color]
+                [(equal? s '⊙+) +hole-color]
+                [(equal? s '+) +hole-color]
+                [(literal? s) literal-color]
+                [(form-id? s) form-color]
+                [(equal? s '▹) selected-color]
+                [else identifier-color]))
+          layout-settings)]))
+
   (define new-image
     (cond
       [(and selected? (not (form-id? s)))
@@ -120,7 +139,6 @@
   
   (list (/ [bounds new-bounds] s/ s)
         new-image))
-
 
 
 (define (layout-row intial-offset space-width pairs)

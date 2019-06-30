@@ -250,7 +250,7 @@
              #;,(+ unit-width (image-width hole-image))
              ; unit-wdith is the hack
              ,(image-height hole-image)))))
-       (list (/ [bounds new-bounds] new-hole/ '⊙) hole-image)]
+       (list (/ [bounds new-bounds] new-hole/ 'hole) hole-image)]
     
     [(/ id/ `(id ,xs ...))
      ; id itself is not drawn

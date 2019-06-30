@@ -131,7 +131,7 @@
   'pattern-identifier-color (color 230 230 230)
 
   ; HOLES
-  ; TODO: option to display holes as text
+  'hole-as-sort? #f
   'hole-bottom-color (color 252 225 62)
   'hole-side-color (color 193 115 23)
   '+hole-color (color 25 80 84)
@@ -305,6 +305,10 @@
     [on-release (input-keyboard 'release)]
     #;[on-tick do-it 1/4]
     [to-draw output screen-x screen-y]
+    [stop-when (λ (state) (define-from state command-buffer)
+                 (equal? command-buffer "quit" ))]
+    ; todo: insert closing image above, tune below 1 (seconds)
+    [close-on-stop 1]
     #;[display-mode 'fullscreen]
     #;[record? "gif-recordings"]))
 
