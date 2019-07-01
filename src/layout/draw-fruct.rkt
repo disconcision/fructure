@@ -675,6 +675,7 @@
                                  final-left-bounds
                                  radius bkg-color "solid" background-block-width
                                  header-exception?))
+                               ; bug?: we're not actually doing an outline in this case
                                (rounded-backing
                                 final-right-bounds
                                 final-left-bounds
@@ -1153,10 +1154,24 @@
     (make-list min-profile-height
                `(,(+ (* 3 unit-width) min-width-template max-target-width)
                  ,unit-height)))
-  
+
+  #;(println "target-r-p template-r-p")
+  #;(println unit-height)
+  #;(println target-right-profile)
+  #;(println template-right-profile)
+  ; stopgap fix for bugged backing during complex transforms
+  ; eventually want to make this actually use the target backing
+  (define (real-height profile)
+    (define pixel-height
+      (for/fold ([running-h 0])([x profile])
+      (match x [(list w h) (+ h running-h)])))
+    (div-integer pixel-height unit-height))
   (define template-target-height-diff
-    (- (length target-right-profile)
+    (- (real-height target-right-profile)
+       (real-height template-right-profile))
+    #;(- (length target-right-profile)
        (length template-right-profile)))
+  #;(println `(height-diff ,template-target-height-diff))
   (define left-backing-left-bounds
     (first target-bounds))
   (define left-backing-right-bounds
@@ -1165,6 +1180,7 @@
                 (make-list template-target-height-diff
                            `(,max-target-width ,unit-height)))
         new-right-profile-init))
+  #;(println `(lbrb ,left-backing-right-bounds))
   ; this next bit is hacky and might screw up for
   ; complex template profiles?
   (define right-backing-right-bounds

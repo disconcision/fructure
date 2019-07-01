@@ -12,9 +12,16 @@
         'length-conditional-cutoff (list 'numeric * div 1.5 3 100)
         'text-size (list 'numeric + - 10 10 240)
         'line-spacing (list 'numeric + - 1 -1 30)
-        'char-padding-vertical (list 'numeric + - 1 0 30)
+        'char-padding-vertical (list 'numeric + - 1 -1 30)
         'display-keypresses? (list 'boolean)
         'radius-multiplier (list 'numeric + - 0.1 0.0 100)
+        'selection-outline-width (list 'numeric + - 1 -1 10)
+        'transform-outline-width (list 'numeric + - 1 -1 10)
+        'menu-outline-width (list 'numeric + - 1 -1 10)
+        'outline-block-width (list 'numeric + - 1 -1 10)
+        'background-block-width (list 'numeric + - 1 -1 10)
+        'alternate-bkg-vertical? (list 'boolean)
+        'alternate-bkg-horizontal? (list 'boolean)
         #;#;'radius-multiplier-atoms (list 'numeric + - 0.1 0.0 100)))
 
 

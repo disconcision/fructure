@@ -203,7 +203,7 @@
             (map (curry apply pulled-point) right-profile)
             (map (curry apply pulled-point) left-profile))
            mode (if (not (equal? mode "outline")) my-color
-                    (pen my-color outline-w "solid" "round" "bevel"))))
+                    (pen (if (zero? outline-w) (color 0 0 0 0) my-color) outline-w "solid" "round" "bevel"))))
 
 (define (rounded-profile init-source-right-profile
                          init-source-left-profile
@@ -276,7 +276,7 @@
 
 (define (rounded-rectangle-outline width height init-r my-color thickness)
   (define my-pen
-    (pen my-color thickness "solid" "butt" "round"))
+    (pen (if (zero? thickness) (color 0 0 0 0) my-color) thickness "solid" "butt" "round"))
   (rounded-rectangle-internal width height init-r "outline" my-pen))
 
 (define (rounded-rectangle-internal width height init-r mode my-color)

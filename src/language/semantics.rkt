@@ -94,6 +94,7 @@
     ; atomic forms which don't pass down scope
     [(/ in-scope a/ a)
      #:when (match? a
+              'else ; hack
               '⊙
               '⊙+
               0
