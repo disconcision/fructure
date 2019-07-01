@@ -247,6 +247,11 @@
                  (hash-set* layout-settings
                             'simple-menu? #false
                             'max-menu-length (add1 current-length)))]
+
+        [" "
+         (update 'mode 'command
+                 'mode-last 'menu)]
+        
         [_ state])))
 
 ; -------------------------------------------------

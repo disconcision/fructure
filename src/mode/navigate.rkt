@@ -28,7 +28,8 @@
          (update 'mode 'nav-shift)]
 
         [" "
-         (update 'mode 'command)]
+         (update 'mode 'command
+                 'mode-last 'nav)]
 
         ["f1"
          (println `(BEGIN-STX ,stx))

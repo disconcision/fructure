@@ -28,8 +28,12 @@
          
          has-captures?
          erase-captures
-         capture-at-cursor)
+         capture-at-cursor
 
+         fruct/command)
+
+
+(struct fruct/command (fruct command-buffer command-pointer) #:transparent)
 
 (define (div-integer x y)
   (inexact->exact (round (div x y))))

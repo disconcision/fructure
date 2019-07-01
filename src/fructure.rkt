@@ -56,6 +56,8 @@
 
   ; SCALING PARAMETERS
   'text-size 50
+  'radius-multiplier 1.0
+  'radius-multiplier-atoms 5/7
   'typeface "Iosevka, Light"
   'line-spacing 0 ; 1
   'char-padding-vertical 2 ; 5
@@ -83,6 +85,13 @@
   'max-menu-length-chars 1 ; same, for single-character menus
   'popout-transform? #t ; layer transform above structure
   'popout-menu? #t ; same
+  'use-transform-template-scheme? #f
+  'transform-template-scheme
+  (list 'background-block-color (color 215 215 215)
+        'bkg-color (color 200 200 200)
+        'outline-block-color (color 150 150 150)
+        'identifier-color (color 50 50 50)
+        'literal-color (color 193 115 23))
 
   ; NAVIGATION & SELECTION OPTIONS
   'selection-outline-width 2
@@ -100,21 +109,27 @@
   'length-conditional-layout? #t ; unless our children weigh more than
   'length-conditional-cutoff 14
     
-  ; FRUCT BACKDROP / OUTLINE
+  ; BASE FRUCT DRAWING
   'outline-block-width 1
   'background-block-width 2
-  'top-background-color (color 0 47 54)
-  'bkg-color (color 0 47 54) ; main primary color
-  'background-block-color (color 0 52 59) #;(color 25 80 84) ; main secondary color
-  'outline-block-color (color 0 61 65)
-  'pattern-shade-one (color 11 38 53) #;(color 84 84 84) ; pattern background
-  'pattern-shade-two (color 110 110 110) ; mostly unused - future secondary pattern color
   'alternate-bkg-vertical? #t
   'alternate-bkg-horizontal? #t
+  ; --------------------------
+  'top-background-color (color 0 47 54)
+  ; -----------------------
+  'bkg-color (color 0 47 54) ; primary block color
+  'background-block-color #;(color 0 60 68) (color 0 52 59) #;(color 25 80 84) ; secondary block color
+  'outline-block-color (color 0 70 79)#;(color 0 61 65) ; primary outline color
+  'form-color (color 0 130 214) ; form-id glyph color
+  'literal-color (color 255 199 50) ; (numeric) literals glyph color
+  'identifier-color (color 48 161 182) #;(color 0 0 0) ; identifier glyph color
+  ; ------------------------------------------
+  'pattern-identifier-color (color 230 230 230) ; identifier glyph color in patterns
+  'pattern-shade-one (color 11 38 53) #;(color 84 84 84) ; pattern background
+  'pattern-shade-two (color 110 110 110) ; mostly unused - future secondary pattern color
 
   ; CAPTURE OPTIONS
   'capture-pattern-shade-one (color 0 0 0)
-  ;capture-pattern-shade-two
   'capture-atom-color (color 160 160 160)
   'capture-shade-one (color 40 40 40) #;(color 160 160 160)
   'capture-shade-two (color 70 70 70) #;(color 170 170 170)
@@ -124,12 +139,6 @@
   'capture-color-d (color 215 215 0)
   'capture-color-x (color 0 215 0)
 
-  ; ATOMS
-  'form-color (color 0 130 214)
-  'literal-color (color 255 199 50)
-  'identifier-color (color 48 161 182) #;(color 0 0 0)
-  'pattern-identifier-color (color 230 230 230)
-
   ; HOLES
   'hole-as-sort? #f
   'hole-bottom-color (color 252 225 62)
@@ -137,22 +146,28 @@
   '+hole-color (color 25 80 84)
   '+hole-color-pattern (color 170 170 170 120)
   '+hole-color-number (color 130 0 0)
+
+  ; WEIRD
+  'quit #f
   )
 
 
 ; calculates dynamic settings derived from the above
 (define (add-dynamic-settings layout)
   (define-from layout
-    text-size typeface
+    text-size typeface radius-multiplier
+    radius-multiplier-atoms
     char-padding-vertical)
   (define (div-integer x y)
     (inexact->exact (round (/ x y))))
   (define space-image
     (text/font " " text-size "black"
                typeface 'modern 'normal 'normal #f))
+
   (hash-set* layout
              'menu-expander-height (round (* 1/4 text-size))
-             'radius (sub1 (div-integer text-size 2))
+             'radius (* radius-multiplier (sub1 (div-integer text-size 2)))
+             'radius-adj (* radius-multiplier-atoms (sub1 (div-integer text-size 2)))
              'margin (div-integer text-size 5)
              'unit-width (image-width space-image)
              'unit-height (+ char-padding-vertical
@@ -165,11 +180,14 @@
 (define-map initial-state
   ; we begin in navigation mode
   'mode 'nav
+  'mode-last 'nav
   ; with a selected hole
   'stx (fruct-augment initial-stx)
   ; new: current selection filter
   'search-buffer '(▹ "")
   'command-buffer ""
+  'command-pointer 'text-size
+  'command-pointer-offset 0
   ; new: initial layout settings
   'layout-settings (add-dynamic-settings initial-layout)
   ; transforms: history, currently broken
@@ -194,7 +212,7 @@
   ; print debugging information
   (displayln `(mode: ,mode ': ,pr key: ,key))
   #;(displayln `(projected: ,(project stx)))
-  (displayln `(command-buffer ,command-buffer))
+  #;(displayln `(command-buffer ,command-buffer))
   #;(displayln `(search-buffer: ,search-buffer))
   #;(displayln `(keypresses ,keypresses))
   #;(displayln state)
@@ -228,49 +246,51 @@
 (define (output state)
   ; output : state -> image
   (define-from state
-    stx layout-settings keypresses command-buffer)
+    stx layout-settings keypresses command-buffer command-pointer)
   (define-from layout-settings
     menu-expander-height menu-outline-width
     display-keypresses? text-size top-background-color)
   (define offset
     (+ menu-expander-height menu-outline-width))
   #;(println "output time: ")
-  (match-define (list _ image-out)
-    ; second here skips the top (diamond) affo
-    ; todo: make this less hacky by going fs
-    (draw-fruct-layers (second stx) layout-settings
-                       screen-x screen-y))
-
-  (define keypress-card
-    ; keypresses needs padding to match fruct
-    (overlay/align/offset
-     "left" "top"
-     (above/align "left"
-            (display-command-line command-buffer layout-settings)
-            (display-keypresses keypresses layout-settings))
-     (- offset) (- offset)
-     (rectangle screen-x text-size "solid" (color 0 0 0 0))))
+  (match-define (list _ fruct-image)
+    (draw-fruct-layers state screen-x screen-y))
 
   (define empty-card
     (rectangle text-size text-size "solid"(color 0 0 0 0)))
-  
-  (define card-stack
-    (if display-keypresses?
-        (above/align "left"
-                     empty-card
-                     keypress-card
-                     empty-card
-                     empty-card
-                     image-out)
-        image-out))
 
   (define background
     (rectangle screen-x screen-y "solid" top-background-color))
-  
-  (overlay/align/offset "left" "top"
-                        card-stack
-                        -100 0
-                        background))
+
+  (define (add-layer-to-stack new-layer stack)
+    (overlay/align/offset
+     "left" "top"
+     new-layer
+     0 (+ 50 (* 2 menu-expander-height))
+     stack))
+
+  (define (offset-to-match-fruct thing)
+    (overlay/align/offset
+     "left" "top"
+     thing
+     (- offset) (- offset)
+     (rectangle screen-x text-size "solid" (color 0 0 0 0))))
+
+  (define card-stack
+    (list empty-card
+          (offset-to-match-fruct (display-command-line state))
+          (if display-keypresses?
+              (offset-to-match-fruct (display-keypresses state))
+              empty-card)
+          empty-card
+          fruct-image))
+
+  (define nu-stack
+    (for/fold ([stack background])
+              ([card (reverse card-stack)])
+      (add-layer-to-stack card stack)))
+   
+  (overlay/align/offset "left" "top" nu-stack -100 0 background))
 
 ; -------------------------------------------------
 ; EXPPERIMENTAL ON-TICK UPDATER
@@ -305,8 +325,9 @@
     [on-release (input-keyboard 'release)]
     #;[on-tick do-it 1/4]
     [to-draw output screen-x screen-y]
-    [stop-when (λ (state) (define-from state command-buffer)
-                 (equal? command-buffer "quit" ))]
+    [stop-when (λ (state) (define-from state command-pointer layout-settings)
+                 (and (equal? command-pointer 'quit)
+                      (hash-ref layout-settings 'quit)))]
     ; todo: insert closing image above, tune below 1 (seconds)
     [close-on-stop 1]
     #;[display-mode 'fullscreen]

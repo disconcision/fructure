@@ -46,7 +46,7 @@
   (define-from layout-settings
     popout-transform? popout-menu? implicit-forms
     pattern-identifier-color pattern-shade-one pattern-shade-two
-    unit-width unit-height radius
+    unit-width unit-height radius radius-adj
     selected-color +hole-color-pattern +hole-color-number selected-atom-color
     capture-color-a capture-color-b capture-color-c capture-color-d
     capture-color-x capture-atom-color)
@@ -161,7 +161,7 @@
                        unselected-layout-settings)))
      (define id-height (image-height id-image))
      (define id-width (image-width id-image))
-     (define radius-adj (div-integer radius 7/5))
+     #;(define radius-adj (div-integer radius 7/5))
      (define new-img
        (overlay/align
         "left" "top"
@@ -188,9 +188,9 @@
      (match-define (list new-fruct new-img)
        (draw-fruct (/ a/ a)
                    (hash-set* tinted-layout-settings
-                             ; HACK TO PREVENT OVERRIDE OF SELECTION COLOR
-                             'selected-color selected-color
-                             'selected-atom-color (hash-ref tinted-layout-settings 'identifier-color))))
+                              ; HACK TO PREVENT OVERRIDE OF SELECTION COLOR
+                              'selected-color selected-color
+                              'selected-atom-color (hash-ref tinted-layout-settings 'identifier-color))))
      (list
       ; hack
       ; this took forever to figure out
@@ -207,7 +207,7 @@
 
     [(/ ref/ `(ref ,id))
      #:when (member 'ref implicit-forms)
-     (define-from layout-settings radius)
+     (define-from layout-settings radius radius-adj)
      (match-define (list id-fruct id-image)
        (if (selected? (/ ref/ `(ref ,id)))
            ; hacky - properly seperate selected and metavar logic
@@ -221,7 +221,7 @@
        `(((0  ,id-height))
          ((,id-width ,id-height))))
      ; hacky smaller radii for looks
-     (define radius-adj (div-integer radius 7/5))
+     #;(define radius-adj (div-integer radius 7/5))
      (list (/ [bounds new-bounds] ref/ `(ref ,id-fruct))
            (cond
              [(selected? (/ ref/ `(ref ,id)))
@@ -286,7 +286,7 @@
            ,(image-height between-image)))
          ((,(image-width between-image)
            ,(image-height between-image)))))
-     (define radius-adj (div-integer radius 7/5))
+     #;(define radius-adj (div-integer radius 7/5))
      (define my-new-image
        (if (selected? (/ n/ `(num ,xs ...)))
            (overlay/align
@@ -350,7 +350,7 @@
 
 (define (render-horizontal layout-settings children)
   (define-from layout-settings
-      unit-width )
+    unit-width )
 
   (define-values (new-children new-image _)
     (layout-row (list unit-width 0)
@@ -362,12 +362,12 @@
   (define newest-image
     new-image
     #;(if show-parens?
-        (overlay/align "left" "top"
-                       (render-symbol "(" identifier-color layout-settings)
-                       (overlay/align "right" "bottom"
-                                      (render-symbol ")" identifier-color layout-settings)
-                                      new-image))
-        new-image))
+          (overlay/align "left" "top"
+                         (render-symbol "(" identifier-color layout-settings)
+                         (overlay/align "right" "bottom"
+                                        (render-symbol ")" identifier-color layout-settings)
+                                        new-image))
+          new-image))
 
   (list new-children
         ; special case?
@@ -989,18 +989,15 @@
 (define (render-transform fruct layout-settings)
   (define-from layout-settings
     text-size typeface selected-color transform-template-only?
-    tint-template? transform-tint-color radius
-    selection-outline-width)
+    tint-template? transform-tint-color radius use-transform-template-scheme?
+    selection-outline-width transform-template-scheme)
   
   (match-define (/ [transform template] t/ target) fruct)
 
   (match-define (list target-fruct target-image)
-    (draw-fruct (/ t/ target) (hash-set* layout-settings
-                                         ; BUG 663832872:
-                                         ; below only triggers horizontal bkgcolors
-                                         ; figure out why not vertical
-                                         #;'gry-one 
-                                         #;'gry-two )))
+    (draw-fruct (/ t/ target) (apply hash-set* layout-settings
+                                     (if use-transform-template-scheme?
+                                         transform-template-scheme '()))))
   
   (match-define (/ new-t/ new-target)
     (match target-fruct
@@ -1025,10 +1022,10 @@
                          #:when (not (set-member? (set 'capture-shade-one
                                                        'capture-shade-two
                                                        'capture-color-a
-                                              'capture-color-b
-                                              'capture-color-c
-                                              'capture-color-d
-                                              'capture-color-x)k))
+                                                       'capture-color-b
+                                                       'capture-color-c
+                                                       'capture-color-d
+                                                       'capture-color-x)k))
                          (values k ((per-color-linear-dodge-tint
                                      transform-tint-color 0.0) v))]
                         [_ (values k v)])))
@@ -1101,8 +1098,8 @@
         (if (< (first (first (second template-bounds))) text-size)
             template-image
             (overlay/align "left" "top"
-                         template-backing
-                         template-image))
+                           template-backing
+                           template-image))
         
         ; show target - >template
         (overlay/align

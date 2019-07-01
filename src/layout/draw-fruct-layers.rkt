@@ -11,11 +11,14 @@
 
 
 ; fructure-layout : syntax -> pixels
-(define (draw-fruct-layers fruct layout-settings
-                           (screen-x 800) (screen-y 400))
+(define (draw-fruct-layers state (screen-x 800) (screen-y 400))
+  (define-from state layout-settings stx mode)
   (define-from layout-settings
-     text-size menu-expander-height menu-outline-width
+    text-size menu-expander-height menu-outline-width
     popout-transform? popout-menu? simple-menu?)
+  ; second here skips the top (diamond) affo
+  ; todo: make this less hacky by going fs
+  (define fruct (second stx))
 
   ; sanity check
   (match fruct
@@ -41,7 +44,7 @@
   (define newest-fruct (augment-absolute-offsets new-fruct))
   
  
-  (define (render-in renderer foreground background x-align y-align)
+  (define (render-in renderer foreground layout-settings background x-align y-align)
     (match-define (list _ foreground-image)
       (renderer foreground
                 layout-settings))
@@ -53,13 +56,18 @@
   (define (stick-selection-in backing-image)
     (match newest-fruct
       [(or #;(and this-selection
-                (/ [display-absolute-offset
-                    `(,(app (curry + x-offset) x)
-                      ,(app (curry + y-offset) y))] s/ (▹ _)))
+                  (/ [display-absolute-offset
+                      `(,(app (curry + x-offset) x)
+                        ,(app (curry + y-offset) y))] s/ (▹ _)))
            (⋱ _ (and this-selection
                      (/ [display-absolute-offset `(,x ,y)] s/ (▹ _)))))
-      (render-in draw-fruct
-                  this-selection backing-image
+       (render-in draw-fruct
+                  this-selection
+                  (if (equal? mode 'command)
+                      (hash-set* layout-settings
+                                 'selected-color (color 180 180 180))
+                      layout-settings)
+                  backing-image
                   x y)]
       [_ backing-image]))
  
@@ -75,7 +83,7 @@
                      (/ [transform _]
                         [display-absolute-offset `(,x ,y)] t/ _))))
        (render-in render-transform
-                  this-transform backing-image
+                  this-transform layout-settings backing-image
                   ; leaving this placeholder in case we
                   ; decide to re-pad transforms
                   (+ x #;(- margin)) y)]
@@ -102,7 +110,7 @@
                                  [display-absolute-offset `(,x ,y)]
                                  m/ _)))] t/ _)))
        (render-in render-menu
-                  this-menu backing-image
+                  this-menu layout-settings backing-image
                   ; 666
                   (+ x #;(if (single-char-menu? menu)
                              ; ULTRA MAGIC NUMBER
