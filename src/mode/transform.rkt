@@ -1,6 +1,7 @@
 #lang racket
 
-(require "../../shared/containment-patterns/containment-patterns/main.rkt"
+(require rackjure/threading
+         "../../shared/containment-patterns/containment-patterns/main.rkt"
          "../../shared/slash-patterns/slash-patterns.rkt"
          "../../shared/fructerm/fructerm.rkt"
          "../language/syntax.rkt"
@@ -16,7 +17,9 @@
 (define (mode:transform pr key state)
   ; transformation major mode
   (define-from state
-    stx search-buffer history)
+    stx search-buffer history layout-settings)
+  (define-from layout-settings
+    erase-captures-after-transform?)
   (define update (updater state key))
 
   (match stx
@@ -26,9 +29,6 @@
        (error "see above")])
   
   (match-define (⋱ ctx (/ [transform template] r/ reagent)) stx)
-
-  #;(define hole-selected-in-menu?
-      (match-lambda? (⋱ c⋱ (/ [transform (⋱ d⋱ (/ (menu (⋱ (/ h/ (▹ (or '⊙ '⊙+))))) m/ _))] t/ t))))
   
   (if (equal? pr 'release)
       state
@@ -50,10 +50,15 @@
 
         ["\r"
          ; perform selected transform, remove menu, and switch to nav mode
+         (define maybe-erase-captures
+           (if erase-captures-after-transform? erase-captures identity))
          (update 'mode 'nav
                  'search-buffer init-buffer
-                 'stx (erase-captures
-                       (⋱ ctx (strip-menu (perform-selected-transform template)))))]
+                 'stx (~>> template
+                           perform-selected-transform
+                           strip-menu
+                           (⋱ ctx)
+                           maybe-erase-captures))]
 
         ["f2"
          ; hack to remove menu
@@ -76,8 +81,23 @@
          ; BUT: does this work in the general variadic case?
          ; remember that in the single-char case, we force completion
          ; does this change things? let's try it out....
+
+         ; UPDATE: okay this is getting stupid but here's what we do now:
+         ; calculate first-new-stx 'normally'
+         ; this is the initial transformation
+         ; THEN, we call menu-filter-in-stx to do another transformation,
+         ; IFF the menu is length 1 and the sole item is a variadic hole
+         ; should probably factor that out of menu-filter-in-stx and just do it here...
+         (define first-new-stx
+           (⋱ ctx (/ [transform (move-menu-to-next-hole
+                                            (perform-selected-transform template)
+                                            stx init-buffer)] ; empty search buffer
+                                r/ reagent)))
+         (define-values (new-stx-candidate
+                         newest-buffer-candidate)
+           (menu-filter-in-stx " " first-new-stx init-buffer init-buffer))
          (update 'search-buffer init-buffer
-                 'stx (⋱ ctx (/ [transform (move-menu-to-next-hole
+                 'stx new-stx-candidate #;(⋱ ctx (/ [transform (move-menu-to-next-hole
                                             (perform-selected-transform template)
                                             stx init-buffer)] ; empty search buffer
                                 r/ reagent)))]
@@ -179,7 +199,14 @@
            (menu-filter-in-stx "(" stx search-buffer new-search-buffer))
          (update 'search-buffer newest-buffer-candidate
                  'stx new-stx-candidate)]
-        [(or ")" "]" "}") 
+        
+        [(or ")" "]" "}")
+
+         ; TODO:
+         ; want a new case here... if selection in menu is variadic hole
+         ; no, cancel that last part since we're now autofilling those...
+         ; if template of menu (does this make sense?) is variadic hole,
+         ; then we want to advance to next hole/end, and ideally delete that hole
          (define new-search-buffer
            (match search-buffer
              [(⋱ c⋱ `(,as ... (,bs ... (▹ ,s))))
@@ -632,6 +659,33 @@
       [`(,(/ [sort (or 'digit 'char)] _/ _) ...) #t] [_ #f])))
 
 
+(define hole-selected-in-menu?
+  (match-lambda? (⋱ c⋱ (/ [transform (⋱ d⋱ (/ (menu (⋱ (/ h/ (▹ (or '⊙ '⊙+))))) m/ _))] t/ t))))
+
+(define variadic-hole-selected-in-menu?
+  (match-lambda? (⋱ c⋱ (/ [transform (⋱ d⋱ (/ (menu (⋱ (/ [variadic _] h/ (▹ (or '⊙ '⊙+))))) m/ _))] t/ t))))
+
+(define (get-menu-selection-from-transform transform)
+  (match transform
+    [(⋱ (/ [menu (list _ ... (and transform+resultant (list _ (/ _ (▹ _)))) _ ...)] _ _))
+     transform+resultant]
+    [_ (println "warning: menu has no selection") #false]))
+
+(define (menu->selection menu)
+  (match menu
+    [(list _ ... (and transform+resultant (list _ (/ _ (▹ _)))) _ ...)
+     transform+resultant]
+    [_ (println "warning: menu has no selection") #false]))
+
+(define (menu->variadic-hole-selected? menu)
+  (define selected-transform (menu->selection menu))
+  (if selected-transform
+      (match selected-transform
+        [(list _ (/ [variadic _] _? (▹ (or '⊙ '⊙+)))) #t]
+        [_ #f])
+      #f))
+
+
 (define (menu-filter-in-stx new-char init-stx old-buffer buffer-candidate)
 
   ; this hacky little guy restores the original menu prior to filtering
@@ -656,8 +710,13 @@
   (define template-candidate
     (⋱ d⋱ (/ [menu menu-candidate]  m/ m)))
 
- 
+  #;(println "ABUT TO MAKE DECISIONS BOI")
+  #;(println `(old-buf ,old-buffer))
+  #;(println `(buf-cand ,buffer-candidate))
+  #;(println `(menu-cand ,menu-candidate))
+  
   (cond
+    ; what is this first case? what is new-char?
     [(and (equal? " " new-char)
           (empty? menu-candidate))
      (values (⋱ ctx (/ [transform (move-menu-to-next-hole
@@ -668,13 +727,21 @@
     [(empty? menu-candidate)
      (values init-stx
              old-buffer)]
-    #;[(and (equal? 1 (length menu-candidate)))]
     ; make temp special case here for length 1 menu with only hole
     ; should make a menu based on hole, and splice it to the length-1 menu
     [(and (equal? 1 (length menu-candidate))
           ; make this an option
           ; todo: case where buffer-cursor is on a hole
           (single-char-menu? menu-candidate))
+     (values (⋱ ctx (/ [transform (move-menu-to-next-hole
+                                   (perform-selected-transform template-candidate)
+                                   stx init-buffer)] ; empty search buffer
+                       r/ reagent))
+             init-buffer)]
+    [(and (equal? " " new-char) ; necessary? guard against potential weirdness
+          (equal? 1 (length menu-candidate))
+          (menu->variadic-hole-selected? menu-candidate))
+     #;(println "HOOOOOOLE MAN")
      (values (⋱ ctx (/ [transform (move-menu-to-next-hole
                                    (perform-selected-transform template-candidate)
                                    stx init-buffer)] ; empty search buffer

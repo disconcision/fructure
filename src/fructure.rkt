@@ -74,6 +74,7 @@
   'custom-menu-selector? #t ; needs work
 
   ; TRANSFORM & MENU OPTIONS
+  'erase-captures-after-transform? #t
   'menu-bkg-color (color 0 35 39)
   'menu-secondary-color (color 0 24 27)
   'tint-template? #t
@@ -213,7 +214,7 @@
   (displayln `(mode: ,mode ': ,pr key: ,key))
   #;(displayln `(projected: ,(project stx)))
   #;(displayln `(command-buffer ,command-buffer))
-  #;(displayln `(search-buffer: ,search-buffer))
+  (displayln `(search-buffer: ,search-buffer))
   #;(displayln `(keypresses ,keypresses))
   #;(displayln state)
 
