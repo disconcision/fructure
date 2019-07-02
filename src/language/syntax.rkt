@@ -238,7 +238,8 @@
   ; later: populate base sigs from contracts? procedure-props?
   (append
    '(true false (not ⊙))
-   '((zero? ⊙) (add1 ⊙) (sub1 ⊙))
+   '((=? ⊙ ⊙))
+   '((zero? ⊙) (add1 ⊙) (sub1 ⊙) (< ⊙ ⊙))
    '(null (empty? ⊙) (cons ⊙ ⊙) (first ⊙) (rest ⊙))))
 
 (define (symbol->proper-ref sym)

@@ -221,7 +221,7 @@
            (menu-filter-in-stx ")" stx search-buffer new-search-buffer))
          (update 'search-buffer newest-buffer-candidate
                  'stx new-stx-candidate)]
-        [(regexp #rx"^[0-9A-Za-z?!\\\\-]$" c)
+        [(regexp #rx"^[0-9A-Za-z?!=<>\\\\-]$" c)
          #:when c
          ; hack? otherwise this seems to catch everything?
          ; maybe since we're matching against a key event...

@@ -28,23 +28,26 @@
   Fructure is concerned with transforming, considering,
   conversing with, and being transformed by structure.
 
-  Modes determine the mapping between input and pure functions of state.
+  FRUCTS are composites of attributed sexprs used to model structure.
+  The state of fructure is the object structured augmented with UI widgets
+  called syntactic affordances, which comprise both syntactic annotation
+  and as an encompassing metagrammar embedding the object grammar.
+
+  LANGUAGE/syntax determines the base transformations of
+  the object structure and hence the space of possible structures
+
+  LANGUAGE/semantics annotates structure with calculated attributes & affordances
+  informing interaction. These (morally, lol) represent an attribute grammar,
+  letting context-free rewriting respect context-sensitive properties.
+
+  MODESs determine the mapping between input and pure functions of state.
   input modes are each defined in seperate modules, indicated above.
-  The current state is projected visually by layout.rkt.
 
-  Language.rkt determines the shape of possible mappings, and hence possible structure.
+  LAYOUT maps structure to the screen
 
-  Our syntax object is a composite of attributed sexprs called fructs.
-  The UI is itself part of the syntax, as both syntactic annotation
-  and as an encompassing metagrammar.
-
-  Extensional aspects of the object, including history, logging, and
-  interaction buffers with external devices, are represented in the state.
-
-  Between interactions, we automatically annotate our structure with
-  contextual cues (attributes.rkt) to inform further interaction. These
-  (morally, lol) represent an attribute grammar, permitting context-free
-  rewriting to respect context-sensitive properties.
+  Certain extensional aspects of the object structure, including history,
+  logging, and interaction buffers with external devices, CURRENTLY live
+  outside the core state.
 
 |#
 
@@ -60,7 +63,7 @@
   'radius-multiplier-atoms 5/7
   'typeface "Iosevka, Light"
   'line-spacing 0 ; 1
-  'char-padding-vertical 2 ; 5
+  'char-padding-vertical 0 ; 2 ; 5
 
   ; DEBUGGING OPTIONS
   'display-keypresses? #t ; show a list of the n last keypresses
@@ -69,23 +72,52 @@
   ; BUG: removing ref is WEIRD
   ; BUG: removing num has no effect
   'implicit-forms '(ref num app cp lp lps mp mapp) ; hide heads
+  'top-background-color (color 0 47 54)
 
-  ; BUSTED OPTIONS
-  'custom-menu-selector? #t ; needs work
+  ; FRUCTS
+  ; i : layout
+  'length-conditional-cutoff 14
+  'force-horizontal-layout? #f ; uninvade the second dimension 
+  'length-conditional-layout? #t ; unless our children weigh more than
+  ; ii : atoms
+  'form-color (color 0 130 214) ; form-id glyph color
+  'literal-color (color 255 199 50) ; (numeric) literals glyph color
+  'identifier-color (color 48 161 182) #;(color 0 0 0) ; identifier glyph color
+  ; iii : blocks
+  'alternate-bkg-vertical? #t
+  'alternate-bkg-horizontal? #t
+  'bkg-color (color 0 47 54) ; primary block color, equal to top-background-color
+  'outline-block-width 1 ; primary block outline width
+  'background-block-color (color 0 52 59) ; secondary block color
+  'background-block-width 2 ; BUSTED; todo: implement proper outlines for secondaries
+  'outline-block-color (color 0 70 79)#;(color 0 61 65) ; primary outline color
+  ; iv : patterns
+  'pattern-identifier-color (color 230 230 230) ; identifier glyph color in patterns
+  'pattern-shade-one (color 11 38 53) #;(color 84 84 84) ; pattern background
+  'pattern-shade-two (color 110 110 110) ; mostly unused - future secondary pattern color
 
-  ; TRANSFORM & MENU OPTIONS
+  ; HOLES
+  'hole-as-sort? #f
+  'hole-bottom-color (color 252 225 62)
+  'hole-side-color (color 193 115 23)
+  '+hole-color (color 25 80 84)
+  '+hole-color-pattern (color 170 170 170 120) ; todo: refactor
+  '+hole-color-number (color 130 0 0) ; todo: refactor
+
+  ; SELECTOR
+  'selection-outline-width 2
+  'transform-outline-width 2
+  'menu-outline-width 2
+  'selected-color (color 230 0 0)
+  'selected-atom-color (color 255 255 255)
+
+  ; TRANSFORM
   'erase-captures-after-transform? #t
-  'menu-bkg-color (color 0 35 39)
-  'menu-secondary-color (color 0 24 27)
-  'tint-template? #t
-  'transform-tint-color (color 70 0 0) ;based on selected-color
-  'transform-arrow-color (color 255 255 255)
   'transform-template-only? #f ; don't show -> and target
-  'simple-menu? #f ; only red outline, dark backing
-  'max-menu-length 4 ; maximum completions
-  'max-menu-length-chars 1 ; same, for single-character menus
-  'popout-transform? #t ; layer transform above structure
-  'popout-menu? #t ; same
+  'transform-color (color 230 0 0) ; same as selected-color
+  'transform-tint-color (color 70 0 0) ; based on selected-color
+  'transform-arrow-color (color 255 255 255)
+  'tint-template? #t
   'use-transform-template-scheme? #f
   'transform-template-scheme
   (list 'background-block-color (color 215 215 215)
@@ -94,43 +126,19 @@
         'identifier-color (color 50 50 50)
         'literal-color (color 193 115 23))
 
-  ; NAVIGATION & SELECTION OPTIONS
-  'selection-outline-width 2
-  'transform-outline-width 2
-  'menu-outline-width 2
-  'selected-color (color 230 0 0)
-  'transform-color (color 230 0 0)
-  'menu-outline-color (color 230 0 0)
-  'menu-search-color (color 230 0 0)
-  'selected-atom-color (color 255 255 255)
+  ; MENU
+  'simple-menu? #f ; only red outline, dark backing
   'simple-menu-background-color (color 40 40 40)
+  'max-menu-length 4 ; default maximum completions
+  'max-menu-length-chars 1 ; same, for single-character menus
+  'menu-outline-color (color 230 0 0) ; same as selected-color
+  'menu-search-color (color 230 0 0) ; same as selected-color
+  'menu-bkg-color (color 0 35 39)
+  'menu-secondary-color (color 0 24 27)
   
-  ; LAYOUT OPTIONS
-  'force-horizontal-layout? #f ; uninvade the second dimension 
-  'length-conditional-layout? #t ; unless our children weigh more than
-  'length-conditional-cutoff 14
-    
-  ; BASE FRUCT DRAWING
-  'outline-block-width 1
-  'background-block-width 2
-  'alternate-bkg-vertical? #t
-  'alternate-bkg-horizontal? #t
-  ; --------------------------
-  'top-background-color (color 0 47 54)
-  ; -----------------------
-  'bkg-color (color 0 47 54) ; primary block color
-  'background-block-color #;(color 0 60 68) (color 0 52 59) #;(color 25 80 84) ; secondary block color
-  'outline-block-color (color 0 70 79)#;(color 0 61 65) ; primary outline color
-  'form-color (color 0 130 214) ; form-id glyph color
-  'literal-color (color 255 199 50) ; (numeric) literals glyph color
-  'identifier-color (color 48 161 182) #;(color 0 0 0) ; identifier glyph color
-  ; ------------------------------------------
-  'pattern-identifier-color (color 230 230 230) ; identifier glyph color in patterns
-  'pattern-shade-one (color 11 38 53) #;(color 84 84 84) ; pattern background
-  'pattern-shade-two (color 110 110 110) ; mostly unused - future secondary pattern color
-
-  ; CAPTURE OPTIONS
-  'capture-pattern-shade-one (color 0 0 0)
+  ; CAPTURES
+  'capture-pattern-shade-one (color 0 0 0) ; underlying base
+  ; todo: add pattern-identifier-color=black so above can be light
   'capture-atom-color (color 160 160 160)
   'capture-shade-one (color 40 40 40) #;(color 160 160 160)
   'capture-shade-two (color 70 70 70) #;(color 170 170 170)
@@ -140,13 +148,10 @@
   'capture-color-d (color 215 215 0)
   'capture-color-x (color 0 215 0)
 
-  ; HOLES
-  'hole-as-sort? #f
-  'hole-bottom-color (color 252 225 62)
-  'hole-side-color (color 193 115 23)
-  '+hole-color (color 25 80 84)
-  '+hole-color-pattern (color 170 170 170 120)
-  '+hole-color-number (color 130 0 0)
+  ; BUSTED
+  'custom-menu-selector? #t ; needs work
+  'popout-transform? #t ; layer transform above structure
+  'popout-menu? #t ; layer menu above structure
 
   ; WEIRD
   'quit #f
