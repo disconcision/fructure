@@ -29,7 +29,7 @@
   conversing with, and being transformed by structure.
 
   FRUCTS are composites of attributed sexprs used to model structure.
-  The state of fructure is the object structured augmented with UI widgets
+  The state of fructure is the object structure augmented with UI widgets
   called syntactic affordances, which comprise both syntactic annotation
   and as an encompassing metagrammar embedding the object grammar.
 
@@ -53,7 +53,7 @@
 
 
 ; -------------------------------------------------
-; DISPLAY SETTINGS
+; SETTINGS
 
 (define-map initial-layout
 
@@ -75,15 +75,15 @@
   'top-background-color (color 0 47 54)
 
   ; FRUCTS
-  ; i : layout
+  ; i layout
   'length-conditional-cutoff 14
   'force-horizontal-layout? #f ; uninvade the second dimension 
   'length-conditional-layout? #t ; unless our children weigh more than
-  ; ii : atoms
+  ; ii atoms
   'form-color (color 0 130 214) ; form-id glyph color
   'literal-color (color 255 199 50) ; (numeric) literals glyph color
   'identifier-color (color 48 161 182) #;(color 0 0 0) ; identifier glyph color
-  ; iii : blocks
+  ; iii blocks
   'alternate-bkg-vertical? #t
   'alternate-bkg-horizontal? #t
   'bkg-color (color 0 47 54) ; primary block color, equal to top-background-color
@@ -91,7 +91,7 @@
   'background-block-color (color 0 52 59) ; secondary block color
   'background-block-width 2 ; BUSTED; todo: implement proper outlines for secondaries
   'outline-block-color (color 0 70 79)#;(color 0 61 65) ; primary outline color
-  ; iv : patterns
+  ; iv patterns
   'pattern-identifier-color (color 230 230 230) ; identifier glyph color in patterns
   'pattern-shade-one (color 11 38 53) #;(color 84 84 84) ; pattern background
   'pattern-shade-two (color 110 110 110) ; mostly unused - future secondary pattern color

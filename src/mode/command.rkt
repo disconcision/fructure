@@ -9,6 +9,12 @@
 (define props-map
   (hash 'hole-as-sort? (list 'boolean)
         'quit (list 'boolean)
+        'typeface (list 'enum '("Iosevka, Light" "Nimbus Mono L"
+                                "FreeMono" "Noto Mono" "Chilanka"
+                                "OverpassMono Nerd Font" "Purisa, Oblique"
+                                "Tlwg Mono" "mononoki Nerd Font Mono"))
+        'implicit-forms (list 'enum '((ref num app cp lp lps mp mapp)
+                                      (ref num cp lp lps mp mapp)))
         'length-conditional-cutoff (list 'numeric * div 1.5 3 100)
         'text-size (list 'numeric + - 10 10 240)
         'line-spacing (list 'numeric + - 1 -1 30)
@@ -173,8 +179,26 @@
           fp
           (loop fp (sub1 iters)))))
 
+(define (enum-inc-dec options)
+  (define ((inc options) prop)
+    (define maybe-tail-headed-by-prop
+      (member prop options))
+    (if maybe-tail-headed-by-prop
+        (if (empty? (rest maybe-tail-headed-by-prop))
+            (first options)
+            (first (rest maybe-tail-headed-by-prop)))
+        (begin (println "WARNING: enum-inc-dec: property not in options)")
+               prop)))
+  (define (dec reverse-options)
+    (inc reverse-options))
+  (list (inc options) (dec (reverse options))))
+
+
 (define prop-inc-decs
   (for/hash ([(k v) props-map])
     (values k (case (first v)
+                #;['experimental (list (λ (x) '(ref num app cp lp lps mp mapp))
+                                       (λ (x) '(ref num cp lp lps mp mapp)))]
                 ['boolean (boolean-inc-dec)]
-                ['numeric (apply numeric-inc-dec (rest v))]))))
+                ['numeric (apply numeric-inc-dec (rest v))]
+                ['enum (apply enum-inc-dec (rest v))]))))
