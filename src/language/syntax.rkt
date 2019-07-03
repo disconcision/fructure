@@ -23,16 +23,16 @@
   ; CONSTRUCTORS FOR BASE SYNTACTIC FORMS
   (append
    ; LAMBDA CALC
-   (list '([⋱
-             (▹ [sort expr] xs ... / ⊙)
-             (▹ [sort expr] xs ... / (app ([sort expr] / ⊙)
-                                          ([sort expr] / ⊙)))])
+   (list '(#;[⋱
+               (▹ [sort expr] xs ... / ⊙)
+               (▹ [sort expr] xs ... / (app ([sort expr] / ⊙)
+                                            ([sort expr] / ⊙)))])
          '([⋱
              (▹ [sort expr] xs ... / ⊙)
-             (▹ [sort expr] xs ... / (mapp ([sort expr] [variadic #true] / ⊙+)))])
+             (▹ [sort expr] xs ... / (app ([sort expr] [variadic #true] / ⊙+)))])
          '([⋱
-             (xs ... / (mapp as ... (▹ ys ... / ⊙+) ))
-             (xs ... / (mapp as ... (▹ [sort expr] [variadic #true] / ⊙) (ys ... / ⊙+)))])
+             (xs ... / (app as ... (▹ ys ... / ⊙+) ))
+             (xs ... / (app as ... (▹ [sort expr] [variadic #true] / ⊙) (ys ... / ⊙+)))])
          '([⋱
              (▹ [sort expr] xs ... / ⊙)
              (▹ [sort expr] xs ... / (λ ([sort params]

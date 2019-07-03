@@ -6,16 +6,14 @@
          2htdp/universe)
 
 ; internal structure
-(require "language/syntax.rkt"
-         ; syntax generators
-         "language/semantics.rkt"
-         ; syntax->attributed-syntax
-         "layout/draw-fruct-layers.rkt" ; syntax->pixels
+(require "language/syntax.rkt" ; de/constructors: ⊥ -> fruct -> ⊥ 
+         "language/semantics.rkt" ; contextualizers: fruct->attributed-fruct
+         "layout/draw-fruct-layers.rkt" ; projectors: syntax->pixels
          "layout/input-history.rkt"
-         
-         "mode/transform.rkt" 
-         "mode/navigate.rkt"
-         "mode/command.rkt"
+         ; modes: (state, mode) x input -> (state, mode)
+         "mode/transform.rkt" ; transform & menu 
+         "mode/navigate.rkt" ; selector & captures
+         "mode/command.rkt" ; settings scrubber
          "common.rkt")
 
 (define-values (screen-x screen-y)

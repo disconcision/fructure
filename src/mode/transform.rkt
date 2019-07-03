@@ -88,19 +88,60 @@
          ; THEN, we call menu-filter-in-stx to do another transformation,
          ; IFF the menu is length 1 and the sole item is a variadic hole
          ; should probably factor that out of menu-filter-in-stx and just do it here...
+
+         ; now want:
+         ; additional logic here for when thing under menu is a variadic hole
+         ; in this case, we advance to next hole, and the original hole is removed
+
+         ;first let's just try to identify THE SITUATION
+         #; (⋱ ctx (/ [transform template] r/ reagent))
+         (match template
+           [(⋱ (/ [menu `(,_ ... (,transform ,(/ _ (▹ selection-in-menu))) ,_ ...)] m/ thing-under-menu))
+            #;(println "THE SITUATION")
+            #;(println `(selection-in-menu ,selection-in-menu))
+            #;(println `(thing-under-menu ,thing-under-menu))
+            0])
+         (define situation?
+           (match? template
+             (⋱ (/ [menu `(,_ ... (,transform ,(/ _ (▹ '⊙))) ,_ ...)] [variadic _] m/ '⊙))))
+         (println `(situation? ,situation?))
+         ; based on that (both holes), gonna try a slighty simpler condition to start
+         ; ie both are holes, dont care variadic. if this works, it'll also allow
+         ; us to leave holes blank in non-variadic forms
+         ; BUTTTT... above already works. should prooobably stick to variadic case
+         ; so doing that.
+         (define situation-candidate
+           ; this is legit a different case.
+           ; recall this case ASSUMES (but situation? logic does not currently guarantee)
+           ; that the currently selected hole is right before a terminal hole+
+           ; we want to skip over that hole+
+           ; whereas in the non-situation case we want to advance to that hole to
+           ; continue to insert new things on the current level
+           (⋱ ctx (/ [transform (move-menu-to-next-hole-but-skip-next-hole+
+                                 template
+                                 stx init-buffer)] ; empty search buffer
+                     r/ reagent)))
+         ; this is here in case the next thing we advance to is a hole+
+         ; so we get a length-1 menu and auto-advance that
+         (define-values (second-situation-candidate _)
+           (menu-filter-in-stx " " situation-candidate init-buffer init-buffer))
+         
          (define first-new-stx
            (⋱ ctx (/ [transform (move-menu-to-next-hole
-                                            (perform-selected-transform template)
-                                            stx init-buffer)] ; empty search buffer
-                                r/ reagent)))
+                                 (perform-selected-transform template)
+                                 stx init-buffer)] ; empty search buffer
+                     r/ reagent)))
          (define-values (new-stx-candidate
                          newest-buffer-candidate)
            (menu-filter-in-stx " " first-new-stx init-buffer init-buffer))
          (update 'search-buffer init-buffer
-                 'stx new-stx-candidate #;(⋱ ctx (/ [transform (move-menu-to-next-hole
-                                            (perform-selected-transform template)
-                                            stx init-buffer)] ; empty search buffer
-                                r/ reagent)))]
+                 'stx (if situation?
+                          second-situation-candidate
+                          #;situation-candidate
+                          new-stx-candidate) #;(⋱ ctx (/ [transform (move-menu-to-next-hole
+                                                                     (perform-selected-transform template)
+                                                                     stx init-buffer)] ; empty search buffer
+                                                         r/ reagent)))]
 
         ["left"
          ; budget undo
@@ -189,6 +230,20 @@
                                                                      stx init-buffer)]
                                   ; above "" is empty search buffer
                                   r/ reagent)))]
+
+
+        ; temporary override of [ to accomidate fast lists
+        #;["["
+
+         (update 'search-buffer init-buffer
+                 'stx (⋱ ctx (/ [transform (move-menu-to-next-hole
+                                            (perform-selected-transform
+                                             template)
+                                            stx init-buffer)]
+                                ; above "" is empty search buffer
+                                r/ reagent)))]
+
+        ; DOESN'T ACTUALLY HANDLE [ SEE ABOVE
         [(or "(" "[" "{") 
          (define new-search-buffer
            (match search-buffer
@@ -379,6 +434,53 @@
          `(,@as ,(/ w/ a) ,(/ z/ (▹ b)) ,@bs))]
     [x (println "warning: no hole after cursor") x]))
 
+(define (advance-cursor-to-next-hole-but-skip-next-hole+ stx)
+  ; new: prevent descending into metavar
+  ; note that other metavar clause is ill-advised
+  (match stx
+    ; COMMENTED AND THERE'S MYSTERY FALLTHROUGH
+    ; if issues, uncomment this
+    ; THERE'S ALSO ANOTHER BELOW
+    ; (commenting these to try and specifize this case)
+    #;[(⋱ c⋱ (and (/ y/ (▹ (⋱ d⋱ (/ x/ (and h (or '⊙ '⊙+))))))
+                  (not (/ [metavar _] _ _))))
+       (⋱ c⋱ (/ y/ (⋱ d⋱ (/ x/ (▹ h)))))]
+    ; when selector on hole which is
+    ;   1. traversal-before hole+
+    ;   2. itself traversal-before at least one other target
+    ; then selected hole removed, and selector moves to target
+    ; (ordinarily, we couldn't skip past a hole+ as it would
+    ;  just keep triggering new list elements)
+    [(⋱+ c⋱ (capture-when (and (or (/ _ (▹ _))
+                                   (/ _ (or '⊙ '⊙+)))
+                               ))
+         `(,as ... ,(/ w/ (▹ '⊙)) ,(/ z/ '⊙+) ,(/ zz/ b) ,bs ...))
+     (define (unplace stx)
+       (match stx
+         [`(,a ... @$placeholdor_666 ,b ...)
+          (println "UNPLACEd")
+          (map unplace `(,@a ,@b))]
+         [(? list?) (map unplace stx)]
+         [_ stx]))
+     #;(println "placeholdors?")
+     #;(println (⋱+ c⋱ 
+                    `(,@as @$placeholdor_666 ,(/ z/ '⊙+) ,(/ zz/ (▹ b)) ,@bs)))
+     #;(println (unplace (⋱+ c⋱ 
+                             `(,@as @$placeholdor_666 ,(/ z/ '⊙+) ,(/ zz/ (▹ b)) ,@bs))))
+     (unplace (⋱+ c⋱ 
+                  `(,@as @$placeholdor_666 ,(/ z/ '⊙+) ,(/ zz/ (▹ b)) ,@bs)))]
+    ; COMMENTED AND THERE'S MYSTERY FALLTHROUGH
+    ; if issues, uncomment this
+    #;[(⋱+ c⋱ (capture-when (and (or (/ _ (▹ _))
+                                     (/ _ (or '⊙ '⊙+)))
+                                 #;(not (('metavar _) _ ... / _))))
+           `(,as ... ,(/ w/ (▹ a)) ,(/ z/ b) ,bs ...))
+       (⋱+ c⋱ 
+           `(,@as ,(/ w/ a) ,(/ z/ (▹ b)) ,@bs))]
+    [x (println "extreme warning: WEIRD NEW HOLE+ SKIPPING CASE !!!")
+       (println `(problem-stx: ,stx))
+       x]))
+
 
 
 (define (fruct-to-runtime fr)
@@ -509,6 +611,27 @@
     ((compose #;(curryr insert-menu-at-cursor ambient-stx)
               local-augment
               advance-cursor-to-next-hole
+              strip-menu)
+     stx))
+
+  ; slightly hacky
+  ; this case prevents a menu from spawning on an atom
+  ; if we press over when there are no other holes
+  (if (hole-under-cursor? candidate)
+      (insert-menu-at-cursor candidate ambient-stx search-buffer)
+      candidate)
+  
+  )
+
+(define (move-menu-to-next-hole-but-skip-next-hole+ stx ambient-stx search-buffer)
+  ; removes existing menu, advances cursor to next hole,
+  ; and inserts a menu at that hole. if there is no such
+  ; hole, the returned stx will have no menu
+
+  (define candidate
+    ((compose #;(curryr insert-menu-at-cursor ambient-stx)
+              local-augment
+              advance-cursor-to-next-hole-but-skip-next-hole+
               strip-menu)
      stx))
 

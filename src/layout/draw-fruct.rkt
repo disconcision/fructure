@@ -831,6 +831,9 @@
            (hash-set* layout-settings
                       'force-horizontal-layout? #f)]
           [_ (hash-set* layout-settings
+                        ; failed hack to make (empty) app more readable in menu
+                        ; but it makes non-empty apps less readable
+                        #;'implicit-forms #;'(ref cp lp lps mp mapp)
                         'force-horizontal-layout? #f)]))
       (define search-buffer (match item [(/ [search-buffer search-buffer] a/ a)
                                          search-buffer]
