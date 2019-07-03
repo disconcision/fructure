@@ -137,11 +137,7 @@
          (update 'search-buffer init-buffer
                  'stx (if situation?
                           second-situation-candidate
-                          #;situation-candidate
-                          new-stx-candidate) #;(⋱ ctx (/ [transform (move-menu-to-next-hole
-                                                                     (perform-selected-transform template)
-                                                                     stx init-buffer)] ; empty search buffer
-                                                         r/ reagent)))]
+                          new-stx-candidate))]
 
         ["left"
          ; budget undo
@@ -233,15 +229,36 @@
 
 
         ; temporary override of [ to accomidate fast lists
+        ["rcontrol"
+         (define local-transformed-template
+           (match template
+             [(⋱ (/ [menu `(,_ ... (,transform ,(/ _ `(app ,(/ _ '⊙+)))) ,_ ...)] _ _))
+              (println "found app!!!")
+              (runtime-match literals transform template)]
+             [x (println "barely-warning: rcontrol parens hack: fallthrough") x]))
+
+         (define first-stx-candidate
+           (⋱ ctx (/ [transform (move-menu-to-next-hole
+                                 local-transformed-template
+                                 stx init-buffer)]
+                     ; above "" is empty search buffer
+                     r/ reagent)))
+
+
+         ; in case the moved-to hole has 1-length menu, auto move (hack, everywhere)
+         (define-values (second-stx-candidate _)
+           (menu-filter-in-stx " " first-stx-candidate init-buffer init-buffer))
+         (update 'search-buffer init-buffer
+                 'stx second-stx-candidate)]
         #;["["
 
-         (update 'search-buffer init-buffer
-                 'stx (⋱ ctx (/ [transform (move-menu-to-next-hole
-                                            (perform-selected-transform
-                                             template)
-                                            stx init-buffer)]
-                                ; above "" is empty search buffer
-                                r/ reagent)))]
+           (update 'search-buffer init-buffer
+                   'stx (⋱ ctx (/ [transform (move-menu-to-next-hole
+                                              (perform-selected-transform
+                                               template)
+                                              stx init-buffer)]
+                                  ; above "" is empty search buffer
+                                  r/ reagent)))]
 
         ; DOESN'T ACTUALLY HANDLE [ SEE ABOVE
         [(or "(" "[" "{") 
@@ -458,7 +475,7 @@
      (define (unplace stx)
        (match stx
          [`(,a ... @$placeholdor_666 ,b ...)
-          (println "UNPLACEd")
+          #;(println "UNPLACEd")
           (map unplace `(,@a ,@b))]
          [(? list?) (map unplace stx)]
          [_ stx]))
@@ -477,8 +494,8 @@
            `(,as ... ,(/ w/ (▹ a)) ,(/ z/ b) ,bs ...))
        (⋱+ c⋱ 
            `(,@as ,(/ w/ a) ,(/ z/ (▹ b)) ,@bs))]
-    [x (println "extreme warning: WEIRD NEW HOLE+ SKIPPING CASE !!!")
-       (println `(problem-stx: ,stx))
+    [x (println "warning: transform: hole+ skipping fallthrough case")
+       #;(println `(problem-stx: ,stx))
        x]))
 
 

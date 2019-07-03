@@ -169,7 +169,7 @@
 
 (define (introduce-to-scope my-stx)
   (match my-stx
-    [(/ id/ `(id ,chars ... ,(/ _/ '⊙)))
+    [(/ id/ `(id ,chars ... ,(/ _/ (or '⊙ '⊙+))))
      (if (empty? chars) '() `(([⋱
                                  (▹ [sort expr] xs ... / ⊙)
                                  (▹ [sort expr] xs ... / (ref ',(/ id/ `(id ,@chars))))])))
@@ -194,6 +194,8 @@
       [_ '()]))
   (match-define (/ body/ body) fr)
   (match-define (/ _/ params) params-fr)
+  #;(println `(params-fr ,params-fr))
+  #;(println `(params , params))
   (/ [in-scope (remove-duplicates
                 (append in-scope
                         (introduce-to-scope-define params)

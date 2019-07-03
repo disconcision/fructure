@@ -39,113 +39,150 @@
                                          / (([sort pat] / (id ([sort char] / ⊙)))))
                                        ([sort expr] / ⊙)))]))
    ; EXTENDED FORMS
-   (list '([⋱
-             (▹ [sort expr] xs ... / ⊙)
-             (▹ [sort expr] xs ... / (define ([sort params]
-                                              / (([sort pat] / (id ([sort char] / ⊙)))
-                                                 ([sort pat] / (id ([sort char] / ⊙)))))
-                                       ([sort expr] / ⊙)))])
-         '([⋱
-             (▹ [sort expr] xs ... / ⊙)
-             (▹ [sort expr] xs ... / (num ([sort digit] / ⊙)))])
+   (list
+    '([⋱
+        (▹ [sort expr] xs ... / ⊙)
+        (▹ [sort expr] xs ... /
+           (define ([sort params]
+                    / (([sort pat] / (id ([sort char] / ⊙)))
+                       ([sort pat] / (id ([sort char] / ⊙)))))
+             ([sort expr] / ⊙)))])
+    ; so-far failed variadic define attempt; fails in semantics on 171
+    #;'([⋱
+          (▹ [sort expr] xs ... / ⊙)
+          (▹ [sort expr] xs ... /
+             (define ([sort params]
+                      / (([sort pat] / (id ([sort char] [variadic #true] / ⊙)))
+                         ([sort pat] / (id ([sort char] [variadic #true] / ⊙+)))))
+               ([sort expr] / ⊙)))])
+    #; '([⋱
+           (▹ [sort expr] xs ... / ⊙)
+           (▹ [sort expr] xs ... / (begin
+                                     ([sort expr] [variadic #true] / ⊙)
+                                     ([sort expr] [variadic #true] / ⊙+)))])
+    #;'([⋱
+          ( xs ... /
+               (define ([sort params]
+                        / (as ...
+                           (▹ bs ... / (id (cs ... / ⊙+)))))
+                 body))
+          ( xs ... /
+               (define ([sort params]
+                        / (as ...
+                           (▹ [sort pat] / (id ([sort char] [variadic #true] / ⊙)))
+                           (bs ... / (id (cs ... / ⊙+)))
+                           ))
+                 body))])
+    #;'([⋱
+          (xs ... / (begin as ...
+                           (▹ bs ... / ⊙+) ))
+          (xs ... / (begin  as ...
+                            (▹ [sort expr] [variadic #true] / ⊙)
+                            (bs ... / ⊙+)))])
+    '([⋱
+        (▹ [sort expr] xs ... / ⊙)
+        (▹ [sort expr] xs ... / (num ([sort digit] / ⊙)))])
+    '([⋱
+        (▹ [sort expr] xs ... / ⊙)
+        (▹ [sort expr] xs ... / (num ([sort digit] / 1) ([sort digit] / ⊙)))])
          
-         '([⋱
-             ([sort params]
-              / (as ... (▹ xs ... / ⊙+) bs ...))
-             ([sort params]
-              / (as ... (▹ xs ... / (id ([sort char] / ⊙))) (xs ... / ⊙+) bs ...))])
+    '([⋱
+        ([sort params]
+         / (as ... (▹ xs ... / ⊙+) bs ...))
+        ([sort params]
+         / (as ... (▹ xs ... / (id ([sort char] / ⊙))) (xs ... / ⊙+) bs ...))])
          
-         '([⋱
-             (▹ [sort expr] xs ... / ⊙)
-             (▹ [sort expr] xs ... / (if ([sort expr] / ⊙)
-                                         ([sort expr] / ⊙)
-                                         ([sort expr] / ⊙)))])
+    '([⋱
+        (▹ [sort expr] xs ... / ⊙)
+        (▹ [sort expr] xs ... / (if ([sort expr] / ⊙)
+                                    ([sort expr] / ⊙)
+                                    ([sort expr] / ⊙)))])
          
-         '([⋱
-             (▹ [sort expr] xs ... / ⊙)
-             (▹ [sort expr] xs ... / (begin
-                                       ([sort expr] [variadic #true] / ⊙)
-                                       ([sort expr] [variadic #true] / ⊙+)))])
+    '([⋱
+        (▹ [sort expr] xs ... / ⊙)
+        (▹ [sort expr] xs ... / (begin
+                                  ([sort expr] [variadic #true] / ⊙)
+                                  ([sort expr] [variadic #true] / ⊙+)))])
          
-         ; problem we're trying to solve: autoadvances to next hole after transformation,
-         ; but in this case, we're inserting a new hole and want to stay on it
-         ; HACK: mark as 'variadic' and special-case it in select-next-hole in transform
-         ; basically for these variadic holes, we don't autoadvance the cursor if its on one
-         ; disadvantage: can't leave placeholder holes in variadic forms
-         '([⋱
-             (xs ... / (begin as ... (▹ bs ... / ⊙+) ))
-             (xs ... / (begin  as ... (▹ [sort expr] [variadic #true] / ⊙)(bs ... / ⊙+)))])
+    ; problem we're trying to solve: autoadvances to next hole after transformation,
+    ; but in this case, we're inserting a new hole and want to stay on it
+    ; HACK: mark as 'variadic' and special-case it in select-next-hole in transform
+    ; basically for these variadic holes, we don't autoadvance the cursor if its on one
+    ; disadvantage: can't leave placeholder holes in variadic forms
+    '([⋱
+        (xs ... / (begin as ... (▹ bs ... / ⊙+) ))
+        (xs ... / (begin  as ... (▹ [sort expr] [variadic #true] / ⊙)(bs ... / ⊙+)))])
 
-         '([⋱
-             (▹ [sort expr] xs ... / ⊙)
-             (▹ [sort expr] xs ... / (cond
-                                       ([sort CP] [variadic #true] / (cp ([sort expr] / ⊙)
-                                                                         ([sort expr] / ⊙)))
-                                       ([sort CP] [variadic #true] / ⊙+)))])
-         '([⋱
-             ([sort expr] xs ... / (cond
-                                     as ...
-                                     (▹ bs ... / ⊙+)))
-             ([sort expr] xs ... / (cond
-                                     as ...
-                                     (▹ [sort CP] #;[variadic #true] / (cp ([sort expr] / ⊙)
-                                                                           ([sort expr] / ⊙)))
-                                     (bs ... / ⊙+)))])
-         '([⋱
-             ([sort expr] xs ... / (cond
-                                     as ...
-                                     (▹ bs ... / ⊙+)))
-             ([sort expr] xs ... / (cond
-                                     as ...
-                                     (▹ [sort CP] #;[variadic #true] / (cp ([sort else] / else)
-                                                                           ([sort expr] / ⊙)))
-                                     (bs ... / ⊙+)))])
-         #;'([⋱
-               (▹ [sort expr] xs ... / ⊙)
-               (▹ [sort expr] xs ... / (match ([sort expr] / ⊙)
-                                         ([sort MP] [variadic #true] / (mp ([sort expr] / ⊙)
-                                                                           ([sort expr] / ⊙)))
-                                         ([sort MP] [variadic #true] / ⊙+)))])
-         #;'([⋱
-               ([sort expr] xs ... / (match ([sort expr] / ⊙)
-                                       a ...
-                                       (▹ [sort MP] [variadic #true] bs ... / ⊙+)))
-               ([sort expr] xs ... / (match ([sort expr] / ⊙)
-                                       a ...
-                                       (▹ [sort MP] [variadic #true] / (mp ([sort pat] / ⊙)
-                                                                           ([sort expr] / ⊙)))
-                                       ([sort MP] [variadic #true] bs ... / ⊙+)))])
-         #;'([⋱
-               (▹ [sort expr] xs ... / ⊙)
-               ; sort params below is a hack to use lambda layout routines; TODO fix
-               (▹ [sort expr] xs ... / (let ([sort LPS] / (lps ([sort LP] / (lp
-                                                                             ([sort params]
-                                                                              / (([sort pat]
-                                                                                  / (id ([sort char] / ⊙)))))
-                                                                             #;([sort pat]
-                                                                                / (id ([sort char] / ⊙)))
-                                                                             ([sort expr] / ⊙)))
-                                                               ([sort LP] / ⊙+)))
-                                         ([sort expr] / ⊙)))])
-         #;'([⋱
-               ([sort expr] xs ... / (let ([sort LPS] / (lps a ...
-                                                             (▹ [sort LP] bs ... / ⊙+)))
-                                       ([sort expr] / ⊙)))
-               ([sort expr] xs ... / (let ([sort LPS] / (lps a ...
-                                                             (▹ [sort LP] / (lp
-                                                                             ; HACK, see above
-                                                                             ([sort params]
-                                                                              / (([sort pat]
-                                                                                  / (id ([sort char] / ⊙)))))                                                                     
-                                                                             ([sort expr] / ⊙)))
-                                                             ([sort LP] bs ... / ⊙+)))
-                                       ([sort expr] / ⊙)))])
+    '([⋱
+        (▹ [sort expr] xs ... / ⊙)
+        (▹ [sort expr] xs ... / (cond
+                                  ([sort CP] [variadic #true] / (cp ([sort expr] / ⊙)
+                                                                    ([sort expr] / ⊙)))
+                                  ([sort CP] [variadic #true] / ⊙+)))])
+    '([⋱
+        ([sort expr] xs ... / (cond
+                                as ...
+                                (▹ bs ... / ⊙+)))
+        ([sort expr] xs ... / (cond
+                                as ...
+                                (▹ [sort CP] #;[variadic #true] / (cp ([sort expr] / ⊙)
+                                                                      ([sort expr] / ⊙)))
+                                (bs ... / ⊙+)))])
+    '([⋱
+        ([sort expr] xs ... / (cond
+                                as ...
+                                (▹ bs ... / ⊙+)))
+        ([sort expr] xs ... / (cond
+                                as ...
+                                (▹ [sort CP] #;[variadic #true] / (cp ([sort else] / else)
+                                                                      ([sort expr] / ⊙)))
+                                (bs ... / ⊙+)))])
+    #;'([⋱
+          (▹ [sort expr] xs ... / ⊙)
+          (▹ [sort expr] xs ... / (match ([sort expr] / ⊙)
+                                    ([sort MP] [variadic #true] / (mp ([sort expr] / ⊙)
+                                                                      ([sort expr] / ⊙)))
+                                    ([sort MP] [variadic #true] / ⊙+)))])
+    #;'([⋱
+          ([sort expr] xs ... / (match ([sort expr] / ⊙)
+                                  a ...
+                                  (▹ [sort MP] [variadic #true] bs ... / ⊙+)))
+          ([sort expr] xs ... / (match ([sort expr] / ⊙)
+                                  a ...
+                                  (▹ [sort MP] [variadic #true] / (mp ([sort pat] / ⊙)
+                                                                      ([sort expr] / ⊙)))
+                                  ([sort MP] [variadic #true] bs ... / ⊙+)))])
+    #;'([⋱
+          (▹ [sort expr] xs ... / ⊙)
+          ; sort params below is a hack to use lambda layout routines; TODO fix
+          (▹ [sort expr] xs ... / (let ([sort LPS] / (lps ([sort LP] / (lp
+                                                                        ([sort params]
+                                                                         / (([sort pat]
+                                                                             / (id ([sort char] / ⊙)))))
+                                                                        #;([sort pat]
+                                                                           / (id ([sort char] / ⊙)))
+                                                                        ([sort expr] / ⊙)))
+                                                          ([sort LP] / ⊙+)))
+                                    ([sort expr] / ⊙)))])
+    #;'([⋱
+          ([sort expr] xs ... / (let ([sort LPS] / (lps a ...
+                                                        (▹ [sort LP] bs ... / ⊙+)))
+                                  ([sort expr] / ⊙)))
+          ([sort expr] xs ... / (let ([sort LPS] / (lps a ...
+                                                        (▹ [sort LP] / (lp
+                                                                        ; HACK, see above
+                                                                        ([sort params]
+                                                                         / (([sort pat]
+                                                                             / (id ([sort char] / ⊙)))))                                                                     
+                                                                        ([sort expr] / ⊙)))
+                                                        ([sort LP] bs ... / ⊙+)))
+                                  ([sort expr] / ⊙)))])
          
-         ; identity transform
-         ; redundant to generalmost destructor
-         #;'([⋱
-               (▹ [sort expr] xs ... / ⊙)
-               (▹ [sort expr] xs ... / ⊙)]))))
+    ; identity transform
+    ; redundant to generalmost destructor
+    #;'([⋱
+          (▹ [sort expr] xs ... / ⊙)
+          (▹ [sort expr] xs ... / ⊙)]))))
 
 
 (define base-destructors
