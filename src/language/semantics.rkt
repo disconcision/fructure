@@ -169,7 +169,15 @@
 
 (define (introduce-to-scope my-stx)
   (match my-stx
+    [(/ id/ (or '⊙ '⊙+))
+     '()]
     [(/ id/ `(id ,chars ... ,(/ _/ (or '⊙ '⊙+))))
+     (if (empty? chars) '() `(([⋱
+                                 (▹ [sort expr] xs ... / ⊙)
+                                 (▹ [sort expr] xs ... / (ref ',(/ id/ `(id ,@chars))))])))
+     #;(if (empty? chars) '() `(,(/ id/ `(id ,@chars))))]
+    ; POSSIBLY BULLSHIT CASE (without terminal hole)
+    [(/ id/ `(id ,chars ...))
      (if (empty? chars) '() `(([⋱
                                  (▹ [sort expr] xs ... / ⊙)
                                  (▹ [sort expr] xs ... / (ref ',(/ id/ `(id ,@chars))))])))

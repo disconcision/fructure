@@ -37,7 +37,26 @@
              (▹ [sort expr] xs ... / ⊙)
              (▹ [sort expr] xs ... / (λ ([sort params]
                                          / (([sort pat] / (id ([sort char] / ⊙)))))
-                                       ([sort expr] / ⊙)))]))
+                                       ([sort expr] / ⊙)))])
+         #;'([⋱
+               (▹ [sort expr] xs ... / ⊙)
+               (▹ [sort expr] xs ... / (λ ([sort params]
+                                           / (([sort pat] [variadic #true] / (id ([sort char] / ⊙)))
+                                              ([sort pat] [variadic #true] / ⊙+)))
+                                         ([sort expr] / ⊙)))])
+
+         #;'([⋱
+               (▹ [sort pat] / ⊙)
+               (▹ [sort pat] / (id ([sort char] / ⊙)))])
+
+         '([⋱
+             ([sort params]
+              / (as ... (▹ xs ... / ⊙+) bs ...))
+             ([sort params]
+              / (as ... (▹ xs ... / (id ([sort char] / ⊙))) (xs ... / ⊙+) bs ...))])
+
+
+         )
    ; EXTENDED FORMS
    (list
     '([⋱
@@ -82,15 +101,10 @@
     '([⋱
         (▹ [sort expr] xs ... / ⊙)
         (▹ [sort expr] xs ... / (num ([sort digit] / ⊙)))])
-    '([⋱
-        (▹ [sort expr] xs ... / ⊙)
-        (▹ [sort expr] xs ... / (num ([sort digit] / 1) ([sort digit] / ⊙)))])
+    #;'([⋱
+          (▹ [sort expr] xs ... / ⊙)
+          (▹ [sort expr] xs ... / (num ([sort digit] / 1) ([sort digit] / ⊙)))])
          
-    '([⋱
-        ([sort params]
-         / (as ... (▹ xs ... / ⊙+) bs ...))
-        ([sort params]
-         / (as ... (▹ xs ... / (id ([sort char] / ⊙))) (xs ... / ⊙+) bs ...))])
          
     '([⋱
         (▹ [sort expr] xs ... / ⊙)
@@ -261,10 +275,14 @@
 
 (define digit-constructors
   ; char constructors for each letter in the alphabet
-  (cons
-   '([⋱
-       (▹ [sort expr] xs ... / ⊙)
-       (▹ [sort expr] xs ... / (num ([sort digit] / 0)))])
+  (append
+   (list
+    '([⋱
+        (▹ [sort expr] xs ... / ⊙)
+        (▹ [sort expr] xs ... / (num ([sort digit] / 0)))])
+    '([⋱
+        (▹ [sort expr] xs ... / ⊙)
+        (▹ [sort expr] xs ... / (num ([sort digit] / 1)))]))
    (for/list ([x digits])
      `([⋱
          (xs ... / (num as ... (▹ [sort digit] ys ... / ⊙) bs ...))

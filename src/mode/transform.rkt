@@ -17,7 +17,8 @@
 (define (mode:transform pr key state)
   ; transformation major mode
   (define-from state
-    stx search-buffer history layout-settings)
+    stx search-buffer history layout-settings
+    transform-redo-stack transform-undo-stack)
   (define-from layout-settings
     erase-captures-after-transform?)
   (define update (updater state key))
@@ -45,6 +46,8 @@
          ; cancel current transform and restore original syntax
          ; TODO: decide if cursor is conceptually necessary here
          (update 'mode 'nav
+                 'transform-undo-stack '()
+                 'transform-redo-stack '()
                  'search-buffer init-buffer
                  'stx (⋱ ctx (/ r/ (▹ reagent))))]
 
@@ -53,6 +56,8 @@
          (define maybe-erase-captures
            (if erase-captures-after-transform? erase-captures identity))
          (update 'mode 'nav
+                 'transform-undo-stack '()
+                 'transform-redo-stack '()
                  'search-buffer init-buffer
                  'stx (~>> template
                            perform-selected-transform
@@ -134,18 +139,45 @@
          (define-values (new-stx-candidate
                          newest-buffer-candidate)
            (menu-filter-in-stx " " first-new-stx init-buffer init-buffer))
-         (update 'search-buffer init-buffer
-                 'stx (if situation?
-                          second-situation-candidate
-                          new-stx-candidate))]
+
+         (define new-stx (if situation?
+                             second-situation-candidate
+                             new-stx-candidate))
+         (println `(redo?: stack-sizes ,(length transform-undo-stack) ,(length transform-redo-stack)))
+         (if (not (empty? transform-redo-stack))
+             (update 'search-buffer init-buffer
+                     'transform-redo-stack (rest transform-redo-stack)
+                     'transform-undo-stack (cons stx transform-undo-stack)
+                     'stx (first transform-redo-stack))
+             (update 'search-buffer init-buffer
+                     'transform-undo-stack (if (and (not (empty? transform-undo-stack))
+                                                    (or (equal? stx (first transform-undo-stack))
+                                                        (equal? new-stx stx)))
+                                               transform-undo-stack
+                                               (cons stx transform-undo-stack))
+                     'stx new-stx))
+         #;(update 'search-buffer init-buffer
+                   'stx (if situation?
+                            second-situation-candidate
+                            new-stx-candidate))]
 
         ["left"
          ; budget undo
          ; do we actually want to change the history in this way?
          ; what are the alternatives?
-         (update 'stx (if (empty? history) stx (first history))
-                 'history (if (empty? history) history (rest history))
-                 'search-buffer init-buffer)]
+         ; RECALL THESE PRINTS WILL GIVE ERRORS AS FIRST IS UNCHECKED
+         #;(println `(stx and undo equal? ,(equal? stx (first transform-undo-stack))))
+         #;(println `(undo: stack-sizes ,(length transform-undo-stack) ,(length transform-redo-stack)))
+         (if (empty? transform-undo-stack)
+             state
+             (update 'stx (first transform-undo-stack)
+                     'search-buffer init-buffer
+                     'transform-undo-stack (rest transform-undo-stack)
+                     'transform-redo-stack (cons stx transform-redo-stack)))
+         
+         #;(update 'stx (if (empty? history) stx (first history))
+                   'history (if (empty? history) history (rest history))
+                   'search-buffer init-buffer)]
     
         ["up"
          ; cycle the cursor to the previous menu item
@@ -158,7 +190,8 @@
              [(⋱ c⋱ (/ [menu `(,a ... (,t1 ,(/ b/ b)) (,t2 ,(/ c/ (▹ c))) ,d ...)] t/ t))
               (⋱ c⋱ (/ [menu `(,@a (,t1 ,(/ b/ (▹ b))) (,t2 ,(/ c/ c)) ,@d)] t/ t))]
              [x (println "warning: couldn't find menu cursor") x]))
-         (update 'stx (⋱ ctx (/ (transform new-template) r/ reagent)))]
+         (update 'stx (⋱ ctx (/ (transform new-template) r/ reagent))
+                 'transform-redo-stack '())]
 
         ["down"
          ; cycle the cursor to the next menu item
@@ -169,7 +202,8 @@
              [(⋱ c⋱ (/ [menu `(,a ... (,t1 ,(/ b/ (▹ b))) (,t2 ,(/ c/ c)) ,d ...)] t/ t))
               (⋱ c⋱ (/ [menu `(,@a (,t1 ,(/ b/ b)) (,t2 ,(/ c/ (▹ c))) ,@d)] t/ t))]
              [x (println "warning: couldn't find menu cursor") x]))
-         (update 'stx (⋱ ctx (/ (transform new-template) r/ reagent)))]
+         (update 'stx (⋱ ctx (/ (transform new-template) r/ reagent))
+                 'transform-redo-stack '())]
 
         ["\b"
          ; todo: ideally we'd like to retain current menu selection
@@ -189,7 +223,8 @@
          (define-values (new-stx-candidate newest-buffer-candidate)
            (menu-filter-in-stx "\b" stx search-buffer buffer-candidate))
          (update 'stx new-stx-candidate
-                 'search-buffer newest-buffer-candidate)]
+                 'search-buffer newest-buffer-candidate
+                 'transform-redo-stack '())]
         ; todo: below should be reinterpreted as a search-buffer operation
         ["\t" ; FORMERLY SNEED I MEAN SPACE
          ; new proposed logic for space:
@@ -249,7 +284,8 @@
          (define-values (second-stx-candidate _)
            (menu-filter-in-stx " " first-stx-candidate init-buffer init-buffer))
          (update 'search-buffer init-buffer
-                 'stx second-stx-candidate)]
+                 'stx second-stx-candidate
+                 'transform-redo-stack '())]
         #;["["
 
            (update 'search-buffer init-buffer
@@ -270,7 +306,8 @@
                          newest-buffer-candidate)
            (menu-filter-in-stx "(" stx search-buffer new-search-buffer))
          (update 'search-buffer newest-buffer-candidate
-                 'stx new-stx-candidate)]
+                 'stx new-stx-candidate
+                 'transform-redo-stack '())]
         
         [(or ")" "]" "}")
 
@@ -292,7 +329,8 @@
                          newest-buffer-candidate)
            (menu-filter-in-stx ")" stx search-buffer new-search-buffer))
          (update 'search-buffer newest-buffer-candidate
-                 'stx new-stx-candidate)]
+                 'stx new-stx-candidate
+                 'transform-redo-stack '())]
         [(regexp #rx"^[0-9A-Za-z?!=<>\\\\-]$" c)
          #:when c
          ; hack? otherwise this seems to catch everything?
@@ -308,7 +346,16 @@
          (define-values (new-stx-candidate newest-buffer-candidate)
            (menu-filter-in-stx c stx search-buffer buffer-candidate))
          (update 'stx new-stx-candidate
-                 'search-buffer newest-buffer-candidate)]
+                 ; below is not quite ideal....
+                 ; to first order, focus on actual transforms
+                 ; like, make it so that menu-filter-in above tells us
+                 ; whether it actually made a transform
+                 #;#;'transform-undo-stack (if (and (equal? search-buffer init-buffer)
+                                                    (not (equal? search-buffer buffer-candidate)))
+                                               (cons #;stx new-stx-candidate transform-undo-stack)
+                                               transform-undo-stack)
+                 'search-buffer newest-buffer-candidate
+                 'transform-redo-stack '())]
     
         [_ (println "warning: transform-mode: no programming for that key") state])))
 

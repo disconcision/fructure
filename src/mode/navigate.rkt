@@ -118,6 +118,8 @@
            (match-lambda? (⋱ c⋱ (/ _/ (▹ (or '⊙ '⊙+))))))
          (update
           'mode 'menu
+          'transform-undo-stack `(,(setup-transform-mode stx))
+          'transform-redo-stack '()
           'stx ((compose setup-transform-mode
                          (λ (x)
                            x

@@ -195,6 +195,8 @@
   ; new: initial layout settings
   'layout-settings (add-dynamic-settings initial-layout)
   ; transforms: history, currently broken
+  'transform-undo-stack '()
+  'transform-redo-stack '()
   'transforms '()
   'history '()
   'keypresses '(">")
