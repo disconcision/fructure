@@ -40,7 +40,12 @@ Basically, you need to install racket, a couple libraries, and a font if you don
 (under construction)
 
 **TO RUN**:
-- racket src/fructure.rkt
+1. cd fructure
+2. racket src/fructure.rkt
+
+**FAQ**:
+Q: Is it suppose to be this slow?
+A: [It's open source](https://github.com/disconcision/fructure/pulls).
 
 
 # Fructure Primer
