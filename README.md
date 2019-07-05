@@ -10,18 +10,20 @@ Fructure: A structured interaction engine in Racket
 
 Fructure is a prototype structure editor, which can currently be used to write & edit small programs in a small subset of scheme/racket. This is a personal project where I'm playing with ideas in editing, programming languages, and interaction design. I'll be speaking about [Fructure at RacketCon 2019](https://con.racket-lang.org/#speakers)! Please enjoy these new scrots:
 
-- fig 1: walking the grammar
+- **fig 1**: walking the grammar
   ![Screenshot](screenshots/walk-1.png)
 
-- fig 2: refactoring by re/destructuring
+- **fig 2**: refactoring by re/destructuring
 ![Screenshot](screenshots/cond-if-1.png)
 
-- fig 2: menu closeup
-![Screenshot](screenshots/menu-2.png)
+- **fig 3**: menu closeup
+  ![Screenshot](screenshots/menu-2.png)
 
 I wrote a bit about my then-current direction in September 2018, just before beginning my current implementation attempt. I've completed most of what I talk about there, with varying levels of success: [Fructure 1 of 2](http://disconcision.com/post/182647782084/fructure-1-of-2) [Fructure 2 of 2](http://disconcision.com/post/182647803299/fructure-factoring-2-of-2). There will soon be some slightly more up-to-date notes via my racketcon slides. For more updates cyberfollow [@twitter](https://twitter.com/disconcision) and [@elsewhere](http://andrewblinn.com/). [Here's an ongoing dev screenshot dump](https://fructure-editor.tumblr.com/); check out the [chronological overview](https://fructure-editor.tumblr.com/archive):
 
-![Screenshot](screenshots/2019-02-07-22_29_41-fructure-editor-Archive.png)
+
+**fig 4**: family history
+  ![Screenshot](screenshots/2019-02-07-22_29_41-fructure-editor-Archive.png)
 
 # Installation Instructions
 
