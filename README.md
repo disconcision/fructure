@@ -6,7 +6,7 @@ Fructure: A structured interaction engine in Racket
 
 <img src="screenshots/menu-1.png" alt="alt text" width="400" height="282" />
 
-*Updated July 2019*
+*Updated July 2019 : Installation instructions & mini-guide below*
 
 Fructure is a prototype structure editor, which can currently be used to write & edit small programs in a small subset of scheme/racket. This is a personal project where I'm playing with ideas in editing, programming languages, and interaction design. I'll be speaking about [Fructure at RacketCon 2019](https://con.racket-lang.org/#speakers)! Please enjoy these new scrots:
 
