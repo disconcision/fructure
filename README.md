@@ -113,9 +113,8 @@ Simple settings scrubber
 - `ESC` return to NAV or TRANSFORM mode
 
 
-## STEP BOITE DIABOLIQUE: theis houses the 19 forbidden keybindings
-EXPERIMENTAL & FICTIONAL
-(lies at best, trouble at worst)
+## BOITE DIABOLIQUE: housing the 19 forbidden keybindings
+EXPERIMENTAL & FICTIONAL keybindings: lies at best, trouble at worst
 
 **NAV**
 - `F2` dump current structure to stdin
