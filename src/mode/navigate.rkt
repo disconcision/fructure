@@ -31,7 +31,7 @@
          (update 'mode 'command
                  'mode-last 'nav)]
 
-        ["f1"
+        ["f2"
          (println `(BEGIN-STX ,stx))
          state]
 
@@ -152,9 +152,12 @@
                         'transforms (rest transforms))])]
     
         [_
+         (println "warning: nav: unhandled keypress")
+         state
+         ; commented off legacy mode
          ; fallthrough: legacy transformation mode
-         (println "warning: legacy fallthrough binding")
-         (mode:legacy key state)])))
+         #;(println "warning: legacy fallthrough binding")
+         #;(mode:legacy key state)])))
 
 
 (define (mode:navigate-ctrl pr key state)

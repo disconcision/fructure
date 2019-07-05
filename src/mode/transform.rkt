@@ -100,7 +100,7 @@
 
          ;first let's just try to identify THE SITUATION
          #; (⋱ ctx (/ [transform template] r/ reagent))
-         (match template
+         #;(match template
            [(⋱ (/ [menu `(,_ ... (,transform ,(/ _ (▹ selection-in-menu))) ,_ ...)] m/ thing-under-menu))
             #;(println "THE SITUATION")
             #;(println `(selection-in-menu ,selection-in-menu))
