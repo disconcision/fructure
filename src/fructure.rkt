@@ -21,15 +21,15 @@
 
 #|
 
-  fructure, a structured interaction engine.
+  fructure - a structured interaction engine
 
-  Fructure is concerned with transforming, considering,
+  Fructure is a tool for considering, transforming,
   conversing with, and being transformed by structure.
 
-  FRUCTS are composites of attributed sexprs used to model structure.
-  The state of fructure is the object structure augmented with UI widgets
-  called syntactic affordances, which comprise both syntactic annotation
-  and as an encompassing metagrammar embedding the object grammar.
+  FRUCTS are attributed sexprs used to model structures.
+  The state of fructure is an object structure augmented with UI widgets
+  called syntactic affordances. These comprise both on-top annotation
+  and an encompassing metagrammar embedding the object grammar.
 
   LANGUAGE/syntax determines the base transformations of
   the object structure and hence the space of possible structures
@@ -152,7 +152,7 @@
   'popout-menu? #t ; layer menu above structure
 
   ; WEIRD
-  'quit #f
+  'fructure? #t
   )
 
 
@@ -199,7 +199,7 @@
   'transform-redo-stack '()
   'transforms '()
   'history '()
-  'keypresses '(">")
+  'keypresses '(" ") ;ƒ◜;⫈⫊ ;ƒ⋃⋐⊤⋃⫈⋐
   'key-state #hash()
   ; messages: log, currently disused
   'messages '("bang"))
@@ -216,10 +216,10 @@
     command-buffer key-state)
   
   ; print debugging information
-  (displayln `(mode: ,mode ': ,pr key: ,key))
+  #;(displayln `(mode: ,mode ': ,pr key: ,key))
   #;(displayln `(projected: ,(project stx)))
   #;(displayln `(command-buffer ,command-buffer))
-  (displayln `(search-buffer: ,search-buffer))
+  #;(displayln `(search-buffer: ,search-buffer))
   #;(displayln `(keypresses ,keypresses))
   #;(displayln state)
 
@@ -252,7 +252,7 @@
 (define (output state)
   ; output : state -> image
   (define-from state
-    stx layout-settings keypresses command-buffer command-pointer)
+    stx mode layout-settings keypresses command-buffer command-pointer)
   (define-from layout-settings
     menu-expander-height menu-outline-width
     display-keypresses? text-size top-background-color)
@@ -284,10 +284,11 @@
 
   (define card-stack
     (list empty-card
-          (offset-to-match-fruct (display-command-line state))
-          (if display-keypresses?
-              (offset-to-match-fruct (display-keypresses state))
-              empty-card)
+          (if (equal? mode 'command)
+              (offset-to-match-fruct (display-command-line state))
+              (if display-keypresses?
+                  (offset-to-match-fruct (display-keypresses state))
+                  empty-card))
           empty-card
           fruct-image))
 
@@ -332,8 +333,8 @@
     #;[on-tick do-it 1/4]
     [to-draw output screen-x screen-y]
     [stop-when (λ (state) (define-from state command-pointer layout-settings)
-                 (and (equal? command-pointer 'quit)
-                      (hash-ref layout-settings 'quit)))]
+                 (and (equal? command-pointer 'fructure?)
+                      (not (hash-ref layout-settings 'fructure?))))]
     ; todo: insert closing image above, tune below 1 (seconds)
     [close-on-stop 1]
     #;[display-mode 'fullscreen]

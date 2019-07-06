@@ -12,13 +12,21 @@
 
 ; fructure-layout : syntax -> pixels
 (define (draw-fruct-layers state (screen-x 800) (screen-y 400))
-  (define-from state layout-settings stx mode)
+  (define-from state layout-settings stx mode search-buffer)
   (define-from layout-settings
     text-size menu-expander-height menu-outline-width
     popout-transform? popout-menu? simple-menu?)
   ; second here skips the top (diamond) affo
   ; todo: make this less hacky by going fs
   (define fruct (second stx))
+
+  (define selected-off-color (color 41 0 0)) ;todo
+  (define command-mode-layout-settings
+    (hash-set* layout-settings
+               'selected-color selected-off-color
+               'transform-color selected-off-color
+               'menu-outline-color selected-off-color
+               'menu-search-color selected-off-color))
 
   ; sanity check
   (match fruct
@@ -64,8 +72,7 @@
        (render-in draw-fruct
                   this-selection
                   (if (equal? mode 'command)
-                      (hash-set* layout-settings
-                                 'selected-color (color 180 180 180))
+                      command-mode-layout-settings
                       layout-settings)
                   backing-image
                   x y)]
@@ -83,7 +90,10 @@
                      (/ [transform _]
                         [display-absolute-offset `(,x ,y)] t/ _))))
        (render-in render-transform
-                  this-transform layout-settings backing-image
+                  this-transform (if (equal? mode 'command)
+                                     command-mode-layout-settings
+                                     layout-settings)
+                  backing-image
                   ; leaving this placeholder in case we
                   ; decide to re-pad transforms
                   (+ x #;(- margin)) y)]
@@ -109,8 +119,12 @@
                               (/ [menu menu]
                                  [display-absolute-offset `(,x ,y)]
                                  m/ _)))] t/ _)))
-       (render-in render-menu
-                  this-menu layout-settings backing-image
+       (render-in (λ (foreground layout-settings) (render-menu foreground layout-settings search-buffer))
+                  this-menu
+                  (if (equal? mode 'command)
+                      command-mode-layout-settings
+                      layout-settings)
+                  backing-image
                   ; 666
                   (+ x #;(if (single-char-menu? menu)
                              ; ULTRA MAGIC NUMBER

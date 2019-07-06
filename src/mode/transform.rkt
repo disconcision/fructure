@@ -70,64 +70,18 @@
          (update 'stx (⋱ ctx (/ [transform (strip-menu template)] r/ reagent)))]
     
         [(or "right" " ")
-         ; apply selected transform and advance the cursor+menu the next hole
-         ; PROBLEM: when we're inserting through a variadic form
-         ; we don't want to move to next hole automatically after transform,
-         ; because the effect of that transform may have been to insert a new
-         ; hole that we now want to fill.
-         ; HOWEVER: the effect of right, according to the ostensible operative
-         ; logic, is to 'step into' the current menu selection. if the selection is a hole,
-         ; then stepping into it, i.e. doing nothing in most cases, is consistent.
-         ; either we can special-case this somehow, or instead use something else,
-         ; like space, to move forward in these cases.
-         ; proposed logic: right continues to work as before, EXCEPT
-         ; we change the move-to-next-hole logic to stay still if we're on a hole
-         ; and we used space to skip filling a hole.
-         ; BUT: does this work in the general variadic case?
-         ; remember that in the single-char case, we force completion
-         ; does this change things? let's try it out....
-
-         ; UPDATE: okay this is getting stupid but here's what we do now:
-         ; calculate first-new-stx 'normally'
-         ; this is the initial transformation
-         ; THEN, we call menu-filter-in-stx to do another transformation,
-         ; IFF the menu is length 1 and the sole item is a variadic hole
-         ; should probably factor that out of menu-filter-in-stx and just do it here...
-
-         ; now want:
-         ; additional logic here for when thing under menu is a variadic hole
-         ; in this case, we advance to next hole, and the original hole is removed
-
-         ;first let's just try to identify THE SITUATION
-         #; (⋱ ctx (/ [transform template] r/ reagent))
-         #;(match template
-           [(⋱ (/ [menu `(,_ ... (,transform ,(/ _ (▹ selection-in-menu))) ,_ ...)] m/ thing-under-menu))
-            #;(println "THE SITUATION")
-            #;(println `(selection-in-menu ,selection-in-menu))
-            #;(println `(thing-under-menu ,thing-under-menu))
-            0])
+         
+         (define redo-on? (equal? key "right"))
+         
          (define situation?
            (match? template
              (⋱ (/ [menu `(,_ ... (,transform ,(/ _ (▹ '⊙))) ,_ ...)] [variadic _] m/ '⊙))))
-         (println `(situation? ,situation?))
-         ; based on that (both holes), gonna try a slighty simpler condition to start
-         ; ie both are holes, dont care variadic. if this works, it'll also allow
-         ; us to leave holes blank in non-variadic forms
-         ; BUTTTT... above already works. should prooobably stick to variadic case
-         ; so doing that.
+         #;(println `(situation? ,situation?))
          (define situation-candidate
-           ; this is legit a different case.
-           ; recall this case ASSUMES (but situation? logic does not currently guarantee)
-           ; that the currently selected hole is right before a terminal hole+
-           ; we want to skip over that hole+
-           ; whereas in the non-situation case we want to advance to that hole to
-           ; continue to insert new things on the current level
            (⋱ ctx (/ [transform (move-menu-to-next-hole-but-skip-next-hole+
                                  template
                                  stx init-buffer)] ; empty search buffer
                      r/ reagent)))
-         ; this is here in case the next thing we advance to is a hole+
-         ; so we get a length-1 menu and auto-advance that
          (define-values (second-situation-candidate _)
            (menu-filter-in-stx " " situation-candidate init-buffer init-buffer))
          
@@ -143,23 +97,19 @@
          (define new-stx (if situation?
                              second-situation-candidate
                              new-stx-candidate))
-         (println `(redo?: stack-sizes ,(length transform-undo-stack) ,(length transform-redo-stack)))
-         (if (not (empty? transform-redo-stack))
+         (if (and redo-on? (not (empty? transform-redo-stack)))
              (update 'search-buffer init-buffer
                      'transform-redo-stack (rest transform-redo-stack)
                      'transform-undo-stack (cons stx transform-undo-stack)
                      'stx (first transform-redo-stack))
              (update 'search-buffer init-buffer
-                     'transform-undo-stack (if (and (not (empty? transform-undo-stack))
-                                                    (or (equal? stx (first transform-undo-stack))
-                                                        (equal? new-stx stx)))
-                                               transform-undo-stack
-                                               (cons stx transform-undo-stack))
-                     'stx new-stx))
-         #;(update 'search-buffer init-buffer
-                   'stx (if situation?
-                            second-situation-candidate
-                            new-stx-candidate))]
+                     'transform-undo-stack
+                     (if (and (not (empty? transform-undo-stack))
+                              (or (equal? stx (first transform-undo-stack))
+                                  (equal? new-stx stx)))
+                         transform-undo-stack
+                         (cons stx transform-undo-stack))
+                     'stx new-stx))]
 
         ["left"
          ; budget undo
@@ -170,10 +120,13 @@
          #;(println `(undo: stack-sizes ,(length transform-undo-stack) ,(length transform-redo-stack)))
          (if (empty? transform-undo-stack)
              state
-             (update 'stx (first transform-undo-stack)
-                     'search-buffer init-buffer
-                     'transform-undo-stack (rest transform-undo-stack)
-                     'transform-redo-stack (cons stx transform-redo-stack)))
+             (if #f #;(not (empty? search-buffer))
+                 ; HACKY! erase buffer before undoing
+                 (update 'search-buffer init-buffer)
+                 (update 'stx (first transform-undo-stack)
+                         'search-buffer init-buffer
+                         'transform-undo-stack (rest transform-undo-stack)
+                         'transform-redo-stack (cons stx transform-redo-stack))))
          
          #;(update 'stx (if (empty? history) stx (first history))
                    'history (if (empty? history) history (rest history))

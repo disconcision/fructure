@@ -126,7 +126,8 @@
        ; see begin case below
        (add-to-scope
         in-scope
-        (match params [(/ p/ `(,p ,ps ...)) (/ p/ `(,p))])
+        #;(match params [(/ p/ `(,p ,ps ...)) (/ p/ `(,p))])
+        (introduce-to-scope-define params (match params (/ p/ ,ps) ps))
         (/ define/
            `(define ,params ,(W (add-to-scope in-scope params body)))))]
 
@@ -190,8 +191,7 @@
                 (append in-scope (append-map introduce-to-scope params)))]
      body/ body))
 
-(define (add-to-scope-define in-scope params-fr fr)
-  (define (introduce-to-scope-define my-stx)
+(define (introduce-to-scope-define my-stx)
     (match my-stx
       [`(,(/ id-1/ `(id ,chars-a ... ,(/ _ '⊙)))
          ,(/ id-2/ `(id ,chars-as ... ,(/ _ '⊙))) ...)
@@ -200,6 +200,8 @@
             (▹ [sort expr] xs ... / (app ([sort expr] / (ref ',(/ id-1/ `(id ,@chars-a))))
                                          ,@(map (λ (_) `([sort expr] / ⊙)) chars-as)))]))]
       [_ '()]))
+
+(define (add-to-scope-define in-scope params-fr fr)
   (match-define (/ body/ body) fr)
   (match-define (/ _/ params) params-fr)
   #;(println `(params-fr ,params-fr))

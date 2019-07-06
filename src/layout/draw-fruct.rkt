@@ -75,6 +75,7 @@
                           "solid" invisible)))
      ; TODO: bounds??
      (match-define (list fruct-with-positions new-image)
+       ; becomes hacky as i'm adding an optional param to render-menu not used here
        (render-menu this-menu
                     layout-settings))
      (list (match fruct-with-positions
@@ -783,7 +784,7 @@
 ; --------------------------------------------
 ; move to seperate file when resolve circular dependencies
 
-(define (render-menu stx layout-settings)
+(define (render-menu stx layout-settings [search-buffer '(▹ "")]) ;hack hardcoded init-buffer
   (define-from layout-settings
     text-size typeface max-menu-length max-menu-length-chars
     implicit-forms simple-menu? custom-menu-selector?
@@ -835,7 +836,7 @@
                         ; but it makes non-empty apps less readable
                         #;'implicit-forms #;'(ref cp lp lps mp mapp)
                         'force-horizontal-layout? #f)]))
-      (define search-buffer (match item [(/ [search-buffer search-buffer] a/ a)
+      #;(define search-buffer (match item [(/ [search-buffer search-buffer] a/ a)
                                          search-buffer]
                               ; todo: fix hardcoded init-buffer here:
                               [_ '(▹ "")]))
