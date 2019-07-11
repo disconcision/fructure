@@ -9,7 +9,7 @@
 (define props-map
   (hash        'alternate-bkg-horizontal? (list 'boolean)
                'alternate-bkg-vertical? (list 'boolean)
-               'background-block-width (list 'numeric + - 1 -1 10)
+               #;#;'background-block-width (list 'numeric + - 1 -1 10)
                'char-padding-vertical (list 'numeric + - 1 -1 30)
                'display-keypresses? (list 'boolean)
                'hole-as-sort? (list 'boolean)
@@ -17,18 +17,18 @@
                                              (ref num cp lp lps mp mapp)))
                'length-conditional-cutoff (list 'numeric * div 1.5 3 100)
                #;#;'line-spacing (list 'numeric + - 1 -1 30) ; a bit broken, redundantish to char-pad-v
-               'menu-outline-width (list 'numeric + - 1 -1 10)
+               #;#;'menu-outline-width (list 'numeric + - 1 -1 10)
                'outline-block-width (list 'numeric + - 1 -1 10)
                'fructure? (list 'boolean)
                'radius-multiplier (list 'numeric + - 0.1 0.0 100)
-               'selection-outline-width (list 'numeric + - 1 -1 10)
+               #;#;'selection-outline-width (list 'numeric + - 1 -1 10)
                'text-size (list 'numeric + - 10 10 240)
                'typeface (list 'enum '("Iosevka, Light"
                                        "Courier, Light" "Nimbus Mono L"
                                        "Noto Mono" "Chilanka"
                                        "OverpassMono Nerd Font" "Purisa, Oblique"
                                        "Tlwg Mono" "mononoki Nerd Font Mono"))
-               'transform-outline-width (list 'numeric + - 1 -1 10)
+               #;#;'transform-outline-width (list 'numeric + - 1 -1 10)
                #;#;'radius-multiplier-atoms (list 'numeric + - 0.1 0.0 100)))
 
 

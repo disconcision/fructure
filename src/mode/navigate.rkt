@@ -250,7 +250,7 @@
   (println `(loading ,save-number))
   (define in
     (open-input-file
-     (string-append "../saves/fructure-sav-" save-number ".fruct")))
+     (string-append "saves/fructure-sav-" save-number ".fruct")))
   (define saved-state (read in))
   (close-input-port in)
   saved-state)
@@ -259,7 +259,7 @@
   (println `(saving ,save-number))
   (define out
     (open-output-file
-     (string-append "../saves/fructure-sav-" save-number ".fruct")
+     (string-append "saves/fructure-sav-" save-number ".fruct")
      #:exists 'replace))
   (write stx out)
   (close-output-port out))

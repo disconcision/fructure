@@ -74,7 +74,7 @@
 
   ; FRUCTS
   ; i layout
-  'length-conditional-cutoff 14
+  'length-conditional-cutoff 21
   'force-horizontal-layout? #f ; uninvade the second dimension 
   'length-conditional-layout? #t ; unless our children weigh more than
   ; ii atoms

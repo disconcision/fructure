@@ -85,13 +85,15 @@
 
   (define candidate
     (match a
-      [(/ [sort sort] _/ (or '⊙ '⊙+))
+      [(/ [sort sort] _/ (and h (or '⊙ '⊙+)))
        #:when hole-as-sort?
        ; render sort name instead of hole
        (define blank
          (render-symbol " " (color 0 0 0 0) layout-settings))
        (define sort-image
-         (text/font (string-upcase (string-append (~a sort)))
+         (text/font (string-upcase (if (or (equal? h '⊙+) (equal? sort 'char))
+                                       (string-append (~a sort) "+")
+                                       (string-append (~a sort))))
                     (round (* 0.4 text-size))
                     (if selected? selected-atom-color literal-color)
                     typeface

@@ -108,6 +108,7 @@
      #:when (set-member? (set 'app
                               #;'begin
                               'if
+                              'list ; temp hack
                               'cond
                               'cp)
                          head)
@@ -135,8 +136,9 @@
         `(define ,params ,body))
      ; HACK: introduce function binding to top-level scope
      ; see begin case below
+     (match-define (/ p/ inner-params) params)
      (add-to-scope
-      in-scope
+      (append in-scope (introduce-to-scope-define inner-params))
       (match params [(/ p/ `(,p ,ps ...)) (/ p/ `(,p))])
       (/ define/
          `(define ,params ,(W (add-to-scope-define in-scope params body)))))]

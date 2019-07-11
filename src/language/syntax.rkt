@@ -127,6 +127,20 @@
         (xs ... / (begin as ... (▹ bs ... / ⊙+) ))
         (xs ... / (begin  as ... (▹ [sort expr] [variadic #true] / ⊙)(bs ... / ⊙+)))])
 
+           
+    '([⋱
+        (▹ [sort expr] xs ... / ⊙)
+        (▹ [sort expr] xs ... / (list
+                                 ; DON'T REMOVE BELOW HOLE WILLY-NILLY
+                                 ; A BUG (drop-right) in draw-fruct
+                                 ; appears when the length-conditional-cutoff
+                                 ; drops below a certain value
+                                 ([sort expr] [variadic #true] / ⊙)
+                                 ([sort expr] [variadic #true] / ⊙+)))])
+    '([⋱
+        (xs ... / (list as ... (▹ bs ... / ⊙+) ))
+        (xs ... / (list as ... (▹ [sort expr] [variadic #true] / ⊙)(bs ... / ⊙+)))])
+
     '([⋱
         (▹ [sort expr] xs ... / ⊙)
         (▹ [sort expr] xs ... / (cond
@@ -223,6 +237,9 @@
         (▹ xs ... / ⊙)]
       [⋱
         (▹ xs ... / (begin a ...))
+        (▹ xs ... / ⊙)]
+      [⋱
+        (▹ xs ... / (list a ...))
         (▹ xs ... / ⊙)]
       [⋱
         (▹ xs ... / (cond a ...))
@@ -351,12 +368,12 @@
                                  ([sort CP] / (cp ([sort else] / else) c))
                                  ([sort CP] / ⊙+)))
        (▹ [sort expr] xs ... / (if a b c))])
-   '([⋱
-       (▹ [sort expr] xs ... / (if a b c))
-       (▹ [sort expr] xs ... / (cond
-                                 ([sort CP] [variadic #true] / (cp a b))
-                                 ([sort CP] [variadic #true] / (cp ([sort else] / else) c))
-                                 ([sort CP] [variadic #true] / ⊙+)))])))
+   #;'([⋱
+         (▹ [sort expr] xs ... / (if a b c))
+         (▹ [sort expr] xs ... / (cond
+                                   ([sort CP] [variadic #true] / (cp a b))
+                                   ([sort CP] [variadic #true] / (cp ([sort else] / else) c))
+                                   ([sort CP] [variadic #true] / ⊙+)))])))
 
 ; BASE TRANSFORMATION MARSHALLING
 (define base-transforms
