@@ -15,7 +15,7 @@
                'hole-as-sort? (list 'boolean)
                'implicit-forms (list 'enum '((ref num app cp lp lps mp mapp)
                                              (ref num cp lp lps mp mapp)))
-               'length-conditional-cutoff (list 'numeric * div 1.5 3 100)
+               'length-conditional-cutoff (list 'numeric * div 1.5 6 100) ; CAPPED AT 6 TO AVOID TRIGGERING LIST RENDERING CRASH
                #;#;'line-spacing (list 'numeric + - 1 -1 30) ; a bit broken, redundantish to char-pad-v
                #;#;'menu-outline-width (list 'numeric + - 1 -1 10)
                'outline-block-width (list 'numeric + - 1 -1 10)

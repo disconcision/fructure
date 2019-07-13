@@ -74,7 +74,7 @@
 
   ; FRUCTS
   ; i layout
-  'length-conditional-cutoff 21
+  'length-conditional-cutoff 14 #;21
   'force-horizontal-layout? #f ; uninvade the second dimension 
   'length-conditional-layout? #t ; unless our children weigh more than
   ; ii atoms
@@ -86,9 +86,9 @@
   'alternate-bkg-horizontal? #t
   'bkg-color (color 0 47 54) ; primary block color, equal to top-background-color
   'outline-block-width 1 ; primary block outline width
-  'background-block-color (color 0 52 59) ; secondary block color
+  'background-block-color (color 0 58 66)#;(color 0 52 59) ; secondary block color
   'background-block-width 2 ; BUSTED; todo: implement proper outlines for secondaries
-  'outline-block-color (color 0 70 79)#;(color 0 61 65) ; primary outline color
+  'outline-block-color (color 0 90 101)#;(color 0 70 79)#;(color 0 61 65) ; primary outline color
   ; iv patterns
   'pattern-identifier-color (color 230 230 230) ; identifier glyph color in patterns
   'pattern-shade-one (color 11 38 53) #;(color 84 84 84) ; pattern background
