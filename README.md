@@ -8,9 +8,11 @@ Fructure: A structured interaction engine in Racket
 
 *Updated July 2019 : Installation instructions & mini-guide below*
 
-RacketCon slides: [Real version (start here)](screenshots/REAL-RacketCon-Fructure-Talk.pdf). [Extended unedited version](screenshots/FAKE-extended-unedited-racketcon-fructure-talk.pdf). These are probably less useful if you haven't seen the demo.
+[Fructure at RacketCon 2019](https://con.racket-lang.org/#speakers): [Demo video](https://www.youtube.com/watch?v=xSjk2PdQm5k&feature=youtu.be&t=25639). Slides: [Real version](screenshots/REAL-RacketCon-Fructure-Talk.pdf). [Extended unedited version](screenshots/FAKE-extended-unedited-racketcon-fructure-talk.pdf).
 
-Fructure is a prototype structure editor, which can currently be used to write & edit small programs in a small subset of scheme/racket. This is a personal project where I'm playing with ideas in editing, programming languages, and interaction design. I'll be speaking about [Fructure at RacketCon 2019](https://con.racket-lang.org/#speakers)! Please enjoy these new scrots:
+Fructure is a prototype structure editor, which can currently be used to write & edit small programs in a small subset of scheme/racket. This is a personal project where I'm playing with ideas in editing, programming languages, and interaction design.
+
+Note: now that this is getting some traffic I wanted to put up a disclaimer that some of the code is currently in a bit of a state: I've commented out some things and hacked up some others to smoothen the demo. My immediate plans are - after taking a post-racketcon break and aside from general cleanup - to unhackify the way transforms currently work, properly re-instate variadic parameters for binding forms, and do some profiling and address the current sluggishness.
 
 - **fig 1**: walking the grammar
   ![Screenshot](screenshots/walk-1.png)
@@ -140,10 +142,6 @@ EXPERIMENTAL & FICTIONAL keybindings: lies at best, trouble at worst
 ### Structured insertion via walking the grammar:
 
 ![Screenshot](screenshots/tumblr_pme22tqxTr1y69izqo1_1280.png)
-
-**Click here** to watch a short movie about fructure:
-
-Haha. I wish! Here's a gif though:
 
 ![Screenshot](screenshots/fructure-rounded-modified.gif)
 
