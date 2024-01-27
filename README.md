@@ -36,8 +36,8 @@ I wrote a bit about my then-current direction in September 2018, just before beg
 Basically, you need to install racket, a couple libraries, and a font if you don't want thing to look screwy.
 
 **MacOS**:
-1. brew cask install racket
-2. brew tap caskroom/fonts && brew cask install font-iosevka
+1. brew install racket --cask
+2. brew tap homebrew/cask-fonts && brew install font-iosevka --cask
 3. raco pkg install memoize
 3. raco pkg install rackjure
 4. git clone https://github.com/disconcision/fructure.git
